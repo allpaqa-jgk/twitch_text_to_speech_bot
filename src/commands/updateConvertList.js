@@ -1,4 +1,5 @@
 const list = require('../list.js')
+const config = require('config')
 
 function remember(msg, target, client) {
   try {
@@ -8,7 +9,7 @@ function remember(msg, target, client) {
     console.debug('attr')
     console.debug(attr)
     if (!attr) {
-      client.say(target, "something wrong! `!remember <keyword> <converted string>`")
+      client.say(target, `something wrong! "!${config.COMMENT_REMEMVER_COMMAND} <keyword>=<converted string>"`)
       return
     }
 
@@ -60,7 +61,7 @@ function forget(msg, target, client) {
     // console.log('attr')
     // console.log(attr)
     if (!attr) {
-      client.say(target, "something wrong! `!keyword <keyword>`")
+      client.say(target, `something wrong! "!${config.COMMENT_FORGET_COMMAND} <keyword>"`)
       return
     }
 
@@ -88,7 +89,8 @@ function forget(msg, target, client) {
 module.exports.forget = forget
 
 function getConfigKey(msg) {
-  if (msg.match(/^!(rememberU|forgetU)/)) {
+  const regexp = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U|${config.COMMENT_FORGET_COMMAND}U)`)
+  if (msg.match(regexp)) {
     return 'usernameConvertList'
   } else {
     return 'messageConvertList'
@@ -96,12 +98,14 @@ function getConfigKey(msg) {
 }
 
 function getConvertAttributes(msg) {
-  return msg.match(/^!(remember) (.+)=(.+)$/) || msg.match(/^!(forget) (.+)$/)
+  const regexpRemember = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U?) (.+)=(.+)$`)
+  const regexpForget = new RegExp(`^!(${config.COMMENT_FORGET_COMMAND}U?) (.+)$`)
+  return msg.match(regexpRemember) || msg.match(regexpForget)
 }
 
 function infalidConvertCommand(target, client) {
-  client.say(target, `Invalid. commands are "!remember <keyword>=<how_to_read>" to add/update
+  client.say(target, `Invalid. commands are "!${config.COMMENT_REMEMVER_COMMAND} <keyword>=<how_to_read>" to add/update
   and "!forget <keyword>" to remove.
-  e.g. "!remember hoge=fuga", "!rememberU hoge"
-  for "username", add "U" to command, e.g. "!rememberU hoge=fuga"`)
+  e.g. "!${config.COMMENT_REMEMVER_COMMAND} hoge=fuga", "!${config.COMMENT_REMEMVER_COMMAND}U hoge"
+  for "username", add "U" to command, e.g. "!${config.COMMENT_REMEMVER_COMMAND}U hoge=fuga"`)
 }

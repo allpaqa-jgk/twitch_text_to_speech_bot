@@ -64,12 +64,17 @@ function onMessageHandler (target, context, msg, self) {
     const message = dice.rollDice(comment)
     client.say(target, message)
   } else if (config.COMMENT_REMEMVER_AVAILABLE) {
-    if (comment.match(/^!remember/)) {
-      console.debug('command was triggered: remember')
+    const regexpRemember = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U?)`)
+    const regexpForget = new RegExp(`^!(${config.COMMENT_FORGET_COMMAND}U?)`)
+    const regexpUser = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U|${config.COMMENT_FORGET_COMMAND}U)`)
+    const convertType = !!comment.match(regexpUser) ? 'user' : 'comment'}
+
+    if (comment.match(regexpRemember)) {
+      console.debug(`command was triggered: remember ${convertType}`)
       updateConvertList.remember(msg, target, client)
     }
-    if (comment.match(/^!forget/)) {
-      console.debug('command was triggered: forget')
+    if (comment.match(regexpForget)) {
+      console.debug(`command was triggered: forget ${convertType}`)
       updateConvertList.forget(msg, target, client)
     }
   } else if (comment.match(/^[!/]/)) {

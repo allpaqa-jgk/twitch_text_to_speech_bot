@@ -15,8 +15,13 @@ module.exports = {
   // enable comment remember function
   COMMENT_REMEMVER_AVAILABLE: true,
 
-  COMMENT_REMEMVER_REGEXP: "^!(remember)",
-  COMMENT_FORGET_REGEXP: "^!(forget)",
+  // custom command for remember and forget
+  // e.g.)
+  // COMMENT_REMEMVER_COMMAND = 'xxx'
+  // xxx is command for remember comment convert pattern
+  // and xxxU is command for remember username convert pattern
+  COMMENT_REMEMVER_COMMAND: "remember",
+  COMMENT_FORGET_COMMAND: "forget",
 
   /// //////////////////
   //       TTS       //

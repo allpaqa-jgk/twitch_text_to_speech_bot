@@ -33,7 +33,7 @@
     "lint":"eslint src"
   },
   "engines":{
-    "node":"^11.12.0",
+    "node":">= 11.12",
     "yarn":"~1.15.2"
   },
   "dependencies":{

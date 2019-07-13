@@ -9,6 +9,7 @@ const execSync = require('child_process').execSync
 
 // commands
 const dice = require('./commands/dice.js')
+const updateConvertList = require('./commands/updateConvertList.js')
 
 let client
 
@@ -65,11 +66,11 @@ function onMessageHandler (target, context, msg, self) {
   } else if (config.COMMENT_REMEMVER_AVAILABLE) {
     if (comment.match(/^!remember/)) {
       console.debug('command was triggered: remember')
-      remember(msg, target)
+      updateConvertList.remember(msg, target, client)
     }
     if (comment.match(/^!forget/)) {
       console.debug('command was triggered: forget')
-      forget(msg, target)
+      updateConvertList.forget(msg, target, client)
     }
   } else if (comment.match(/^[!/]/)) {
     console.log(`* Executed ${comment} command`)
@@ -100,106 +101,6 @@ function onMessageHandler (target, context, msg, self) {
   } else {
     // console.debug(`ignored: ${msg}`);
   }
-}
-
-function remember(msg, target) {
-  try {
-    let key = getConfigKey(msg)
-    let arr = list.readList(key)
-    let attr = getConvertAttributes(msg)
-    console.debug('attr')
-    console.debug(attr)
-    if (!attr) {
-      client.say(target, "something wrong! `!remember <keyword> <converted string>`")
-      return
-    }
-
-    let string = attr[2]
-    let read = attr[3]
-
-    let index = arr.findIndex(function(record) {
-      // console.log(record[0])
-      return record[0] === string
-    })
-
-    // console.log('index')
-    // console.log(index)
-    let oldRead = ''
-    if (index >= 0) {
-      arr[index] = [string, read]
-      oldRead = arr[index][1]
-      list.writeList(key, arr)
-
-      // // debug
-      // console.info('read === oldRead')
-      // console.info(read === oldRead)
-      // console.info(read)
-      // console.info(oldRead)
-      if (read === oldRead) {
-        client.say(target, string + " is not changed")
-      } else {
-        client.say(target, string + " is updated" + "(" + oldRead + " => " + read)
-      }
-    } else {
-      arr.push([string, read])
-      list.writeList(key, arr)
-      client.say(target, string + " is added" + "(=" + read)
-    }
-  } catch (error) {
-    console.error(error)
-    infalidConvertCommand(target)
-  }
-}
-function forget(msg, target) {
-  try {
-    let key = getConfigKey(msg)
-    let arr = list.readList(key)
-    let attr = getConvertAttributes(msg)
-
-    // // debug
-    // console.log('attr')
-    // console.log(attr)
-    if (!attr) {
-      client.say(target, "something wrong! `!keyword <keyword>`")
-      return
-    }
-
-    let string = attr[2]
-
-    let index = arr.findIndex(function(record) {
-      return record[0] === string
-    })
-
-    // console.log('index')
-    // console.log(index)
-    if (index >= 0) {
-      let oldRead = arr[index][1]
-      arr.splice(index,1)
-      list.writeList(key, arr)
-      client.say(target, string + "=" + oldRead + " is removed")
-    } else {
-      client.say(target, string + " is not found")
-    }
-  } catch (error) {
-    console.log(error)
-    infalidConvertCommand(target)
-  }
-}
-function getConfigKey(msg) {
-  if (msg.match(/^!(rememberU|forgetU)/)) {
-    return 'usernameConvertList'
-  } else {
-    return 'messageConvertList'
-  }
-}
-function getConvertAttributes(msg) {
-  return msg.match(/^!(remember) (.+)=(.+)$/) || msg.match(/^!(forget) (.+)$/)
-}
-function infalidConvertCommand(target) {
-  client.say(target, `Invalid. commands are "!remember <keyword>=<how_to_read>" to add/update
-  and "!forget <keyword>" to remove.
-  e.g. "!remember hoge=fuga", "!rememberU hoge"
-  for "username", add "U" to command, e.g. "!rememberU hoge=fuga"`)
 }
 
 function sendToDiscord(msg) {

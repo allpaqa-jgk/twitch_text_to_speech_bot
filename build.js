@@ -69,6 +69,7 @@ async function makeReleaseFiles(options) {
     const copyFiles = [
       // {name: './config/default.js', option: ''},
       {name: './config/default.js.sample', option: ''},
+      {name: './config/service_account.json.sample', option: ''},
       {name: './data/messageIgnoreList.csv', option: ''},
       // @TODO: remove this
       // I don't know why, but only google-proto-files and grpc is not available from default nexe build flow.

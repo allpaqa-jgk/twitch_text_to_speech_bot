@@ -79,10 +79,10 @@ function onMessageHandler (target, context, msg, self) {
   let discordSegment, ttsSegment
 
   if (config.READ_USERNAME === 'true') {
-    discordSegment = "`" + displayName + "`: " + msg
+    discordSegment = "`" + displayName + "`: " + escapeMassMension(msg)
     ttsSegment = displayName + ": " + segment
   } else {
-    discordSegment = msg
+    discordSegment = escapeMassMension(msg)
     ttsSegment = segment
   }
 
@@ -336,6 +336,10 @@ function modifiedUsername(username) {
   } else {
     return username
   }
+}
+
+function escapeMassMension(msg) {
+  return msg.replace('@', '`@`')
 }
 
 function modifiedMessage(msg) {

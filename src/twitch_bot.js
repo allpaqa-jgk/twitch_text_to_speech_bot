@@ -45,7 +45,7 @@ if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
 // Called every time a message comes in
 function onMessageHandler (target, context, msg, self) {
   let displayName = modifiedUsername(context.username)
-  console.log(displayName + ": " + msg)
+  console.log(`\n${displayName}: ${msg}`)
   if (self) { return } // Ignore messages from the bot
 
   // // DEBUG
@@ -62,12 +62,18 @@ function onMessageHandler (target, context, msg, self) {
   // If the command is known, let's execute it
   let isUnknownCommand = false
   if (comment.match(/^!dice/)) {
+    console.debug('command was triggered: dice')
     const message = dice.rollDice(comment)
     client.say(target, message)
-  } else if (config.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(remember|教育)/)) {
-    remember(msg, target)
-  } else if (config.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(forget|忘却)/)) {
-    forget(msg, target)
+  } else if (config.COMMENT_REMEMVER_AVAILABLE) {
+    if (comment.match(/^!remember/)) {
+      console.debug('command was triggered: remember')
+      remember(msg, target)
+    }
+    if (comment.match(/^!forget/)) {
+      console.debug('command was triggered: forget')
+      forget(msg, target)
+    }
   } else {
     isUnknownCommand = true
   }
@@ -96,7 +102,7 @@ function onMessageHandler (target, context, msg, self) {
     // TTS
     sendToTts(ttsSegment)
   } else {
-    console.info(`ignored: ${msg}`);
+    // console.debug(`ignored: ${msg}`);
   }
 }
 
@@ -105,15 +111,15 @@ function remember(msg, target) {
     let key = getConfigKey(msg)
     let arr = list.readList(key)
     let attr = getConvertAttributes(msg)
-    // console.log('attr')
-    // console.log(attr)
+    console.debug('attr')
+    console.debug(attr)
     if (!attr) {
-      client.say(target, "something wrong!")
+      client.say(target, "something wrong! `!remember <keyword> <converted string>`")
       return
     }
 
-    let string = key.includes('username') ? simpleUsername(attr[1]) : attr[1]
-    let read = attr[2]
+    let string = attr[2]
+    let read = attr[3]
 
     let index = arr.findIndex(function(record) {
       // console.log(record[0])
@@ -158,11 +164,11 @@ function forget(msg, target) {
     // console.log('attr')
     // console.log(attr)
     if (!attr) {
-      client.say(target, "something wrong!")
+      client.say(target, "something wrong! `!keyword <keyword>`")
       return
     }
 
-    let string = key.includes('username') ? simpleUsername(attr[1]) : attr[1]
+    let string = attr[2]
 
     let index = arr.findIndex(function(record) {
       return record[0] === string
@@ -184,28 +190,20 @@ function forget(msg, target) {
   }
 }
 function getConfigKey(msg) {
-  if (msg.match(/^!(rememberU|教育U|forgetU|忘却U)/)) {
+  if (msg.match(/^!(rememberU|forgetU)/)) {
     return 'usernameConvertList'
   } else {
     return 'messageConvertList'
   }
 }
 function getConvertAttributes(msg) {
-  const message = msg.trim()
-  let res = message.split(' ')
-  if (
-    (res.length >= 3 && message.match(/^!(remember|教育)/)) ||
-    (res.length >= 2 && message.match(/^!(forget|忘却)/))
-  ) {
-    return res
-  }
-  return null
+  return msg.match(/^!(remember) (.+)=(.+)$/) || msg.match(/^!(forget) (.+)$/)
 }
 function infalidConvertCommand(target) {
-  client.say(target, `Invalid. commands are "!remember/教育 <keyword> <how_to_read>" to add/update
-  and "!forget/忘却 <keyword>" to remove.
-  e.g. "!remember hoge fuga", "!rememberU hoge"
-  for "username", add "U" to command, e.g. "!rememberU hoge fuga"`)
+  client.say(target, `Invalid. commands are "!remember <keyword>=<how_to_read>" to add/update
+  and "!forget <keyword>" to remove.
+  e.g. "!remember hoge=fuga", "!rememberU hoge"
+  for "username", add "U" to command, e.g. "!rememberU hoge=fuga"`)
 }
 
 function sendToDiscord(msg) {

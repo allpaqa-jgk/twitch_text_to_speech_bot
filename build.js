@@ -6,19 +6,19 @@ const execSync = require('child_process').execSync
 async function runBuild() {
   let options
   options = {
-    targetNode: 'process',
-    targetDir: 'mac',
-    name: 'twitch_tts_bot-mac',
+    targetNode: 'mac-x64-12.6.0',
+    targetDir: 'twitch_tts_bot_for_mac',
+    name: 'twitch_tts_bot',
   }
 
   await makeReleaseFiles(options)
 
-  // options = {
-  //   targetNode: 'windows-x64-12.6.0',
-  //   targetDir: 'win',
-  //   name: 'twitch_tts_bot-win',
-  // }
-  // await makeReleaseFiles(options)
+  options = {
+    targetNode: 'windows-x64-12.6.0',
+    targetDir: 'twitch_tts_bot_for_win',
+    name: 'twitch_tts_bot',
+  }
+  await makeReleaseFiles(options)
 
 }
 

@@ -60,7 +60,6 @@ function onMessageHandler (target, context, msg, self) {
   const comment = msg.trim()
 
   // If the command is known, let's execute it
-  let isUnknownCommand = false
   if (comment.match(/^!dice/)) {
     console.debug('command was triggered: dice')
     const message = dice.rollDice(comment)
@@ -74,10 +73,7 @@ function onMessageHandler (target, context, msg, self) {
       console.debug('command was triggered: forget')
       forget(msg, target)
     }
-  } else {
-    isUnknownCommand = true
-  }
-  if (!isUnknownCommand) {
+  } else if (comment.match(/^[!/]/)) {
     console.log(`* Executed ${comment} command`)
   }
 

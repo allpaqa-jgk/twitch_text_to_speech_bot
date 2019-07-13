@@ -78,10 +78,10 @@ function onMessageHandler (target, context, msg, self) {
   let discordSegment, ttsSegment
 
   if (process.env.READ_USERNAME === 'true') {
-    discordSegment = "`" + displayName + "`: " + segment
+    discordSegment = "`" + displayName + "`: " + msg
     ttsSegment = displayName + ": " + segment
   } else {
-    discordSegment = segment
+    discordSegment = msg
     ttsSegment = segment
   }
 

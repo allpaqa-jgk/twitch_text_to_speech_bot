@@ -64,10 +64,9 @@ function onMessageHandler (target, context, msg, self) {
     const options = commandName.split(' ').slice(1)
     const num = rollDice(options)
     client.say(target, `You rolled a ${num}`)
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(new RegExp(process.env.COMMENT_REMEMVER_REGEXP) || /^!(remember|教育)/)) {
+  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(/^!(remember|教育)/)) {
     remember(msg, target)
-
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(new RegExp(process.env.COMMENT_FORGET_REGEXP) || /^!(forget|忘却)/)) {
+  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(/^!(forget|忘却)/)) {
     forget(msg, target)
   } else {
     isUnknownCommand = true
@@ -195,9 +194,8 @@ function getConvertAttributes(msg) {
   const message = msg.trim()
   let res = message.split(' ')
   if (
-    (res.length >= 3 && message.match(new RegExp(process.env.COMMENT_REMEMVER_REGEXP) || /^!(remember|教育)/)) ||
-    (res.length >= 2 && message.match(new RegExp(process.env.COMMENT_FORGET_REGEXP) || /^!(forget|忘却)/))
-
+    (res.length >= 3 && message.match(/^!(remember|教育)/)) ||
+    (res.length >= 2 && message.match(/^!(forget|忘却)/))
   ) {
     return res
   }

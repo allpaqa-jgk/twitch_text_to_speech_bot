@@ -1,8 +1,16 @@
 const list = require('./src/list.js')
 const forever = require('forever-monitor')
-
 const path = require('path')
+const fs = require('fs')
+
+// init process.env
+if (fs.existsSync(path.join(__dirname, './config/service_account.json'))) {
+  console.info('overwrite GOOGLE_APPLICATION_CREDENTIALS!')
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = path.join(__dirname, './config/service_account.json')
+}
 process.env.NODE_CONFIG_DIR = path.join(__dirname, './config')
+
+// load config
 const config = require('config')
 console.info(config)
 

@@ -38,7 +38,18 @@ TTS for twitch without Limechat
 ### optional / 省略可能
 
 1. for text to speech / 読み上げに必要なもの
-    - install voice data via config / 音声データのインストール
+    - mac
+        1. install voice data via config / 音声データのインストール
+    - cloudTTS ( 1~4 of [GCP TTS document](https://cloud.google.com/text-to-speech/docs/quickstart-client-libraries))
+        1. create or login to GCP / 既存のGCPプロジェクトへログインor作成
+        1. make new service accout for cloudTTS / cloudTTS 用のサービスアカウント作成・DL
+        1. setup `service account.json` file to use　(there is 2 method) / `service account.json` ファイルを使えるようにセットアップ（2つの中から好きな方法で)
+            - place file in `config` dir / `config` フォルダへファイルを設置
+                1. save to `config` dir as `service_account.json` / `config` フォルダの中に `service_account.json` という名前で保存
+                1. ( OR
+                    - remove `.sample` from filename of `config/service_account.json.sample` / `config/service_account.json.sample` のファイル名から `.sample` を削除
+                    - paste contents of downloaded service account file / DLしたファイルの中身をリネームしたファイルにペースとして保存
+            - add `GOOGLE_APPLICATION_CREDENTIALS` of `Environment variable` / 環境変数 `GOOGLE_APPLICATION_CREDENTIALS` へpathを追加
 1. for transfer to discord / discordへの転送に必要なもの
     - create bot
     - token

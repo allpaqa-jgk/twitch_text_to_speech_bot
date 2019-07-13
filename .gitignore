@@ -68,3 +68,5 @@ default.js
 !.keep
 
 dist
+
+config/service_account.json

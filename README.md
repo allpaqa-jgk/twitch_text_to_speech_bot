@@ -10,29 +10,30 @@ TTS for twitch without Limechat
 1. speak comment(this is main function. but optional) / コメントの読み上げ
     - comment will be converted to voice data via `say` command. / Macの`say`コマンドを使ってtwitchのコメントを読み上げます  
     ( Google TTS version is now developing. / Googleのテキスト読み上げサービスを利用したバージョンも開発中 )
-    - add `!remember {keyword} {how_to_read}` and `!forget {keyword}` command for text to speech /  
-    読み方の教育機能つけました。`!remember {keyword} {how_to_read}` で教育、`!forget {keyword}`で忘却
+    - add `!remember {keyword}={how_to_read}` and `!forget {keyword}` command for text to speech /  
+    読み方の教育機能つけました。`!remember {keyword}={how_to_read}` で教育、`!forget {keyword}`で忘却
     - add `!dice {options}` command. / `!dice` コマンド  
     e.g.  
     `!dice 1d6 3d4` => throw one normal die, and three 4-sided dice /  
-    `!dice 1d6 3d4` => 普通のサイコロを１個、４面サイコロを３個振る
+    `!dice 1d6 3d4` => 普通のサイコロを1個、4面サイコロを3個振る
 1. transfer comments to discord(optional)
     - if notification setting of discord was ON, you can receive comment as notification on mobile devise during streaming iOS games or something /  
     discordの通知をONにしておけば、スマホ・タブレットなどでコメントを通知として表示できます。音ゲーなんかで目を離せない場合に便利
 
 ## requirement / 必要なもの
+- 優しい心（必須
+- 何かあったときに僕に話しかける勇気（任意
 
 ### mandatory / 必須
 
-1. node(^11.12.0)
+1. node(>= 11.12)
 1. yarn(~1.15.2)
 
 ### optional / 省略可能
 
 1. for text to speech / 読み上げに必要なもの
     - install voice data via config / 音声データのインストール
-    - twitch IRC token  
-    ( see <https://twitchapps.com/tmi/>
+    - twitch IRC token( see <https://twitchapps.com/tmi/>
 1. for transfer to discord / discordへの転送に必要なもの
     - create bot
     - token
@@ -43,17 +44,23 @@ TTS for twitch without Limechat
 ## how to use / 使い方
 
 ### install / インストール
-
+#### Using binary / こちらでビルドした実行ファイルを使う
+1. move to latest release / latest releaseに移動: https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
+    - download as zip & unzip / zipで落として解凍
+    - download binary and place to same folder / 実行ファイルをDLして同じフォルダへ配置
+        - mac: twitch_text_to_speech_bot
+        - windows: twitch_text_to_speech_bot.exe
+    - edit config/default.js / コンフィグファイルセットアップ
+#### Using source / ソースコードからyarn, nodeで使う
 1. download this repo / 下記の中から好きな方法でリポジトリをダウンロード
     1. clone / クローン
         - use HTTPS
             - `git clone https://github.com/allpaqa-jgk/twitch_text_to_speech_bot.git`
         - use SSH
             - `git clone git@github.com:allpaqa-jgk/twitch_text_to_speech_bot.git`
-    1. download as zip & unzip / zipで落として解答
 1. install node / nodeのインストール
     1. install using（homebrewを利用する場合
-        - run `brew install node`
+        - mac: run `brew install node`
     1. use `n` or `nodenv` / （`n`や`nodenv`を使いたい人はご自由にどうぞ
         - see <https://github.com/tj/n>
         - see <https://github.com/nodenv/nodenv>
@@ -76,7 +83,7 @@ TTS for twitch without Limechat
     'Mac'のみ利用可能。Google Cloud TTS版開発中、Windowsはサポート外
     - READ_USERNAME: speak username who commented or not / コメントしたユーザー名も読み上げるかどうか
     - SPEAKER_ENGLISH: "Susan" / 英語時の読み上げ音声の名前
-    - SPEAKER_JAPANESE: "Kyoko" / 日本語のような２倍と文字の読み上げ音声の名前
+    - SPEAKER_JAPANESE: "Kyoko" / 日本語のような2バイト文字の読み上げ音声の名前
     - RATE_ENGLISH: 150 / 英語の読み上げスピード
     - RATE_JAPANESE: 200 / 日本語の読み上げスピード
     - BILINGAL_MODE: true / 英語日本語で読み分けるかどうか
@@ -88,7 +95,9 @@ TTS for twitch without Limechat
     - BOT_USERNAME: '' / botの名前を変えたいときに使う（微妙
 
 ### exec / 起動
-
+#### binary
+1. exec binary file ( downloaded from https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
+#### source
 1. start / スタート
     - move to repository dir / このリポジトリのディレクトリに移動
     - run `yarn start`

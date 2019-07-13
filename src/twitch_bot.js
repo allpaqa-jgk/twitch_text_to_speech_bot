@@ -44,8 +44,6 @@ if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
 
 // Called every time a message comes in
 function onMessageHandler (target, context, msg, self) {
-  let displayName = modifiedUsername(context.username)
-  console.log(`\n${displayName}: ${msg}`)
   if (self) { return } // Ignore messages from the bot
 
   // // DEBUG
@@ -77,6 +75,8 @@ function onMessageHandler (target, context, msg, self) {
     console.log(`* Executed ${comment} command`)
   }
 
+  let displayName = modifiedUsername(context.username)
+  console.log(`\n${displayName}: ${msg}`)
   let segment = modifiedMessage(msg)
   let discordSegment, ttsSegment
 

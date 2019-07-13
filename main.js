@@ -1,7 +1,8 @@
 const list = require('./src/list.js')
 const forever = require('forever-monitor')
-const path = require('path')
 
+const path = require('path')
+process.env.NODE_CONFIG_DIR = path.join(__dirname, './config')
 const config = require('config')
 console.info(config)
 

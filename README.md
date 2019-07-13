@@ -50,6 +50,9 @@ TTS for twitch without Limechat
 
 ### install / インストール
 #### Using binary / こちらでビルドした実行ファイルを使う
+
+this is RC! / 現在準備中
+
 1. move to latest release / latest releaseに移動: https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
     - download as zip & unzip / zipで落として解凍
     - download binary and place to same folder / 実行ファイルをDLして同じフォルダへ配置

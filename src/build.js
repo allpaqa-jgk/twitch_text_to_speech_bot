@@ -7,7 +7,7 @@ async function runBuild() {
     input: path.join(__dirname, './main.js'),
     // build: true, // required to use patches
     // targets: 'mac-x64-12.6.0',
-    name: 'twitch_text_to_speech_bot',
+    name: 'twitch_tts_bot-mac',
     loglevel: 'info',
   }).then(() => {
     console.log('success mac')
@@ -17,7 +17,7 @@ async function runBuild() {
     input: path.join(__dirname, './main.js'),
     // build: true, // required to use patches
     target: 'windows-x64-12.6.0',
-    name: 'twitch_text_to_speech_bot',
+    name: 'twitch_tts_bot-windows',
     // loglevel: 'info',
   }).then(() => {
     console.log('success win')

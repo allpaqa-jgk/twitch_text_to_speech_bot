@@ -262,13 +262,15 @@ async function sendToTts(segment) {
     textList.forEach(function(v) {
       // console.log(isEnglishString(v))
       if (isEnglishString(v)) {
-        let option = "[[RATE " + RATE_ENGLISH + "]]"
+        const option = "[[RATE " + RATE_ENGLISH + "]]"
         segment = v.replace("'", "'\\''")
         execSync("echo '" + option + " " + segment + "' | say -v '" + SPEAKER_ENGLISH + "'")
       } else {
-        let option = "[[RATE " + RATE_JAPANESE + "]]"
+        const option = "[[RATE " + RATE_JAPANESE + "]]"
         segment = v.replace("'", "'\\''")
-        execSync("echo '" + option + " " + segment + "' | say -v '" + SPEAKER_JAPANESE + "'")
+        const command = "echo '" + option + " " + segment + "' | say -v '" + SPEAKER_JAPANESE + "'"
+        // console.log(command)
+        execSync(command)
       }
     })
     // console.log('end')

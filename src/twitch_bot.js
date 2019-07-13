@@ -217,7 +217,7 @@ function sendToDiscord(msg) {
 }
 
 function isEnglishString(string) {
-  console.log(`isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!?]+$/)}`)
+  // console.log(`isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!?]+$/)}`)
   return !!string.match(/^[A-Za-z,.!?]+$/)
 }
 

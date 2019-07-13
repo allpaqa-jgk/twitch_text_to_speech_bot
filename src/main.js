@@ -11,7 +11,8 @@ console.log('//////////////////////')
 console.log('//  Ctrl-C to exit  //')
 console.log('//////////////////////')
 
-if (config === 'development') {
+if (config.ENV === 'development') {
+  console.log('dev mode!')
   // something.js の子プロセスの初期化
   var child = new (forever.Monitor)(path.join(__dirname, './twitch_bot.js'), {
   //

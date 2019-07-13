@@ -49,6 +49,7 @@ TTS for twitch without Limechat
 ## how to use / 使い方
 
 ### install / インストール
+
 #### Using binary / こちらでビルドした実行ファイルを使う
 
 this is RC! / 現在準備中
@@ -59,7 +60,9 @@ this is RC! / 現在準備中
         - mac: twitch_text_to_speech_bot
         - windows: twitch_text_to_speech_bot.exe
     - edit config/default.js / コンフィグファイルセットアップ
+
 #### Using source / ソースコードからyarn, nodeで使う
+
 1. download this repo / 下記の中から好きな方法でリポジトリをダウンロード
     1. clone / クローン
         - use HTTPS
@@ -103,9 +106,13 @@ this is RC! / 現在準備中
     - BOT_USERNAME: '' / botの名前を変えたいときに使う（微妙
 
 ### exec / 起動
+
 #### binary
+
 1. exec binary file ( downloaded from https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
+
 #### source
+
 1. start / スタート
     - move to repository dir / このリポジトリのディレクトリに移動
     - run `yarn start`

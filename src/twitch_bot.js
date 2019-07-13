@@ -86,7 +86,7 @@ function onMessageHandler (target, context, msg, self) {
   let segment = modifiedMessage(msg)
   let discordSegment, ttsSegment
 
-  if (config.READ_USERNAME === 'true') {
+  if (config.READ_USERNAME) {
     discordSegment = "`" + displayName + "`: " + escapeMassMension(msg)
     ttsSegment = displayName + ": " + escapeTtsErrorString(segment)
   } else {

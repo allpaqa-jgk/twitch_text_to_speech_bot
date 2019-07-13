@@ -220,11 +220,15 @@ function sendToDiscord(msg) {
   }
 }
 
+function isEnglishString(string) {
+  return !!string.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[\]<>{}!?]+$/)
+}
+
 function splitMessageByWordType(string) {
   let textList = []
   let isEnglish = false
   string.split(' ').filter(v => v).forEach(function(v) {
-    let tmpIsEnglish = !!v.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[\]<>{}!?]+$/)
+    let tmpIsEnglish = isEnglishString(v)
     // console.log(tmpIsEnglish)
     if (isEnglish === tmpIsEnglish && textList.length > 0) {
       textList[textList.length-1] += ' ' + v
@@ -258,8 +262,8 @@ async function sendToTts(segment) {
   case 'Mac':
     // console.log('start')
     textList.forEach(function(v) {
-      // console.log(!!v.match(/^[A-Za-z:'"` ]+$/))
-      if (v.match(/^[A-Za-z:'"` ]+$/)) {
+      // console.log(isEnglishString(v))
+      if (isEnglishString(v)) {
         let option = "[[RATE " + RATE_ENGLISH + "]]"
         segment = v.replace("'", "'\\''")
         execSync("echo '" + option + " " + segment + "' | say -v '" + SPEAKER_ENGLISH + "'")

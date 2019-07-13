@@ -21,11 +21,11 @@ function rollDice (comment) {
       tmpResult.push(Math.floor(Math.random() * sides) + 1)
       // console.log(tmpResult);
     }
-    return result.push(option + '=>' + tmpResult.join(' '));
+    return result.push(option + ' => ' + tmpResult.join(' '));
   })
   // console.log(result);
 
-  const message = `You rolled a ${result.join(', ')}`
+  const message = `DiceRoll: ${result.join(', ')}`
   return message
 
 }

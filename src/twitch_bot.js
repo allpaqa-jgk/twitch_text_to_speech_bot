@@ -60,8 +60,9 @@ function onMessageHandler (target, context, msg, self) {
 
   // If the command is known, let's execute it
   let isUnknownCommand = false
-  if (commandName === '!dice') {
-    const num = rollDice()
+  if (commandName.match(/^!dice/)) {
+    const options = commandName.split(' ').slice(1)
+    const num = rollDice(options)
     client.say(target, `You rolled a ${num}`)
   } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(/^!(remember|教育)/)) {
     remember(msg, target)
@@ -350,9 +351,30 @@ function isIgnoredMessage(msg) {
 }
 
 // Function called when the "dice" command is issued
-function rollDice () {
-  const sides = 6
-  return Math.floor(Math.random() * sides) + 1
+function rollDice (options) {
+  // console.log('options');
+  // console.log(options);
+  let result = []
+  if (options.length === 0) {
+    options.push('1d6')
+  }
+  options.forEach(function(option) {
+    let sides = option.match(/\d+d(\d+)/) ? option.match(/\d+d(\d+)/)[1] : 6
+    let count = option.match(/(\d+)d\d+/) ? option.match(/(\d+)d\d+/)[1] : 1
+    // console.log('option');
+    // console.log(option);
+    // console.log(sides);
+    // console.log(count);
+
+    let tmpResult = []
+    for (let index = 0; index < count; index++) {
+      tmpResult.push(Math.floor(Math.random() * sides) + 1)
+      // console.log(tmpResult);
+    }
+    return result.push(option + '=>' + tmpResult.join(' '));
+  })
+  // console.log(result);
+  return result.join(', ');
 }
 
 // Called every time the bot connects to Twitch chat

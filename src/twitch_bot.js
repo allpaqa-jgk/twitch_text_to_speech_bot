@@ -306,7 +306,7 @@ async function sendToTts(segment) {
       // console.log('segment: ' + segment)
       let voideOptions = {
         languageCode: 'ja-JP',
-        name: 'ja-JP-Wavenet-A',
+        name: 'ja-JP-Wavenet-B',
         ssmlGender: 'FEMALE'
       }
       let playOptions = {}

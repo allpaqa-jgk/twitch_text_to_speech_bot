@@ -1,0 +1,1 @@
+# twitch node read up bot for MacOS

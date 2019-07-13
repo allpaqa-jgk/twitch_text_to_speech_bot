@@ -1,0 +1,11 @@
+{
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "eslint.packageManager": "yarn",
+  "eslint.autoFixOnSave": true,
+  "javascript.suggestionActions.enabled": false,
+  "files.exclude": {
+    ".env": false,
+    "node_modules": true,
+  }
+}

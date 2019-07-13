@@ -9,6 +9,7 @@ const execSync = require('child_process').execSync
 
 // commands
 const dice = require('./commands/dice.js')
+
 let client
 
 function botUsername() {
@@ -56,22 +57,22 @@ function onMessageHandler (target, context, msg, self) {
   // console.log(msg)
 
   // Remove whitespace from chat message
-  const commandName = msg.trim()
+  const comment = msg.trim()
 
   // If the command is known, let's execute it
   let isUnknownCommand = false
-  if (commandName.match(/^!dice/)) {
-    const message = dice.rollDice(commandName)
+  if (comment.match(/^!dice/)) {
+    const message = dice.rollDice(comment)
     client.say(target, message)
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(/^!(remember|教育)/)) {
+  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(remember|教育)/)) {
     remember(msg, target)
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && commandName.match(/^!(forget|忘却)/)) {
+  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(forget|忘却)/)) {
     forget(msg, target)
   } else {
     isUnknownCommand = true
   }
   if (!isUnknownCommand) {
-    console.log(`* Executed ${commandName} command`)
+    console.log(`* Executed ${comment} command`)
   }
 
   let segment = modifiedMessage(msg)

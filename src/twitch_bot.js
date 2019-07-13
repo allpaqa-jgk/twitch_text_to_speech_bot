@@ -67,7 +67,7 @@ function onMessageHandler (target, context, msg, self) {
     const regexpRemember = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U?)`)
     const regexpForget = new RegExp(`^!(${config.COMMENT_FORGET_COMMAND}U?)`)
     const regexpUser = new RegExp(`^!(${config.COMMENT_REMEMVER_COMMAND}U|${config.COMMENT_FORGET_COMMAND}U)`)
-    const convertType = !!comment.match(regexpUser) ? 'user' : 'comment'}
+    const convertType = comment.match(regexpUser) ? 'user' : 'comment'
 
     if (comment.match(regexpRemember)) {
       console.debug(`command was triggered: remember ${convertType}`)

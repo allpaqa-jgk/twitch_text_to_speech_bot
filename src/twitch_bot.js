@@ -283,7 +283,7 @@ async function sendToTts(segment) {
     // console.log('end')
     break
   case 'CloudTTS':
-    console.log('bilingal: ' + config.BILINGAL_MODE)
+    // console.log('bilingal: ' + config.BILINGAL_MODE)
     if ( config.BILINGAL_MODE ) {
       console.log(textList)
       // for (let index in textList) {

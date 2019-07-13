@@ -21,19 +21,24 @@ TTS for twitch without Limechat
     discordの通知をONにしておけば、スマホ・タブレットなどでコメントを通知として表示できます。音ゲーなんかで目を離せない場合に便利
 
 ## requirement / 必要なもの
+
 - 優しい心（必須
 - 何かあったときに僕に話しかける勇気（任意
 
-### mandatory / 必須
+### mandatory for source use / sourceから使う場合に必須
 
 1. node(>= 11.12)
 1. yarn(~1.15.2)
+
+### mandatory / 必須
+
+1. for text to speech / 読み上げに必要なもの
+    - twitch IRC token( see <https://twitchapps.com/tmi/>
 
 ### optional / 省略可能
 
 1. for text to speech / 読み上げに必要なもの
     - install voice data via config / 音声データのインストール
-    - twitch IRC token( see <https://twitchapps.com/tmi/>
 1. for transfer to discord / discordへの転送に必要なもの
     - create bot
     - token

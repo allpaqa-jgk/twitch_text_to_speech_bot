@@ -1,6 +1,6 @@
 const tmi = require('tmi.js')
-const config = require('./config.js')
 require('dotenv').config()
+const list = require('./list.js')
 
 const cloudTTS = require('./cloudTTS')
 
@@ -39,7 +39,7 @@ if (process.env.TW_OAUTH_TOKEN && process.env.TW_CHANNEL_NAME) {
   // Connect to Twitch:
   client.connect()
 } else {
-  console.info('TW_OAUTH_TOKEN or TW_CHANNEL_NAME are not found. please set it at ".env" file')
+  console.info('TW_OAUTH_TOKEN or TW_CHANNEL_NAME are not found. please set it at config file')
 }
 
 // Called every time a message comes in
@@ -103,7 +103,7 @@ function onMessageHandler (target, context, msg, self) {
 function remember(msg, target) {
   try {
     let key = getConfigKey(msg)
-    let arr = config.readList(key)
+    let arr = list.readList(key)
     let attr = getConvertAttributes(msg)
     // console.log('attr')
     // console.log(attr)
@@ -126,7 +126,7 @@ function remember(msg, target) {
     if (index >= 0) {
       arr[index] = [string, read]
       oldRead = arr[index][1]
-      config.writeList(key, arr)
+      list.writeList(key, arr)
 
       // // debug
       // console.info('read === oldRead')
@@ -140,7 +140,7 @@ function remember(msg, target) {
       }
     } else {
       arr.push([string, read])
-      config.writeList(key, arr)
+      list.writeList(key, arr)
       client.say(target, string + " is added" + "(=" + read)
     }
   } catch (error) {
@@ -151,7 +151,7 @@ function remember(msg, target) {
 function forget(msg, target) {
   try {
     let key = getConfigKey(msg)
-    let arr = config.readList(key)
+    let arr = list.readList(key)
     let attr = getConvertAttributes(msg)
 
     // // debug
@@ -173,7 +173,7 @@ function forget(msg, target) {
     if (index >= 0) {
       let oldRead = arr[index][1]
       arr.splice(index,1)
-      config.writeList(key, arr)
+      list.writeList(key, arr)
       client.say(target, string + "=" + oldRead + " is removed")
     } else {
       client.say(target, string + " is not found")
@@ -328,7 +328,7 @@ function simpleUsername(username) {
 }
 function modifiedUsername(username) {
   let string = simpleUsername(username)
-  let def = config.readList('usernameConvertList').find(function(element){
+  let def = list.readList('usernameConvertList').find(function(element){
     return element[0] === string
   })
   if (def) {
@@ -340,8 +340,8 @@ function modifiedUsername(username) {
 
 function modifiedMessage(msg) {
   let message = msg
-  let list = config.readList('messageConvertList')
-  list.forEach(function(element) {
+  let messageConvertList = list.readList('messageConvertList')
+  messageConvertList.forEach(function(element) {
     let myregex = new RegExp(element[0], 'g')
     message = message.replace(myregex, element[1])
     // console.log(myregex)
@@ -350,8 +350,8 @@ function modifiedMessage(msg) {
   return message
 }
 function isIgnoredMessage(msg) {
-  let list = config.readList('messageIgnoreList')
-  let res = list.find(function(element){
+  let messageIgnoreList = list.readList('messageIgnoreList')
+  let res = messageIgnoreList.find(function(element){
     let myregex = new RegExp(element)
     return msg.match(myregex)
   })

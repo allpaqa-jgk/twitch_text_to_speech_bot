@@ -1,11 +1,12 @@
 const fs = require("fs")
 const csv = require('csv');
+const path = require('path');
 
 const csvSync = require('csv-parse/lib/sync')
-const messageConvertList = './data/messageConvertList.csv'
-const messageIgnoreList = './data/messageIgnoreList.csv'
-const usernameConvertList = './data/usernameConvertList.csv'
-const emoteList = './data/emoteList.csv'
+const messageConvertList = path.join(__dirname, "../data/messageConvertList.csv")
+const messageIgnoreList = path.join(__dirname, "../data/messageIgnoreList.csv")
+const usernameConvertList = path.join(__dirname, "../data/usernameConvertList.csv")
+const emoteList = path.join(__dirname, "../data/emoteList.csv")
 
 function emoteArray() {
   checkDataFileExists('emoteList')

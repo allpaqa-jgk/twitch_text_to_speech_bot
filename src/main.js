@@ -1,6 +1,8 @@
-const config = require("./config")
 var forever = require('forever-monitor');
 config.checkDataFiles()
+const list = require('./list.js')
+
+list.checkDataFiles()
 
 console.log('//////////////////////')
 console.log('//  Ctrl-C to exit  //')

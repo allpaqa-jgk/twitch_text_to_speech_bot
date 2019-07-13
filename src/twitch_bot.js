@@ -330,17 +330,20 @@ async function sendToTts(segment) {
 }
 
 function simpleUsername(username) {
-  return username.replace(/_?\d+$/, '')
+  if (config.USE_SIMPLE_NAME) {
+    return username.replace(/(_[\d|\w]+)|(\d+)$/, '')
+  } else {
+    return username
+  }
 }
 function modifiedUsername(username) {
-  let string = simpleUsername(username)
   let def = list.readList('usernameConvertList').find(function(element){
-    return element[0] === string
+    return element[0] === username
   })
   if (def) {
     return def[1]
   } else {
-    return username
+    return simpleUsername(username)
   }
 }
 

@@ -224,7 +224,7 @@ function splitMessageByWordType(string) {
   let textList = []
   let isEnglish = false
   string.split(' ').filter(v => v).forEach(function(v) {
-    let tmpIsEnglish = !!v.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[]<>{}!?]+$/)
+    let tmpIsEnglish = !!v.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[\]<>{}!?]+$/)
     // console.log(tmpIsEnglish)
     if (isEnglish === tmpIsEnglish && textList.length > 0) {
       textList[textList.length-1] += ' ' + v

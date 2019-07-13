@@ -2,7 +2,7 @@
 const discord = require('discord.js');
 const client = new discord.Client();
 module.exports.client = client
-const config = require('../config.js')
+const config = require('config');
 
 const token = config.DISCORD_TOKEN;
 

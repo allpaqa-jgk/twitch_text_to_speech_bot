@@ -1,6 +1,6 @@
 const tmi = require('tmi.js')
 const list = require('./list.js')
-const config = require('../config.js')
+const config = require('config')
 
 const cloudTTS = require('./cloudTTS')
 

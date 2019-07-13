@@ -2,7 +2,7 @@ const list = require('./list.js')
 const forever = require('forever-monitor')
 const path = require('path')
 
-const config = require('../config.js')
+const config = require('config')
 console.info(config)
 
 list.checkDataFiles()

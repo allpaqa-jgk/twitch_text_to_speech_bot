@@ -44,7 +44,7 @@ async function say(text, voiceOptions, playOptions, callback) {
   }
 
   // Performs the Text-to-Speech request
-  Promise.resolve(request)
+  return Promise.resolve(request)
     .then(function(request){
       return new Promise(function(resolve, reject){
         client.synthesizeSpeech(request, (err, response) => {

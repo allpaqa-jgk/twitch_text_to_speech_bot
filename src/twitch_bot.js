@@ -217,25 +217,32 @@ function sendToDiscord(msg) {
 }
 
 function isEnglishString(string) {
-  return !!string.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[\]<>{}!?]+$/)
+  console.log(`isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!?]+$/)}`)
+  return !!string.match(/^[A-Za-z,.!?]+$/)
 }
 
 function splitMessageByWordType(string) {
+  console.log('splitMessageByWordType')
   let textList = []
   let isEnglish = false
-  string.split(' ').filter(v => v).forEach(function(v) {
-    let tmpIsEnglish = isEnglishString(v)
-    // console.log(tmpIsEnglish)
-    if (textList.length === 0 || (textList.length === 1 && textList.slice(-1)[0].slice(-1) === ':')) {
-      textList.push(v)
-    } else if (isEnglish === tmpIsEnglish && textList.length > 0) {
-      textList[textList.length-1] += ' ' + v
-    } else {
-      textList.push(v)
-    }
-    isEnglish = tmpIsEnglish
-  })
-  // console.log(textList)
+  string
+    .replace(/([a-zA-Z]+)/g, '$1 ')
+    .replace(/(\s)+/g, '$1')
+    .split(' ')
+    .filter(v => v)
+    .forEach(function(v) {
+      let tmpIsEnglish = isEnglishString(v)
+      console.log(tmpIsEnglish)
+      if (textList.length === 0 || (textList.length === 1 && textList.slice(-1)[0].slice(-1) === ':')) {
+        textList.push(v)
+      } else if (isEnglish === tmpIsEnglish && textList.length > 0) {
+        textList[textList.length-1] += ' ' + v
+      } else {
+        textList.push(v)
+      }
+      isEnglish = tmpIsEnglish
+    })
+  console.log(textList)
   return textList
 }
 
@@ -251,7 +258,7 @@ async function sendToTts(segment) {
   const RATE_JAPANESE = config.RATE_JAPANESE
 
   let textList = [segment]
-  if (config.BILINGAL_MODE === 'true') {
+  if (config.BILINGAL_MODE) {
     textList = splitMessageByWordType(segment)
   }
 
@@ -276,41 +283,50 @@ async function sendToTts(segment) {
     // console.log('end')
     break
   case 'CloudTTS':
-    // console.log('bilingal: ' + config.BILINGAL_MODE)
-    if (config.BILINGAL_MODE === 'true' ) {
+    console.log('bilingal: ' + config.BILINGAL_MODE)
+    if ( config.BILINGAL_MODE ) {
+      console.log(textList)
       // for (let index in textList) {
       //   console.log(textList[index])
       // }
-      for (let index in textList) {
-        // console.log(textList[index])
-        // console.log(!!textList[index].match(/^[A-Za-z:'"` ]+$/))
-        if (textList[index].match(/^[A-Za-z:'"` ]+$/)) {
-          let voideOptions = {
-            languageCode: 'en-US',
-            name: 'en-US-Wavenet-F',
-            ssmlGender: 'FEMALE'
+      Promise.resolve(1)
+        .then(() => {
+          for (let index in textList) {
+            console.log(textList[index])
+            // console.log(!!textList[index].match(/^[A-Za-z:'"` ]+$/))
+            if (textList[index].match(/^[A-Za-z:'"` ]+$/)) {
+              let voideOptions = {
+                languageCode: 'en-US',
+                name: 'en-US-Wavenet-F',
+                ssmlGender: 'FEMALE'
+              }
+              let playOptions = {}
+              cloudTTS.say(textList[index], voideOptions, playOptions)
+            } else {
+              let voideOptions = {
+                languageCode: 'ja-JP',
+                name: 'ja-JP-Wavenet-B',
+                ssmlGender: 'FEMALE'
+              }
+              let playOptions = {}
+              cloudTTS.say(textList[index], voideOptions, playOptions)
+            }
           }
-          let playOptions = {}
-          await cloudTTS.say(textList[index], voideOptions, playOptions)
-        } else {
+        })
+    } else {
+      Promise.resolve(1)
+        .then(() => {
+          // console.log('segment: ' + segment)
           let voideOptions = {
             languageCode: 'ja-JP',
-            name: 'ja-JP-Wavenet-A',
+            name: 'ja-JP-Wavenet-B',
             ssmlGender: 'FEMALE'
           }
           let playOptions = {}
-          await cloudTTS.say(textList[index], voideOptions, playOptions)
-        }
-      }
-    } else {
-      // console.log('segment: ' + segment)
-      let voideOptions = {
-        languageCode: 'ja-JP',
-        name: 'ja-JP-Wavenet-B',
-        ssmlGender: 'FEMALE'
-      }
-      let playOptions = {}
-      cloudTTS.say(segment, voideOptions, playOptions)
+          Promise.resolve(
+            cloudTTS.say(segment, voideOptions, playOptions)
+          )
+        })
     }
     break
   default:

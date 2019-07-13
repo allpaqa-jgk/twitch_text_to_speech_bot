@@ -31,7 +31,8 @@
   "scripts": {
     "start": "node src/main.js",
     "lint": "eslint src",
-    "update_emote": "node src/update_emote.js"
+    "update_emote": "node src/update_emote.js",
+    "build": "node src/build.js"
   },
   "engines": {
     "node": ">= 11.12",
@@ -59,6 +60,7 @@
     "eslint-plugin-prettier": "^3.0.1",
     "eslint-plugin-promise": "^4.0.1",
     "eslint-plugin-standard": "^4.0.0",
+    "nexe": "3.2.2",
     "prettier": "^1.16.4"
   }
 }

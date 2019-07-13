@@ -95,6 +95,8 @@ function onMessageHandler (target, context, msg, self) {
     sendToDiscord(discordSegment)
     // TTS
     sendToTts(ttsSegment)
+  } else {
+    console.info(`ignored: ${msg}`);
   }
 }
 

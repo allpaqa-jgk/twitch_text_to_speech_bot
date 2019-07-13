@@ -28,25 +28,27 @@ async function makeReleaseFiles(options) {
   const name = options.name
 
   console.info('clean up dist')
-  console.info(`rm -rf ${path.join(__dirname, `./dist/${targetDir}`)}`)
-  let result = execSync(`rm -rf ${path.join(__dirname, `./dist/${targetDir}`)}`).toString()
-  console.log(result)
+  let command
+
+  command = `rm -rf ${path.join(__dirname, `./dist/${targetDir}`)}`
+  console.info(command); console.log(execSync(command).toString())
 
   const dirList = [
-    './node_modules',
-    './config',
-    './data',
-    './tmp',
+    {name: './', addKeepFile: false},
+    {name: './node_modules', addKeepFile: false},
+    {name: './config', addKeepFile: false},
+    {name: './data', addKeepFile: true},
+    {name: './tmp', addKeepFile: true},
   ]
 
-  console.info(`mkdir -p ${path.join(__dirname, `./dist/${targetDir}/`)}`)
-  result = execSync(`mkdir -p ${path.join(__dirname, `./dist/${targetDir}/`)}`).toString()
   dirList.forEach((dir) => {
-    console.info(`mkdir -p ${path.join(__dirname, `./dist/${targetDir}/${dir}`)}`)
-    result = execSync(`mkdir -p ${path.join(__dirname, `./dist/${targetDir}/${dir}`)}`).toString()
+    command = `mkdir -p ${path.join(__dirname, `./dist/${targetDir}/${dir.name}`)}`
+    console.info(command); console.log(execSync(command).toString())
 
-    console.info(`touch ${path.join(__dirname, `./dist/${targetDir}/${dir}/.keep`)}`)
-    result = execSync(`touch ${path.join(__dirname, `./dist/${targetDir}/${dir}/.keep`)}`).toString()
+    if (dir.addKeepFile) {
+      command = `touch ${path.join(__dirname, `./dist/${targetDir}/${dir.name}/.keep`)}`
+      console.info(command); console.log(execSync(command).toString())
+    }
   })
 
   await compile({
@@ -64,19 +66,20 @@ async function makeReleaseFiles(options) {
   }).then(() => {
     console.log('adding release files for mac')
 
-    // @TODO: remove this
-    // I don't know why, but only google-proto-files and grpc is not available from default nexe build flow.
-    console.info(`cp -pr ${path.join(__dirname, './node_modules/google-proto-files')} ${path.join(__dirname, `./dist/${targetDir}/node_modules/`)}`)
-    result = execSync(`cp -pr ${path.join(__dirname, './node_modules/google-proto-files')} ${path.join(__dirname, `./dist/${targetDir}/node_modules/`)}`).toString()
-    console.info(`cp -pr ${path.join(__dirname, './node_modules/grpc')} ${path.join(__dirname, `./dist/${targetDir}/node_modules/`)}`)
-    result = execSync(`cp -pr ${path.join(__dirname, './node_modules/grpc')} ${path.join(__dirname, `./dist/${targetDir}/node_modules/`)}`).toString()
+    const copyFiles = [
+      // {name: './config/default.js', option: ''},
+      {name: './config/default.js.sample', option: ''},
+      {name: './data/messageIgnoreList.csv', option: ''},
+      // @TODO: remove this
+      // I don't know why, but only google-proto-files and grpc is not available from default nexe build flow.
+      {name: './node_modules/google-proto-files', option: '-pr'},
+      {name: './node_modules/grpc', option: '-pr'},
+    ]
 
-    // console.info(`cp ${path.join(__dirname, './config/default.js')} ${path.join(__dirname, `./dist/${targetDir}/config/default.js`)}`)
-    // result = execSync(`cp ${path.join(__dirname, './config/default.js')} ${path.join(__dirname, `./dist/${targetDir}/config/default.js`)}`).toString()
-    console.info(`cp ${path.join(__dirname, './config/default.js.sample')} ${path.join(__dirname, `./dist/${targetDir}/config/default.js.sample`)}`)
-    result = execSync(`cp ${path.join(__dirname, './config/default.js.sample')} ${path.join(__dirname, `./dist/${targetDir}/config/default.js.sample`)}`).toString()
-    console.info(`cp ${path.join(__dirname, './data/messageIgnoreList.csv')} ${path.join(__dirname, `./dist/${targetDir}/data/messageIgnoreList.csv`)}`)
-    result = execSync(`cp ${path.join(__dirname, './data/messageIgnoreList.csv')} ${path.join(__dirname, `./dist/${targetDir}/data/messageIgnoreList.csv`)}`).toString()
+    copyFiles.forEach((target) => {
+      command = `cp ${target.option} ${path.join(__dirname, target.name)} ${path.join(__dirname, `./dist/${targetDir}`, target.name)}`
+      console.info(command); console.log(execSync(command).toString())
+    })
   }).then(() => {
     console.log('success output release files for mac')
   })

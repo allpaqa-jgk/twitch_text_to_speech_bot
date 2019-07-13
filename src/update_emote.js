@@ -26,7 +26,7 @@ const saveEmoteCodeCsv = () => new Promise((resolve, reject) => {
       array.push(values['code']);
     });
 
-    fs.writeFileSync('./data/emotes.csv', array.join("\n"));
+    fs.writeFileSync('./data/emoteList.csv', array.join(","));
 
     // throw new Error("一般的なエラー");
   } catch (error) {

@@ -5,6 +5,19 @@ const csvSync = require('csv-parse/lib/sync')
 const messageConvertList = './data/messageConvertList.csv'
 const messageIgnoreList = './data/messageIgnoreList.csv'
 const usernameConvertList = './data/usernameConvertList.csv'
+const emoteList = './data/emoteList.csv'
+
+function emoteArray() {
+  checkDataFileExists('emoteList')
+
+  try {
+    return readList('emoteList')[0];
+  } catch (err) {
+    console.log('ERROR readList: emoteList');
+  }
+  return []
+}
+module.exports.emoteArray = emoteArray
 
 // データファイル初期化
 function checkDataFileExists(key) {
@@ -15,7 +28,7 @@ function checkDataFileExists(key) {
       console.log(error)
       throw error;
     }
-    // console.log(configFileName(key) + " created")
+    console.log(configFileName(key) + " created")
   } else {
     // console.log(configFileName(key) + " exist")
   }
@@ -46,6 +59,8 @@ function configFileName(key) {
     return messageIgnoreList
   case 'usernameConvertList':
     return usernameConvertList
+  case 'emoteList':
+    return emoteList
   default:
     break;
   }

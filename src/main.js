@@ -4,6 +4,12 @@ config.checkDataFiles()
 var forever = require('forever-monitor');
 // something.js の子プロセスの初期化
 var child = new (forever.Monitor)('src/twitch_bot.js', {
+  //
+  // Options for restarting on watched files.
+  //
+  'watch': true,               // Value indicating if we should watch files.
+  'watchDirectory': 'src',      // Top-level directory to watch from.
+
   'args': [
     '-some', 'thing' // 子プロセスのパラメータ
   ]

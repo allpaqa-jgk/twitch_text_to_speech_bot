@@ -289,44 +289,38 @@ async function sendToTts(segment) {
       // for (let index in textList) {
       //   console.log(textList[index])
       // }
-      Promise.resolve(1)
-        .then(() => {
-          for (let index in textList) {
-            console.log(textList[index])
-            // console.log(!!textList[index].match(/^[A-Za-z:'"` ]+$/))
-            if (textList[index].match(/^[A-Za-z:'"` ]+$/)) {
-              let voideOptions = {
-                languageCode: 'en-US',
-                name: 'en-US-Wavenet-F',
-                ssmlGender: 'FEMALE'
-              }
-              let playOptions = {}
-              cloudTTS.say(textList[index], voideOptions, playOptions)
-            } else {
-              let voideOptions = {
-                languageCode: 'ja-JP',
-                name: 'ja-JP-Wavenet-B',
-                ssmlGender: 'FEMALE'
-              }
-              let playOptions = {}
-              cloudTTS.say(textList[index], voideOptions, playOptions)
-            }
+      for (let index in textList) {
+        console.log(textList[index])
+        // console.log(!!textList[index].match(/^[A-Za-z:'"` ]+$/))
+        if (textList[index].match(/^[A-Za-z:'"` ]+$/)) {
+          let voideOptions = {
+            languageCode: 'en-US',
+            name: 'en-US-Wavenet-F',
+            ssmlGender: 'FEMALE'
           }
-        })
-    } else {
-      Promise.resolve(1)
-        .then(() => {
-          // console.log('segment: ' + segment)
+          let playOptions = {}
+          await cloudTTS.say(textList[index], voideOptions, playOptions)
+        } else {
           let voideOptions = {
             languageCode: 'ja-JP',
             name: 'ja-JP-Wavenet-B',
             ssmlGender: 'FEMALE'
           }
           let playOptions = {}
-          Promise.resolve(
-            cloudTTS.say(segment, voideOptions, playOptions)
-          )
-        })
+          await cloudTTS.say(textList[index], voideOptions, playOptions)
+        }
+      }
+    } else {
+      // console.log('segment: ' + segment)
+      let voideOptions = {
+        languageCode: 'ja-JP',
+        name: 'ja-JP-Wavenet-B',
+        ssmlGender: 'FEMALE'
+      }
+      let playOptions = {}
+      Promise.resolve(
+        await await cloudTTS.say(segment, voideOptions, playOptions)
+      )
     }
     break
   default:

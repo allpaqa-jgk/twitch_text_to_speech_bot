@@ -69,4 +69,5 @@ default.js
 
 dist
 
-config/service_account.json
+config
+!config/*.sample

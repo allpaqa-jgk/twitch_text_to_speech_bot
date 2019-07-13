@@ -313,7 +313,7 @@ async function sendToTts(segment) {
 }
 
 function simpleUsername(username) {
-  return username.replace(/_\d+/, '')
+  return username.replace(/_?\d+$/, '')
 }
 function modifiedUsername(username) {
   let string = simpleUsername(username)

@@ -66,3 +66,5 @@ default.js
 /tmp/*
 
 !.keep
+
+dist

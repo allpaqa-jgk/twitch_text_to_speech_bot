@@ -12,61 +12,6 @@ console.log('//////////////////////')
 console.log('//  Ctrl-C to exit  //')
 console.log('//////////////////////')
 
-
-// =================== tmp inport ===================
-
-const execSync = require('child_process').execSync
-let result
-console.log(__dirname)
-process.cwd = __dirname
-
-result =  execSync('pwd').toString()
-console.log(result)
-result =  execSync(`cd ${__dirname}`).toString()
-console.log(result)
-result =  execSync('pwd').toString()
-console.log(result)
-
-// general
-// console.info('import fs')
-// const fs = require('fs')
-// // const path = require('path')
-
-// console.info('import grpc')
-// const grpc = require('grpc')
-
-// tw_bot
-console.info('import tmi')
-const tmi = require('tmi.js')
-// // const list = require('./list.js')
-// // const cloudTTS = require('./cloudTTS')
-// console.info('import discordBot')
-// const discordBot = require('./discord_bot')
-// console.info('import execSync')
-// const execSync = require('child_process').execSync
-// console.info('import dice')
-// const dice = require('./commands/dice')
-
-// // cloudTTS
-// console.info('import util')
-// const util = require('util')
-console.info('import player')
-const player = require('play-sound')()
-// // const path = require('path')
-console.info('import textToSpeech')
-const textToSpeech = require('@google-cloud/text-to-speech')
-
-// // discord_bot
-console.info('import discord')
-const discord = require('discord.js')
-
-// // list
-console.info('import csv')
-const csv = require('csv')
-console.info('import csvSync')
-const csvSync = require('csv-parse/lib/sync')
-// =================== tmp inport ===================
-
 if (config.ENV === 'development') {
   console.log('dev mode!')
   // something.js の子プロセスの初期化

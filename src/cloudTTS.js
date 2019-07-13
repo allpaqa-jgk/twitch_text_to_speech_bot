@@ -78,7 +78,11 @@ async function say(text, voiceOptions, playOptions, callback) {
     .then(function(filename){
       return new Promise(function(resolve, reject){
         fs.unlink(filename, function (err) {
-          if (err) {reject(err)}
+          if (err) {
+            reject(err)
+          } else {
+            resolve()
+          }
         })
       })
     })

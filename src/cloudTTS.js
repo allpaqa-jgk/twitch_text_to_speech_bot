@@ -8,7 +8,8 @@
 const fs = require('fs')
 const util = require('util')
 const player = require('play-sound')()
-const filenamePrefix = './tmp/output'
+const path = require('path')
+const filenamePrefix = path.join(__dirname, '../tmp/output')
 
 // [START tts_quickstart]
 // Imports the Google Cloud client library

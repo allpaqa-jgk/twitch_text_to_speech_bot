@@ -259,11 +259,13 @@ async function sendToTts(segment) {
     textList.forEach(function(v) {
       // console.log(!!v.match(/^[A-Za-z:'"` ]+$/))
       if (v.match(/^[A-Za-z:'"` ]+$/)) {
-        segment = "[[RATE " + RATE_ENGLISH + "]] " + v.replace("'", "\\'")
-        execSync("echo '" + segment + "' | say -v '" + SPEAKER_ENGLISH + "'")
+        let option = "[[RATE " + RATE_ENGLISH + "]]"
+        segment = v.replace("'", "'\\''")
+        execSync("echo '" + option + " " + segment + "' | say -v '" + SPEAKER_ENGLISH + "'")
       } else {
-        segment = "[[RATE " + RATE_JAPANESE + "]] " + v.replace("'", "\\'")
-        execSync("echo '" + segment + "' | say -v '" + SPEAKER_JAPANESE + "'")
+        let option = "[[RATE " + RATE_JAPANESE + "]]"
+        segment = v.replace("'", "'\\''")
+        execSync("echo '" + option + " " + segment + "' | say -v '" + SPEAKER_JAPANESE + "'")
       }
     })
     // console.log('end')

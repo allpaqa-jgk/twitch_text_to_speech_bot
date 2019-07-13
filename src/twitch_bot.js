@@ -219,23 +219,11 @@ function sendToDiscord(msg) {
   }
 }
 
-async function sendToTts(segment) {
-  if (!segment) {
-    return
-  }
-
-  // let result = false
+function splitMessageByWordType(string) {
   let textList = []
   let isEnglish = false
-  // for Mac mode
-  const SPEAKER_ENGLISH = process.env.SPEAKER_ENGLISH
-  const RATE_ENGLISH = process.env.RATE_ENGLISH
-  const SPEAKER_JAPANESE = process.env.SPEAKER_JAPANESE
-  const RATE_JAPANESE = process.env.RATE_JAPANESE
-
-  // console.log("Mode: " + process.env.TTS_MODE)
-  segment.split(' ').filter(v => v).forEach(function(v) {
-    let tmpIsEnglish = !!v.match(/^[A-Za-z:'"`]+$/)
+  string.split(' ').filter(v => v).forEach(function(v) {
+    let tmpIsEnglish = !!v.match(/^[A-Za-z;:,./'"`@#$%%^&*()_+\-=[]<>{}!?]+$/)
     // console.log(tmpIsEnglish)
     if (isEnglish === tmpIsEnglish && textList.length > 0) {
       textList[textList.length-1] += ' ' + v
@@ -245,7 +233,26 @@ async function sendToTts(segment) {
     isEnglish = tmpIsEnglish
   })
   // console.log(textList)
+  return textList
+}
 
+async function sendToTts(segment) {
+  if (!segment) {
+    return
+  }
+
+  // for Mac mode
+  const SPEAKER_ENGLISH = process.env.SPEAKER_ENGLISH
+  const RATE_ENGLISH = process.env.RATE_ENGLISH
+  const SPEAKER_JAPANESE = process.env.SPEAKER_JAPANESE
+  const RATE_JAPANESE = process.env.RATE_JAPANESE
+
+  let textList = [segment]
+  if (process.env.BILINGAL_MODE === 'true') {
+    textList = splitMessageByWordType(segment)
+  }
+
+  // console.log("Mode: " + process.env.TTS_MODE)
   switch (process.env.TTS_MODE) {
   case 'Mac':
     // console.log('start')

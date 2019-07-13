@@ -1,6 +1,6 @@
 const tmi = require('tmi.js')
-require('dotenv').config()
 const list = require('./list.js')
+const config = require('../config.js')
 
 const cloudTTS = require('./cloudTTS')
 
@@ -13,18 +13,18 @@ const dice = require('./commands/dice.js')
 let client
 
 function botUsername() {
-  return process.env.BOT_USERNAME || process.env.TW_CHANNEL_NAME + "_bot"
+  return config.BOT_USERNAME || config.TW_CHANNEL_NAME + "_bot"
 }
 // Define configuration options
 let opts
-if (process.env.TW_OAUTH_TOKEN && process.env.TW_CHANNEL_NAME) {
+if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
   opts = {
     identity: {
       username: botUsername(),
-      password: process.env.TW_OAUTH_TOKEN
+      password: config.TW_OAUTH_TOKEN
     },
     channels: [
-      process.env.TW_CHANNEL_NAME
+      config.TW_CHANNEL_NAME
     ]
   }
 
@@ -64,9 +64,9 @@ function onMessageHandler (target, context, msg, self) {
   if (comment.match(/^!dice/)) {
     const message = dice.rollDice(comment)
     client.say(target, message)
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(remember|教育)/)) {
+  } else if (config.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(remember|教育)/)) {
     remember(msg, target)
-  } else if (process.env.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(forget|忘却)/)) {
+  } else if (config.COMMENT_REMEMVER_AVAILABLE === 'true' && comment.match(/^!(forget|忘却)/)) {
     forget(msg, target)
   } else {
     isUnknownCommand = true
@@ -78,7 +78,7 @@ function onMessageHandler (target, context, msg, self) {
   let segment = modifiedMessage(msg)
   let discordSegment, ttsSegment
 
-  if (process.env.READ_USERNAME === 'true') {
+  if (config.READ_USERNAME === 'true') {
     discordSegment = "`" + displayName + "`: " + msg
     ttsSegment = displayName + ": " + segment
   } else {
@@ -214,7 +214,7 @@ function sendToDiscord(msg) {
     // console.log('active message')
     return
   }
-  const channel = discordBot.client.channels.get(process.env.DISCORD_CHANNEL_ID)
+  const channel = discordBot.client.channels.get(config.DISCORD_CHANNEL_ID)
   // console.log('channel')
   // console.log(channel)
   if (channel) {
@@ -251,18 +251,18 @@ async function sendToTts(segment) {
   }
 
   // for Mac mode
-  const SPEAKER_ENGLISH = process.env.SPEAKER_ENGLISH
-  const RATE_ENGLISH = process.env.RATE_ENGLISH
-  const SPEAKER_JAPANESE = process.env.SPEAKER_JAPANESE
-  const RATE_JAPANESE = process.env.RATE_JAPANESE
+  const SPEAKER_ENGLISH = config.SPEAKER_ENGLISH
+  const RATE_ENGLISH = config.RATE_ENGLISH
+  const SPEAKER_JAPANESE = config.SPEAKER_JAPANESE
+  const RATE_JAPANESE = config.RATE_JAPANESE
 
   let textList = [segment]
-  if (process.env.BILINGAL_MODE === 'true') {
+  if (config.BILINGAL_MODE === 'true') {
     textList = splitMessageByWordType(segment)
   }
 
-  // console.log("Mode: " + process.env.TTS_MODE)
-  switch (process.env.TTS_MODE) {
+  // console.log("Mode: " + config.TTS_MODE)
+  switch (config.TTS_MODE) {
   case 'Mac':
     // console.log('start')
     textList.forEach(function(v) {
@@ -280,8 +280,8 @@ async function sendToTts(segment) {
     // console.log('end')
     break
   case 'CloudTTS':
-    // console.log('bilingal: ' + process.env.BILINGAL_MODE)
-    if (process.env.BILINGAL_MODE === 'true' ) {
+    // console.log('bilingal: ' + config.BILINGAL_MODE)
+    if (config.BILINGAL_MODE === 'true' ) {
       // for (let index in textList) {
       //   console.log(textList[index])
       // }

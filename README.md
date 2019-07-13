@@ -69,7 +69,7 @@ TTS for twitch without Limechat
 
 ### setting / 初期設定・設定変更
 
-1. copy `.env.sample`
+1. copy `config.js.sample` to `config.js`
 1. set token, ID and so on
 1. change setting if you need
     - TTS_MODE: only 'Mac' is available, Google Cloud TTS version is now developing. Windows is not supported /  

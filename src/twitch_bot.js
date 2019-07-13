@@ -39,8 +39,6 @@ if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
 
   // Connect to Twitch:
   client.connect()
-} else {
-  console.info('TW_OAUTH_TOKEN or TW_CHANNEL_NAME are not found. please set it at config file')
 }
 
 // Called every time a message comes in

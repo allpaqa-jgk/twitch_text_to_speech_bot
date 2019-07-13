@@ -4,15 +4,7 @@ const path = require('path')
 const fs = require('fs')
 
 // init process.env
-if (fs.existsSync(path.join(__dirname, './config/service_account.json'))) {
-  console.info('overwrite GOOGLE_APPLICATION_CREDENTIALS!')
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = path.join(__dirname, './config/service_account.json')
-}
 process.env.NODE_CONFIG_DIR = path.join(__dirname, './config')
-
-// load config
-const config = require('config')
-console.info(config)
 
 list.checkDataFiles()
 
@@ -42,6 +34,8 @@ if(process.env.NODE_ENV === 'development') {
   child.on('exit:code', function(code) {
     console.error('Forever detected script exited with code ' + code)
   })
+
+  checkConfig()
   // プロセススタート
   child.start()
 
@@ -61,5 +55,37 @@ if(process.env.NODE_ENV === 'development') {
   // cloudTTS.say('あいうえお', voideOptionsJp, playOptions)
   // cloudTTS.say('sample', voideOptionsUs, playOptions)
 } else {
+  checkConfig()
   require(path.join(__dirname, './src/twitch_bot.js'))
+}
+
+function checkConfig() {
+  console.log('//////////////////////')
+  console.log('// Checking config  //')
+  console.log('//////////////////////')
+  if (fs.existsSync(path.join(__dirname, './config/service_account.json'))) {
+    console.info('overwrite GOOGLE_APPLICATION_CREDENTIALS!')
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = path.join(__dirname, './config/service_account.json')
+  }
+  // load config
+  const config = require('config')
+  // console.info(config)
+
+  let configWarning = []
+  if (!config.TW_OAUTH_TOKEN) {
+    configWarning.push('TW_OAUTH_TOKEN are not found. please set it at config file')
+  }
+  if (!config.TW_CHANNEL_NAME) {
+    configWarning.push('TW_CHANNEL_NAME are not found. please set it at config file')
+  }
+  if (config.TTS_MODE === 'CloudTTS' && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    configWarning.push('GOOGLE_APPLICATION_CREDENTIALS are not found. please set it at PATH or service_account.json')
+  }
+
+  if (configWarning) {
+    configWarning.forEach(warn => {
+      console.log(`WARNING: ${warn}`)
+    });
+    console.log('')
+  }
 }

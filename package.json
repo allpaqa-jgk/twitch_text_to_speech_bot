@@ -29,10 +29,10 @@
   ],
   "main": "main.js",
   "scripts": {
-    "start": "node ./src/main.js",
+    "start": "node ./main.js",
     "lint": "eslint src",
-    "update_emote": "node ./src/update_emote.js",
-    "build": "node ./src/build.js"
+    "update_emote": "node ./update_emote.js",
+    "build": "node ./build.js"
   },
   "engines": {
     "node": ">= 11.12",

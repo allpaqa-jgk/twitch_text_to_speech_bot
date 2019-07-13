@@ -230,7 +230,9 @@ function splitMessageByWordType(string) {
   string.split(' ').filter(v => v).forEach(function(v) {
     let tmpIsEnglish = isEnglishString(v)
     // console.log(tmpIsEnglish)
-    if (isEnglish === tmpIsEnglish && textList.length > 0) {
+    if (textList.length === 0 || (textList.length === 1 && textList.slice(-1)[0].slice(-1) === ':')) {
+      textList.push(v)
+    } else if (isEnglish === tmpIsEnglish && textList.length > 0) {
       textList[textList.length-1] += ' ' + v
     } else {
       textList.push(v)

@@ -1,8 +1,25 @@
 const config = require("./config")
-
 config.checkDataFiles()
 
-require('./twitch_bot')
+var forever = require('forever-monitor');
+// something.js の子プロセスの初期化
+var child = new (forever.Monitor)('src/twitch_bot.js', {
+  'args': [
+    '-some', 'thing' // 子プロセスのパラメータ
+  ]
+});
+// イベントを定義できます
+child.on('watch:restart', function(info) {
+  console.error('Restaring script because ' + info.file + ' changed');
+});
+child.on('restart', function() {
+  console.error('Forever restarting script for ' + child.times + ' time');
+});
+child.on('exit:code', function(code) {
+  console.error('Forever detected script exited with code ' + code);
+});
+// プロセススタート
+child.start();
 
 // for debug
 // const cloudTTS = require('./cloudTTS')

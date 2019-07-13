@@ -333,7 +333,7 @@ function modifiedMessage(msg) {
   let message = msg
   let list = config.readList('messageConvertList')
   list.forEach(function(element) {
-    let myregex = new RegExp(element[0])
+    let myregex = new RegExp(element[0], 'g')
     message = message.replace(myregex, element[1])
     // console.log(myregex)
     // console.log(message)

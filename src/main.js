@@ -1,7 +1,11 @@
 const config = require("./config")
+var forever = require('forever-monitor');
 config.checkDataFiles()
 
-var forever = require('forever-monitor');
+console.log('//////////////////////')
+console.log('//  Ctrl-C to exit  //')
+console.log('//////////////////////')
+
 // something.js の子プロセスの初期化
 var child = new (forever.Monitor)('src/twitch_bot.js', {
   //

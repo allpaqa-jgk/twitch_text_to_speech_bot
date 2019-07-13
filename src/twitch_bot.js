@@ -31,9 +31,6 @@ if (process.env.TW_OAUTH_TOKEN && process.env.TW_CHANNEL_NAME) {
   // Register our event handlers (defined below)
   client.on('message', onMessageHandler)
   client.on('connected', onConnectedHandler)
-  console.log('//////////////////////')
-  console.log('//  Ctrl-C to exit  //')
-  console.log('//////////////////////')
 
   // Connect to Twitch:
   client.connect()

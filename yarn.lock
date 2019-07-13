@@ -3016,10 +3016,10 @@ needle@^2.2.1:
     iconv-lite "^0.4.4"
     sax "^1.2.4"
 
-nexe@3.2.2:
-  version "3.2.2"
-  resolved "https://registry.yarnpkg.com/nexe/-/nexe-3.2.2.tgz#d09097a90b450aedfdc78c8a0262e0cdba0ffe18"
-  integrity sha512-A0Aa1GZVIYURdZs/ov9buOQyG7gp9d3huRLIA4Z1j6EgwAlZJ0xPUVi3PHyM/MNS+SWk4U5A5LVYPEWavLQ5Cw==
+nexe@^3.2:
+  version "3.3.2"
+  resolved "https://registry.yarnpkg.com/nexe/-/nexe-3.3.2.tgz#a52294a1d0bdc467105fdce9b024e8e465102ceb"
+  integrity sha512-pVOyWkmD42V8I/OJX1QTyr9YIZdVdyN2zSCSIz0zGoWIiCwFt3/WKXpqdtQ/mhvC69xaGl/Sf8l5Sap6AzI99g==
   dependencies:
     "@calebboyd/semaphore" "^1.3.1"
     app-builder "^5.2.0"

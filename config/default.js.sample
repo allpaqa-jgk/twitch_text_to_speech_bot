@@ -32,7 +32,7 @@ module.exports = {
   RATE_JAPANESE: 200,
 
   // for TTS_MODE: CloudTTS
-  BILINGAL_MODE: true,
+  BILINGAL_MODE: false,
 
   /// //////////////////
   //     TWITCH      //

@@ -1,11 +1,20 @@
-# twitch text to speech bot for MacOS
-
-TTS for twitch without Limechat
+# twitch text to speech bot for MacOS (, windows and linux via GoogleCloudTTS)
 
 **!!CAUTION!! / 注意**  
 **!!this readme might be incorrect / このREADMEは正しくない可能性があります!!**
 
-## functions / 機能
+## Concept / コンセプト
+
+1. Just double click and ready / ダブルクリックで起動するだけで使える
+1. No third party app for TTS (e.g. limechat) / メイン機能のTTSでは別のアプリケーション不要（limechatなど）
+1. Remember command for username and keywords / ユーザー名やキーワードを教育
+1. Listeners can check chat log before open the stream / 配信を開く前のチャットログをリスナーさんが見れる
+    - This is using discord... / discordを利用します。。
+    - Using discord, streamer can receive comment as notification of discord even if streaming with (via) iPhone or iPad. (e.g. I can't see "PC monitor" during playing Music Game)  
+      / discordを使うことでiPhone, iPad配信でもコメントを通知として受け取れます。（音ゲー中などPCを見れない場合でも通知であれば見れるという人
+1. TTS and Discord transfer functions should be turned off individually / TTSやdiscord転送は個別に使用・未使用を切り替えられる
+
+## Functions / 機能
 
 1. speak comment(this is main function. but optional) / コメントの読み上げ
     - comment will be converted to voice data via `say` command. / Macの`say`コマンドを使ってtwitchのコメントを読み上げます  
@@ -20,22 +29,22 @@ TTS for twitch without Limechat
     - if notification setting of discord was ON, you can receive comment as notification on mobile devise during streaming iOS games or something /  
     discordの通知をONにしておけば、スマホ・タブレットなどでコメントを通知として表示できます。音ゲーなんかで目を離せない場合に便利
 
-## requirement / 必要なもの
+## Requirement / 必要なもの
 
-- 優しい心（必須
-- 何かあったときに僕に話しかける勇気（任意
+- Generous heart(mandatory) / 優しい心（必須
+- Courage to talk to me when something wrong(optional) / 何かあったときに僕に話しかける勇気（任意
 
-### mandatory for source use / sourceから使う場合に必須
+### Mandatory for source use / sourceから使う場合に必須
 
-1. node(>= 11.12)
+1. node(~12.6.0)
 1. yarn(~1.15.2)
 
-### mandatory / 必須
+### Mandatory / 必須
 
 1. for text to speech / 読み上げに必要なもの
     - twitch IRC token( see <https://twitchapps.com/tmi/>
 
-### optional / 省略可能
+### Optional / 省略可能
 
 1. for text to speech / 読み上げに必要なもの
     - mac
@@ -57,13 +66,11 @@ TTS for twitch without Limechat
     search at google, like [discord+bot+token+channel+id](https://www.google.com/search?safe=off&q=discord+bot+token+channel+id&oq=discord+bot+token+channel+id)  
     see e.g. <https://github.com/Chikachi/DiscordIntegration/wiki/How-to-get-a-token-and-channel-ID-for-Discord>
 
-## how to use / 使い方
+## How to use / 使い方
 
-### install / インストール
+### Install / インストール
 
 #### Using binary / こちらでビルドした実行ファイルを使う
-
-this is RC! / 現在準備中
 
 1. move to latest release / latest releaseに移動: https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
     - download as zip & unzip / zipで落として解凍
@@ -96,7 +103,7 @@ this is RC! / 現在準備中
     ![スクリーンショット 2019-04-17 11 41 59](https://user-images.githubusercontent.com/49287928/56260687-1ff60300-6113-11e9-9c75-91772bb1ee11.png)
     ![スクリーンショット 2019-04-17 11 45 20](https://user-images.githubusercontent.com/49287928/56260688-1ff60300-6113-11e9-88ac-45c9419b9069.png)
 
-### setting / 初期設定・設定変更
+### Setting / 初期設定・設定変更
 
 1. copy `config.js.sample` to `config.js`
 1. set token, ID and so on
@@ -104,25 +111,28 @@ this is RC! / 現在準備中
     - TTS_MODE: only 'Mac' is available, Google Cloud TTS version is now developing. Windows is not supported /  
     'Mac'のみ利用可能。Google Cloud TTS版開発中、Windowsはサポート外
     - READ_USERNAME: speak username who commented or not / コメントしたユーザー名も読み上げるかどうか
+    - USE_SIMPLE_NAME: remove characters after '_' or numbers end of username / '_' や末尾の数字を除去して読み上げ
     - SPEAKER_ENGLISH: "Susan" / 英語時の読み上げ音声の名前
     - SPEAKER_JAPANESE: "Kyoko" / 日本語のような2バイト文字の読み上げ音声の名前
     - RATE_ENGLISH: 150 / 英語の読み上げスピード
     - RATE_JAPANESE: 200 / 日本語の読み上げスピード
-    - BILINGAL_MODE: true / 英語日本語で読み分けるかどうか
+    - BILINGAL_MODE: false / 英語日本語で読み分けるかどうか
     - COMMENT_REMEMVER_AVAILABLE: true / 教育機能オンオフ
+    - COMMENT_REMEMVER_REGEXP: "^!(remember)" / 教育コマンドのパターン
+    - COMMENT_FORGET_REGEXP: "^!(forget)" / 忘却コマンドのパターン
     - DISCORD_TOKEN: '' / discord botのtoken
     - DISCORD_CHANNEL_ID: '' / discordへ転送するチャンネルのID
     - TW_OAUTH_TOKEN: '' / twitchのコメントを取得したりコメントを書き込んだりするユーザーのtoken（`{username}_bot`などのアカウントをもう一つ作ってそいつにやらせるのがおすすめ）
     - TW_CHANNEL_NAME: '' / twitchで監視するチャンネル名
     - BOT_USERNAME: '' / botの名前を変えたいときに使う（微妙
 
-### exec / 起動
+### Exec / 起動
 
-#### binary
+#### Binary
 
 1. exec binary file ( downloaded from https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
 
-#### source
+#### Source
 
 1. start / スタート
     - move to repository dir / このリポジトリのディレクトリに移動
@@ -130,10 +140,14 @@ this is RC! / 現在準備中
 1. stop / 終了
     - push `ctrl - c` on your keyboard / キーボードで`ctrl - c`
 
-### update / 更新
+### Update / 更新
 
 which way did you choose when you download repo? / ダウンロード方法によってアップデート方法が違うよ
 
+1. binary / 実行ファイルをダウンロードした場合
+    - Download new files from (latest release)[https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest] / (latest release)[https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest] から最新版をダウンロード
+    - unzip / 解凍
+    - overwrite existing files / 既存ファイル上書き
 1. clone as git repository / cloneした場合
     - `git status`  
     check unstaged change. / コミットしていない変更がないかチェック  
@@ -151,11 +165,14 @@ which way did you choose when you download repo? / ダウンロード方法に�
     - twitter: <https://twitter.com/haaaaaaa_8>
     - twitch: <https://www.twitch.tv/haaaaaaa>
 1. Is this free to use? / ただで使える？
-    - YES! but I'm happy if you follow my twitch channel. /  
-    いいよ！もし気に入ったらtwitchのチャンネルをフォローしてもらえると嬉しいな
+    - for Mac mode / Mac モード
+      - YES! but I'm happy if you follow my twitch channel. /  
+      いいよ！もし気に入ったらtwitchのチャンネルをフォローしてもらえると嬉しいな
+    - GoogleCloudTTS mode / GoogleCloudTTS モード
+      - Free up to 1 million character/month / 100万文字/月まで無料
 1. How can I use on Windows? / windowsで使える？
-    - This bot is available for only Mac OS. Windows is not supported now. /  
-    Macのみ対応。改造したら使えるようにできるとは思うけどどうしよっかなって感じ
+    - This bot is available for only Mac OS. Windows can use only CloudTTS mode. /  
+    MacモードはMacのみ対応。WindowsはCloudTTSモードのみ対応
 1. Bug! / Question! / Great idea! / ばぐみつけた！ / 質問がある! / いいこと思いついた!
     1. tell me via twitter / 問題があったときや質問があればツイッターで教えて欲しいな
     1. feel free to make issue / issueにしてくれてもOK
@@ -179,13 +196,29 @@ which way did you choose when you download repo? / ダウンロード方法に�
 
 ### Packages
 
-- discord.js
-- tmi.js
-- play-sound
-- @google-cloud/text-to-speech
-- dotenv
-- csv-parse
+- discordjs/uws
+- google-cloud/text-to-speech
+- config
 - csv
+- csv-parse
+- discord.js
+- forever
+- forever-monitor
+- play-sound
+- request
+- request-promise
+- tmi.js
+
+### Packages for dev
+
+- eslint
+- nexe
+- prettier
+
+### I used this repository as reference
+
+- https://blog.sikmi.com/twitch_speaker
+  - https://github.com/sikmi/twitch_speaker (ruby)
 
 ## Please feel free to send message / なにかあればお気軽にー
 

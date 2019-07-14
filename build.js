@@ -67,14 +67,17 @@ async function makeReleaseFiles(options) {
     console.log('adding release files for mac')
 
     const copyFiles = [
-      // {name: './config/default.js', option: ''},
       {name: './config/default.js.sample', option: ''},
       {name: './config/service_account.json.sample', option: ''},
       {name: './data/messageIgnoreList.csv', option: ''},
+
+      // for test of build artifacts
+      // {name: './config/default.js', option: ''},
+      // {name: './config/service_account.json', option: ''},
+
       // @TODO: remove this
-      // I don't know why, but only google-proto-files and grpc is not available from default nexe build flow.
-      {name: './node_modules/google-proto-files', option: '-pr'},
-      {name: './node_modules/grpc', option: '-pr'},
+      // I don't know why, but only google-gax is not available from default nexe build flow.
+      {name: './node_modules/google-gax', option: '-pr'},
     ]
 
     copyFiles.forEach((target) => {

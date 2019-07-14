@@ -1,6 +1,6 @@
 {
   "private": true,
-  "version": "0.0.8",
+  "version": "0.0.9",
   "name": "twitch_text_to_speech_bot",
   "description": "TextToSpeech bot for twitch.tv. and share all comment to discord channel. remember and forget function convert commented keywords to another string before passed to TTS.",
   "license": "MIT",

@@ -68,12 +68,12 @@ async function makeReleaseFiles(options) {
 
     const copyFiles = [
       {name: './config/default.js.sample', option: ''},
-      {name: './config/service_account.json.sample', option: ''},
+      {name: './config/serviceAccount.json.sample', option: ''},
       {name: './data/messageIgnoreList.csv', option: ''},
 
       // for test of build artifacts
       // {name: './config/default.js', option: ''},
-      // {name: './config/service_account.json', option: ''},
+      // {name: './config/serviceAccount.json', option: ''},
 
       // @TODO: remove this
       // I don't know why, but only google-gax is not available from default nexe build flow.

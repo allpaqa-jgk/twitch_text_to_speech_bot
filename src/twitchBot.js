@@ -4,7 +4,7 @@ const config = require('config')
 
 const cloudTTS = require('./cloudTTS')
 
-const discordBot = require('./discord_bot.js')
+const discordBot = require('./discordBot.js')
 const execSync = require('child_process').execSync
 
 // commands

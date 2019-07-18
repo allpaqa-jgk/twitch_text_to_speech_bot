@@ -31,7 +31,7 @@
   "scripts": {
     "start": "NODE_ENV=development node ./main.js",
     "lint": "eslint src",
-    "update_emote": "node ./update_emote.js",
+    "update_emote": "node ./updateEmote.js",
     "build": "node ./build.js"
   },
   "engines": {

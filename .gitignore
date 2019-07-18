@@ -69,5 +69,5 @@ default.js
 
 dist
 
-config
-!config/*.sample
+/config
+!/config/*.sample

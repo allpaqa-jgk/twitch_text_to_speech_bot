@@ -6,8 +6,8 @@ function remember(msg, target, client) {
     let key = getConfigKey(msg)
     let arr = list.readList(key)
     let attr = getConvertAttributes(msg)
-    console.debug('attr')
-    console.debug(attr)
+    // console.debug('attr')
+    // console.debug(attr)
     if (!attr) {
       client.say(target, `something wrong! "!${config.COMMENT_REMEMVER_COMMAND} <keyword>=<converted string>"`)
       return

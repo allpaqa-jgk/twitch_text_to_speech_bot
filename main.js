@@ -1,3 +1,5 @@
+require('./src/initAccordingToOs.js').changeCharSet()
+
 const list = require('./src/list.js')
 const forever = require('forever-monitor')
 const path = require('path')

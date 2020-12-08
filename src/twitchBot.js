@@ -121,8 +121,9 @@ function sendToDiscord(msg) {
 }
 
 function isEnglishString(string) {
-  // console.log(`isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!?]+$/)}`)
-  return !!string.match(/^[A-Za-z,.!?]+$/)
+  const result = !!string.match(/^[A-Za-z,.:!? ]+$/)
+  // console.log(`isEnglishString: "${string}" => ${result}`)
+  return result
 }
 
 function splitMessageByWordType(string) {
@@ -132,7 +133,7 @@ function splitMessageByWordType(string) {
   string
     .replace(/([a-zA-Z]+)/g, '$1 ')
     .replace(/(\s)+/g, '$1')
-    .split(' ')
+    .split(/\s/)
     .filter(v => v)
     .forEach(function(v) {
       let tmpIsEnglish = isEnglishString(v)

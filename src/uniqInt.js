@@ -1,17 +1,17 @@
-"use strict"
+"use strict";
 
-const crypto = require("crypto")
+const crypto = require("crypto");
 
 function makeHash(str) {
-  const hash = crypto.createHash("sha256")
-  hash.update(str)
-  return hash.digest("hex")
+  const hash = crypto.createHash("sha256");
+  hash.update(str);
+  return hash.digest("hex");
 }
 
 function create(str) {
-  const hash = makeHash(str).slice(0,12)
-  const uInt = parseInt('0x'+hash)
+  const hash = makeHash(str).slice(0, 12);
+  const uInt = parseInt("0x" + hash);
 
-  return uInt
+  return uInt;
 }
-module.exports.create = create
+module.exports.create = create;

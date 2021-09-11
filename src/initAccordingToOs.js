@@ -1,16 +1,16 @@
-const os = require('os');
-const execSync = require('child_process').execSync
+const os = require("os");
+const execSync = require("child_process").execSync;
 
 module.exports.changeCharSet = () => {
   const platform = os.platform();
-  console.info(`Operation System detected as: ${platform}`)
+  console.info(`Operation System detected as: ${platform}`);
 
   switch (platform) {
-  case 'win32':
-    execSync('chcp 65001')
-    break;
+    case "win32":
+      execSync("chcp 65001");
+      break;
 
-  default:
-    break;
+    default:
+      break;
   }
-}
+};

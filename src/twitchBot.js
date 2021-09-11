@@ -125,12 +125,14 @@ function sendToDiscord(msg) {
 }
 
 function isEnglishString(string) {
-  // console.log(`isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!?]+$/)}`)
-  return !!string.match(/^[A-Za-z,.!?]+$/);
+  // console.log(
+  //   `isEnglishString: ${string} => ${!!string.match(/^[A-Za-z,.!? ]+$/)}`
+  // );
+  return !!string.match(/^[A-Za-z,.!? ]+$/);
 }
 
 function splitMessageByWordType(string) {
-  console.log("splitMessageByWordType");
+  // console.log("splitMessageByWordType");
   let textList = [];
   let isEnglish = false;
   string
@@ -140,7 +142,7 @@ function splitMessageByWordType(string) {
     .filter((v) => v)
     .forEach(function(v) {
       let tmpIsEnglish = isEnglishString(v);
-      console.log(tmpIsEnglish);
+      // console.log(tmpIsEnglish, textList.length);
       if (
         textList.length === 0 ||
         (textList.length === 1 && textList.slice(-1)[0].slice(-1) === ":")
@@ -153,7 +155,7 @@ function splitMessageByWordType(string) {
       }
       isEnglish = tmpIsEnglish;
     });
-  console.log(textList);
+  // console.log("textList", textList);
   return textList;
 }
 
@@ -178,8 +180,9 @@ async function sendToTts(segment) {
     case "Mac":
       // console.log('start')
       textList.forEach(function(v) {
-        // console.log(isEnglishString(v))
-        if (isEnglishString(v)) {
+        const isEnglish = isEnglishString(v);
+        // console.log("isEnglish:", isEnglish);
+        if (isEnglish) {
           const option = "[[RATE " + RATE_ENGLISH + "]]";
           segment = v.replace("'", "'\\''");
           execSync(
@@ -304,4 +307,13 @@ function isIgnoredMessage(msg) {
 // Called every time the bot connects to Twitch chat
 function onConnectedHandler(addr, port) {
   console.log(`* Connected to ${addr}:${port}`);
+}
+
+if (config.STARTING_MESSAGE) {
+  const message = config.STARTING_MESSAGE;
+  // console.info(
+  //   "splitMessageByWordType",
+  //   splitMessageByWordType(message)
+  // );
+  sendToTts(message);
 }

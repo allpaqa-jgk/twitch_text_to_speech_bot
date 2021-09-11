@@ -40,13 +40,13 @@
   },
   "dependencies": {
     "@discordjs/uws": "^10.149.0",
-    "@google-cloud/text-to-speech": "^1.1",
-    "config": "^3.1",
+    "@google-cloud/text-to-speech": "^3.3.1",
+    "config": "^3.3.6",
     "csv": "^5.1",
     "csv-parse": "^4.4",
     "discord.js": "^11.5",
-    "forever": "^1.0",
-    "forever-monitor": "^1.7",
+    "forever": "^4.0.1",
+    "forever-monitor": "^3.0.3",
     "lodash.merge": "4.6.2",
     "play-sound": "^1.1",
     "request": "^2.34",
@@ -54,16 +54,16 @@
     "tmi.js": "^1.4"
   },
   "devDependencies": {
-    "eslint": "^5.15.3",
+    "eslint": "^7.32.0",
     "eslint-cli": "^1.1.1",
     "eslint-config-prettier": "^4.1.0",
     "eslint-config-standard": "^12.0.0",
-    "eslint-plugin-import": "^2.16.0",
+    "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-node": "^8.0.1",
     "eslint-plugin-prettier": "^3.0.1",
     "eslint-plugin-promise": "^4.0.1",
     "eslint-plugin-standard": "^4.0.0",
-    "nexe": "^3.2",
+    "nexe": "^3.3.7",
     "prettier": "^1.16.4"
   }
 }

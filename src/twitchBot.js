@@ -175,6 +175,9 @@ async function sendToTts(segment) {
     textList = splitMessageByWordType(segment);
   }
 
+  if (!config.ENABLE_TTS || config.DISABLE_TTS) {
+    return false;
+  }
   // console.log("Mode: " + config.TTS_MODE)
   switch (config.TTS_MODE) {
     case "Mac":

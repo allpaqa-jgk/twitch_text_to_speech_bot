@@ -62,7 +62,7 @@ module.exports = {
   /// //////////////////
 
   // see following page to check detail. https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks
-  DISCORD_AVAILABLE: true,
+  DISCORD_TRANSFER_ENABLED: true,
   DISCORD_TOKEN: "",
   DISCORD_CHANNEL_ID: "",
 };

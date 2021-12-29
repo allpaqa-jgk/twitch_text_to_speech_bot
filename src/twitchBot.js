@@ -119,12 +119,22 @@ function sendToDiscord(msg) {
     console.log("message is empty");
     return;
   }
-  const channel = discordBot.client.channels.get(config.DISCORD_CHANNEL_ID);
-  // console.log('channel')
-  // console.log(channel)
-  if (channel) {
-    channel.send(msg);
+  if (!config.DISCORD_TRANSFER_ENABLED) {
+    // send to discord
+    // console.log("message is empty");
+    return;
   }
+  discordBot.client.channels
+    .fetch(config.DISCORD_CHANNEL_ID)
+    .then((channel) => {
+      // console.log("channel", channel.name);
+      if (channel) {
+        return channel.send(msg).catch((e) => {
+          console.info(e);
+        });
+      }
+    })
+    .catch(console.error);
 }
 
 function isEnglishString(string) {

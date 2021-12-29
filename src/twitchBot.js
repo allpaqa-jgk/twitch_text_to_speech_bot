@@ -34,6 +34,7 @@ if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
   // Register our event handlers (defined below)
   client.on("message", onMessageHandler);
   client.on("connected", onConnectedHandler);
+  client.on("disconnected", onDisconnectedHandler);
 
   // Connect to Twitch:
   client.connect().catch((e) => {
@@ -312,4 +313,15 @@ function isIgnoredMessage(msg) {
 // Called every time the bot connects to Twitch chat
 function onConnectedHandler(addr, port) {
   console.log(`* Connected to ${addr}:${port}`);
+}
+
+// onDisconnectedHandler(reason: string)
+function onDisconnectedHandler(reason) {
+  console.info(`* Disconnected to ${reason}`);
+  setTimeout(() => {
+    if (typeof client.reconnect === "function")
+      client.reconnect().catch((e) => {
+        console.info(e);
+      });
+  }, 5000);
 }

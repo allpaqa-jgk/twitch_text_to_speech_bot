@@ -30,6 +30,7 @@ module.exports = {
   // Common
   READ_USERNAME: true,
   USE_SIMPLE_NAME: true,
+  STARTING_MESSAGE: "Starting TTS",
 
   // for TTS_MODE: Mac
   SPEAKER_ENGLISH: "Susan",

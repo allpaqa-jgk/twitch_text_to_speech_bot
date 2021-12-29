@@ -308,12 +308,3 @@ function isIgnoredMessage(msg) {
 function onConnectedHandler(addr, port) {
   console.log(`* Connected to ${addr}:${port}`);
 }
-
-if (config.STARTING_MESSAGE) {
-  const message = config.STARTING_MESSAGE;
-  // console.info(
-  //   "splitMessageByWordType",
-  //   splitMessageByWordType(message)
-  // );
-  sendToTts(message);
-}

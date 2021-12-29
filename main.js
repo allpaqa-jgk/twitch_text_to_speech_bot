@@ -4,6 +4,8 @@ const list = require("./src/list.js");
 const forever = require("forever-monitor");
 const path = require("path");
 const fs = require("fs");
+const config = require("config");
+const execSync = require("child_process").execSync;
 
 // init process.env
 process.env.NODE_CONFIG_DIR = path.join(__dirname, "./config");
@@ -110,4 +112,45 @@ function checkConfig() {
     });
     console.log("");
   }
+}
+
+if (config.STARTING_MESSAGE) {
+  const message = config.STARTING_MESSAGE;
+  // console.info(
+  //   "splitMessageByWordType",
+  //   splitMessageByWordType(message)
+  // );
+  sendToTts(message);
+}
+
+async function sendToTts(segment) {
+  if (!segment) {
+    return;
+  }
+
+  // for Mac mode
+  const speakerEnglish = "Susan";
+  const rateEnglish = 150;
+
+  const option = "[[RATE " + rateEnglish + "]]";
+
+  // console.log("Mode: " + config.TTS_MODE)
+  switch (config.TTS_MODE) {
+    case "Mac":
+      // console.log('start')
+      execSync(
+        "echo '" +
+          option +
+          " " +
+          segment.replace("'", "'\\''") +
+          "' | say -v '" +
+          speakerEnglish +
+          "'"
+      );
+      // console.log('end')
+      break;
+    default:
+      break;
+  }
+  // console.log(result)
 }

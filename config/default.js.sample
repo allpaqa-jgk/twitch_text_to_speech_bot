@@ -39,7 +39,7 @@ module.exports = {
   RATE_ENGLISH: 150,
   RATE_JAPANESE: 200,
 
-  // for TTS_MODE: CloudTTS
+  // for TTS_MODE: CloudTTS
   BILINGAL_MODE: false,
 
   /// //////////////////

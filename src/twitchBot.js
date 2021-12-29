@@ -36,7 +36,9 @@ if (config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME) {
   client.on("connected", onConnectedHandler);
 
   // Connect to Twitch:
-  client.connect();
+  client.connect().catch((e) => {
+    console.info(e);
+  });
 }
 
 // Called every time a message comes in
@@ -84,7 +86,7 @@ function onMessageHandler(target, context, msg, self) {
   }
 
   let displayName = modifiedUsername(context.username);
-  console.log(`\n${displayName}: ${msg}`);
+  console.log(`${displayName}: ${msg}`);
   let segment = modifiedMessage(msg);
   let discordSegment, ttsSegment;
 
@@ -113,7 +115,7 @@ function onMessageHandler(target, context, msg, self) {
 function sendToDiscord(msg) {
   if (!msg) {
     // send to discord
-    // console.log('active message')
+    console.log("message is empty");
     return;
   }
   const channel = discordBot.client.channels.get(config.DISCORD_CHANNEL_ID);

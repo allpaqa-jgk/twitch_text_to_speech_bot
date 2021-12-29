@@ -10,7 +10,9 @@ client.on("message", onMessageHandler);
 client.on("ready", onConnectedHandler);
 
 if (token) {
-  client.login(token);
+  client.login(token).catch((e) => {
+    console.info(e);
+  });
 } else {
   console.info("DISCORD_TOKEN is not found. please set it at config file");
 }

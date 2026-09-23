@@ -32,15 +32,11 @@ Twitch配信用の高品質・高機能テキスト読み上げ（TTS）ボッ�
 ### 1. 配布ZIPを展開
 配布された `twitch-tts-bot.zip` を任意のフォルダに解凍します。
 
-### 2. 設定ファイルの作成
-1. `config/default.js.sample` を同じフォルダ内にコピーし、名前を `default.js` に変更します。
-2. テキストエディタで `config/default.js` を開き、以下の項目を設定します：
+### 2. 設定ファイルの作成（任意）
+音声エンジンや設定を変更したい場合、`config/default.js.sample` を `config/default.js` にコピーして編集します。
+（Twitch のトークンやチャンネル名は起動時にブラウザから自動認証・自動保存されるため、未記入のままでOKです！）
 
 ```javascript
-// Twitch 接続設定
-TW_OAUTH_TOKEN: "oauth:xxxxxxxxxxxxxxxxxxxxxx", // https://twitchapps.com/tmi/ で取得
-TW_CHANNEL_NAME: "your_channel_name",            // 読み上げを行いたいチャンネル名
-
 // 使用する音声エンジン ("COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac")
 TTS_ENGINE: "COEIROINK",
 
@@ -48,9 +44,18 @@ TTS_ENGINE: "COEIROINK",
 FOREIGN_LANGUAGE_MODE: "KATAKANA",
 ```
 
-### 3. 起動
+### 3. 起動とワンクリック認証
 フォルダ内の `twitch-tts-bot` を実行します。  
-`Connected to irc-ws.chat.twitch.tv:443` と表示されれば準備完了です！
+
+1. 初回起動時、自動的にブラウザが立ち上がり Twitch 公式の認証画面が表示されます。
+2. **「連携」** をクリックするだけで、トークンとチャンネル名が自動取得・保存されます。
+3. `Connected to irc-ws.chat.twitch.tv:443 on #チャンネル名` と表示されれば準備完了です！
+
+#### 🔄 アカウントを変更したい場合 / パスワード変更等で使えなくなった場合
+1. アプリを終了します。
+2. フォルダ内の `config/auth.json` を**削除（ゴミ箱へ移動）**します。
+3. 再度アプリを起動すると、自動でブラウザが開き、新しく連携画面が表示されます。  
+（※ターミナルが使える方は `./twitch-tts-bot auth` または `bun run auth` を実行することでも直接再連携が可能です）
 
 > [!TIP]
 > **macOSで「開発元を確認できないため開けません」と表示される場合**:  
@@ -90,6 +95,9 @@ FOREIGN_LANGUAGE_MODE: "KATAKANA",
 # 依存パッケージのインストール
 cd src
 bun install
+
+# Twitch認証（初回のみ）
+bun run auth
 
 # 開発実行
 bun run index.ts

@@ -43,4 +43,5 @@ export const paths = {
     process.platform === "win32"
       ? path.join(getAppRootDir(), ".venv/Scripts/piper.exe")
       : path.join(getAppRootDir(), ".venv/bin/piper"),
+  authJson: () => path.join(paths.configDir(), "auth.json"),
 };

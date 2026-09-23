@@ -1,65 +1,47 @@
 module.exports = {
   /// //////////////////
-  //     GENERAL     //
+  //   VOICE ENGINE   //
   /// //////////////////
 
-  // Mac: default of Mac
-  // CloudTTS: https://cloud.google.com/text-to-speech/?hl=ja
-  // windows is not yet supported!
-  TTS_MODE: "Mac",
-
-  /// //////////////////
-  //    COMMANDS     //
-  /// //////////////////
-
-  // enable comment remember function
-  COMMENT_REMEMVER_AVAILABLE: true,
-
-  // custom command for remember and forget
-  // e.g.)
-  // COMMENT_REMEMVER_COMMAND = 'xxx'
-  // xxx is command for remember comment convert pattern
-  // and xxxU is command for remember username convert pattern
-  COMMENT_REMEMVER_COMMAND: "remember",
-  COMMENT_FORGET_COMMAND: "forget",
-
-  /// //////////////////
-  //       TTS       //
-  /// //////////////////
-
-  // Common
-  ENABLE_TTS: true,
-  READ_USERNAME: true,
-  USE_SIMPLE_NAME: true,
-  STARTING_MESSAGE: "Starting TTS",
-
-  // for TTS_MODE: Mac
-  SPEAKER_ENGLISH: "Susan",
-  SPEAKER_JAPANESE: "Kyoko",
-  RATE_ENGLISH: 150,
-  RATE_JAPANESE: 200,
-
-  // for TTS_MODE: CloudTTS
-  BILINGAL_MODE: false,
-
-  // TTS Engine for primary text
-  // Options: "COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac"
+  // 使用する音声エンジン ("COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac")
   TTS_ENGINE: "COEIROINK",
   // TTS_ENGINE: "VOICEVOX",
   // TTS_ENGINE: "PIPER",
   // TTS_ENGINE: "KOKORO",
   // TTS_ENGINE: "Mac",
 
-  // Foreign language mode:
-  // "KATAKANA": 外国語（英語・ロシア語・スペイン語等）を自然な発音カタカナに変換して読む（推奨）
+  // 外国語コメントの処理モード:
+  // "KATAKANA": 英語・ロシア語・スペイン語等を自然な発音カタカナに変換して読む（推奨）
   // "NATIVE": 英語音声エンジン等でネイティブ発音で読む
   // "IGNORE": 外国語は読み飛ばす
   FOREIGN_LANGUAGE_MODE: "KATAKANA",
 
-  // English TTS Engine (FOREIGN_LANGUAGE_MODE: "NATIVE" 時に使用)
+  // 英語ネイティブ音声エンジン (FOREIGN_LANGUAGE_MODE: "NATIVE" 時に使用)
   // Options: "KOKORO" | "PIPER" | "Mac"
   ENGLISH_TTS_ENGINE: "KOKORO",
   KOKORO_ENGLISH_VOICE: "af_heart", // ElevenLabs並みの高音質英語ボイス
+
+  /// //////////////////
+  //    COMMANDS     //
+  /// //////////////////
+
+  // コメント辞書教育機能 (!remember / !forget)
+  COMMENT_REMEMVER_AVAILABLE: true,
+  COMMENT_REMEMVER_COMMAND: "remember",
+  COMMENT_FORGET_COMMAND: "forget",
+
+  /// //////////////////
+  //    TTS COMMON   //
+  /// //////////////////
+
+  ENABLE_TTS: true,
+  READ_USERNAME: true,
+  USE_SIMPLE_NAME: true,
+  STARTING_MESSAGE: "Starting TTS",
+
+  /// //////////////////
+  // ENGINE DETAILS  //
+  /// //////////////////
 
   // for COEIROINK
   COEIROINK_HOST: "127.0.0.1",
@@ -70,7 +52,7 @@ module.exports = {
 
   // for VOICEVOX (also used as fallback if TTS_ENGINE is not set)
   USE_VOICEVOX: false,
-  VOICEVOX_HOST: '127.0.0.1',
+  VOICEVOX_HOST: "127.0.0.1",
   VOICEVOX_PORT: 50021,
   VOICEVOX_SPEAKER_ID: 1,
 
@@ -78,26 +60,34 @@ module.exports = {
   KOKORO_VOICE: "jf_alpha",
   KOKORO_SPEED: 1.0,
 
+  // for macOS say (TTS_ENGINE: "Mac")
+  SPEAKER_ENGLISH: "Susan",
+  SPEAKER_JAPANESE: "Kyoko",
+  RATE_ENGLISH: 150,
+  RATE_JAPANESE: 200,
+
   /// //////////////////
   //     TWITCH      //
   /// //////////////////
 
-  // The token to authenticate your chatbot with Twitch's servers. Generate this with https://twitchapps.com/tmi/ (a Twitch community-driven wrapper around the Twitch API), while logged in to your chatbot account. The token will be an alphanumeric string.
-  TW_OAUTH_TOKEN: "oauth:",
-
-  // The Twitch channel name where you want to run the bot. Usually this is your main Twitch account.
+  // 読み上げを行いたい配信チャンネル名
+  // ※空欄（デフォルト）の場合、ブラウザで連携したアカウント自身の配信チャンネルになります。
+  // ※他人の配信を読み上げたい場合や、Bot専用アカウントで連携した場合は、対象のチャンネル名を入力してください。
   TW_CHANNEL_NAME: "",
 
-  // ======== This is optional ========
-  // as default TW_CHANNEL_NAME + "_bot" is used as username of bot
-  // The account (username) that the chatbot uses to send chat messages. This can be your Twitch account. Alternately, many developers choose to create a second Twitch account for their bot, so it's clear from whom the messages originate.
+  // ======== 上級者向け設定（通常は設定不要） ========
+  // Twitchの認証トークンは起動時にブラウザから自動保存されます（config/auth.json）。
+  // 外部トークンを手動で直接指定したい場合のみ、以下を有効化してください。
+  // TW_OAUTH_TOKEN: "oauth:xxxxxxxxxxxxxxxxxxxxxx",
+
+  // チャット返信・コマンド実行時のBotアカウント名（空欄でOKです）
   BOT_USERNAME: "",
 
   /// //////////////////
   //     DISCORD     //
   /// //////////////////
 
-  // see following page to check detail. https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks
+  // see following page to check detail: https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks
   DISCORD_TRANSFER_ENABLED: false,
   DISCORD_WEBHOOK_URL: "", // Discord Webhook URL (推奨: Bot Token不要で軽量動作)
   DISCORD_TOKEN: "",

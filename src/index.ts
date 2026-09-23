@@ -8,6 +8,22 @@ import { KokoroEngine } from "./tts/engines/kokoro";
 import type { TTSEngine } from "./tts/engine";
 import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
+import { startTwitchOAuthFlow } from "./twitch/auth";
+
+// CLI auth command: ./twitch-tts-bot auth or bun run index.ts auth
+if (process.argv.includes("auth") || process.argv.includes("--auth")) {
+  console.log("////////////////////////////////////////");
+  console.log("//     Twitch Bot Authentication      //");
+  console.log("////////////////////////////////////////");
+  try {
+    await startTwitchOAuthFlow();
+    console.log("認証が完了しました。ボットを通常起動してください。");
+    process.exit(0);
+  } catch (err) {
+    console.error("認証に失敗しました:", err);
+    process.exit(1);
+  }
+}
 
 console.log("////////////////////////////////////////");
 console.log("//   Twitch Text to Speech Bot (v2)   //");
@@ -89,10 +105,40 @@ const katakanaTransformer = new KatakanaTransformer();
 console.log(`[Init] Foreign language mode: ${config.FOREIGN_LANGUAGE_MODE}`);
 
 // 6. Start Twitch Bot
+if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME) {
+  console.log("\n⚠️ Twitch の認証情報（トークンまたはチャンネル名）が設定されていません。");
+  console.log("ブラウザを開いて Twitch 認証を行います...\n");
+  try {
+    const authResult = await startTwitchOAuthFlow();
+    config.TW_OAUTH_TOKEN = authResult.token;
+    config.TW_CHANNEL_NAME = authResult.login;
+    config.BOT_USERNAME = authResult.login;
+  } catch (err) {
+    console.error("[Fatal] Twitch 認証に失敗しました:", err);
+    process.exit(1);
+  }
+}
+
 const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
 
 bot.start().catch((err) => {
-  console.error("[Fatal] Failed to start Twitch Bot:", err);
+  const errMsg = String(err?.message || err);
+  if (
+    errMsg.toLowerCase().includes("authentication failed") ||
+    errMsg.toLowerCase().includes("auth")
+  ) {
+    console.error("\n❌ [TwitchBot] Twitch へのログイン認証に失敗しました。");
+    console.error(
+      "   トークンが期限切れ、またはTwitchのパスワードが変更された可能性があります。"
+    );
+    console.error("💡 【対処法】");
+    console.error(
+      "   フォルダ内の config/auth.json を削除してアプリを再起動してください。"
+    );
+    console.error("   自動でブラウザが開き、新しく連携画面が表示されます。\n");
+  } else {
+    console.error("[Fatal] Failed to start Twitch Bot:", err);
+  }
   process.exit(1);
 });
 

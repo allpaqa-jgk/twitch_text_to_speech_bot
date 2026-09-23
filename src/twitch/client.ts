@@ -71,6 +71,11 @@ export class TwitchTTSBot {
     });
 
     this.client.on("disconnected", (reason) => {
+      if (String(reason).toLowerCase().includes("authentication failed")) {
+        console.error("\n❌ [TwitchBot] 認証エラーにより切断されました。");
+        console.error("💡 config/auth.json を削除してアプリを再起動し、再連携してください。\n");
+        return;
+      }
       console.warn(`* [TwitchBot] Disconnected: ${reason}. Reconnecting in 5s...`);
       setTimeout(() => {
         this.client?.connect().catch((err) => console.error("[TwitchBot] Reconnect error:", err));

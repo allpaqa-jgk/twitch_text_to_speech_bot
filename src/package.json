@@ -6,6 +6,7 @@
   "scripts": {
     "start": "bun run index.ts",
     "dev": "bun --watch run index.ts",
+    "auth": "bun run ../scripts/auth.ts",
     "test": "bun test",
     "build": "bun build ./index.ts --compile --outfile ../dist/twitch-tts-v2",
     "package": "bun run ../scripts/build_package.ts"

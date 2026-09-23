@@ -52,7 +52,10 @@ export class CoeiroinkEngine implements TTSEngine {
 
   public async isAvailable(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/`, { method: "GET" });
+      const res = await fetch(`${this.baseUrl}/v1/speakers`, {
+        method: "GET",
+        signal: AbortSignal.timeout(1500),
+      });
       return res.ok;
     } catch {
       return false;

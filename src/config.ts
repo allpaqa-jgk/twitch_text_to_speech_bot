@@ -1,0 +1,138 @@
+import path from "path";
+import fs from "fs";
+
+export interface BotConfig {
+  TTS_MODE: string;
+  TTS_ENGINE: "COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac";
+  USE_VOICEVOX?: boolean;
+
+  // English TTS settings
+  ENGLISH_TTS_ENGINE: "KOKORO" | "PIPER" | "Mac";
+  KOKORO_ENGLISH_VOICE: string;
+
+  // Piper settings
+  PIPER_MODEL_PATH?: string;
+
+  // Kokoro settings
+  KOKORO_VOICE?: string;
+  KOKORO_SPEED?: number;
+
+  // COEIROINK
+  COEIROINK_HOST: string;
+  COEIROINK_PORT: number;
+  COEIROINK_STYLE_ID: number;
+  COEIROINK_SPEAKER_UUID?: string;
+  COEIROINK_SPEED_SCALE: number;
+  COEIROINK_VOLUME_SCALE: number;
+
+  // VOICEVOX
+  VOICEVOX_HOST: string;
+  VOICEVOX_PORT: number;
+  VOICEVOX_SPEAKER_ID: number;
+
+  // Mac say
+  SPEAKER_ENGLISH: string;
+  SPEAKER_JAPANESE: string;
+  RATE_ENGLISH: number;
+  RATE_JAPANESE: number;
+
+  // TTS common
+  ENABLE_TTS: boolean;
+  READ_USERNAME: boolean;
+  USE_SIMPLE_NAME: boolean;
+  STARTING_MESSAGE: string;
+  BILINGAL_MODE: boolean;
+  FOREIGN_LANGUAGE_MODE: "KATAKANA" | "NATIVE" | "IGNORE";
+
+  // Commands
+  COMMENT_REMEMVER_AVAILABLE: boolean;
+  COMMENT_REMEMVER_COMMAND: string;
+  COMMENT_FORGET_COMMAND: string;
+
+  // Twitch
+  TW_OAUTH_TOKEN: string;
+  TW_CHANNEL_NAME: string;
+  BOT_USERNAME: string;
+
+  // Discord
+  DISCORD_TRANSFER_ENABLED: boolean;
+  DISCORD_WEBHOOK_URL?: string;
+  DISCORD_TOKEN?: string;
+  DISCORD_CHANNEL_ID?: string;
+}
+
+import { paths } from "./paths";
+
+// Load default config from root config directory
+const configDir = paths.configDir();
+const rootConfigPath = path.join(configDir, "default.js");
+
+let rawConfig: any = {};
+if (fs.existsSync(rootConfigPath)) {
+  rawConfig = require(rootConfigPath);
+} else {
+  const samplePath = path.join(configDir, "default.js.sample");
+  if (fs.existsSync(samplePath)) {
+    console.warn(
+      `[Config] "config/default.js" was not found. Falling back to "${samplePath}".`
+    );
+    rawConfig = require(samplePath);
+  } else {
+    console.error(
+      `[Config] Neither "config/default.js" nor "${samplePath}" was found in ${configDir}.`
+    );
+  }
+}
+
+export const config: BotConfig = {
+  TTS_MODE: rawConfig.TTS_MODE || "Mac",
+  TTS_ENGINE:
+    rawConfig.TTS_ENGINE ||
+    (rawConfig.USE_VOICEVOX ? "VOICEVOX" : "COEIROINK"),
+  USE_VOICEVOX: rawConfig.USE_VOICEVOX ?? false,
+
+  ENGLISH_TTS_ENGINE: rawConfig.ENGLISH_TTS_ENGINE || "KOKORO",
+  KOKORO_ENGLISH_VOICE: rawConfig.KOKORO_ENGLISH_VOICE || "af_heart",
+
+  PIPER_MODEL_PATH: rawConfig.PIPER_MODEL_PATH || "",
+  KOKORO_VOICE: rawConfig.KOKORO_VOICE || "jf_alpha",
+  KOKORO_SPEED: rawConfig.KOKORO_SPEED ?? 1.0,
+
+  COEIROINK_HOST: rawConfig.COEIROINK_HOST || "127.0.0.1",
+  COEIROINK_PORT: rawConfig.COEIROINK_PORT || 50032,
+  COEIROINK_STYLE_ID: rawConfig.COEIROINK_STYLE_ID ?? 0,
+  COEIROINK_SPEAKER_UUID: rawConfig.COEIROINK_SPEAKER_UUID || "",
+  COEIROINK_SPEED_SCALE: rawConfig.COEIROINK_SPEED_SCALE ?? 1.0,
+  COEIROINK_VOLUME_SCALE: rawConfig.COEIROINK_VOLUME_SCALE ?? 1.0,
+
+  VOICEVOX_HOST: rawConfig.VOICEVOX_HOST || "127.0.0.1",
+  VOICEVOX_PORT: rawConfig.VOICEVOX_PORT || 50021,
+  VOICEVOX_SPEAKER_ID: rawConfig.VOICEVOX_SPEAKER_ID ?? 1,
+
+  SPEAKER_ENGLISH: rawConfig.SPEAKER_ENGLISH || "Susan",
+  SPEAKER_JAPANESE: rawConfig.SPEAKER_JAPANESE || "Kyoko",
+  RATE_ENGLISH: rawConfig.RATE_ENGLISH || 150,
+  RATE_JAPANESE: rawConfig.RATE_JAPANESE || 200,
+
+  ENABLE_TTS: rawConfig.ENABLE_TTS ?? true,
+  READ_USERNAME: rawConfig.READ_USERNAME ?? false,
+  USE_SIMPLE_NAME: rawConfig.USE_SIMPLE_NAME ?? true,
+  STARTING_MESSAGE: rawConfig.STARTING_MESSAGE || "読み上げを起動しました",
+  BILINGAL_MODE: rawConfig.BILINGAL_MODE ?? false,
+  FOREIGN_LANGUAGE_MODE: rawConfig.FOREIGN_LANGUAGE_MODE || "KATAKANA",
+
+  COMMENT_REMEMVER_AVAILABLE: rawConfig.COMMENT_REMEMVER_AVAILABLE ?? true,
+  COMMENT_REMEMVER_COMMAND: rawConfig.COMMENT_REMEMVER_COMMAND || "remember",
+  COMMENT_FORGET_COMMAND: rawConfig.COMMENT_FORGET_COMMAND || "forget",
+
+  TW_OAUTH_TOKEN: rawConfig.TW_OAUTH_TOKEN || "",
+  TW_CHANNEL_NAME: rawConfig.TW_CHANNEL_NAME || "",
+  BOT_USERNAME:
+    rawConfig.BOT_USERNAME ||
+    (rawConfig.TW_CHANNEL_NAME ? `${rawConfig.TW_CHANNEL_NAME}_bot` : ""),
+
+  DISCORD_TRANSFER_ENABLED: rawConfig.DISCORD_TRANSFER_ENABLED ?? false,
+  DISCORD_WEBHOOK_URL: rawConfig.DISCORD_WEBHOOK_URL || "",
+  DISCORD_TOKEN: rawConfig.DISCORD_TOKEN || "",
+  DISCORD_CHANNEL_ID: rawConfig.DISCORD_CHANNEL_ID || "",
+};

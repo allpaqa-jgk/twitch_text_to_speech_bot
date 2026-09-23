@@ -1,226 +1,117 @@
-# twitch text to speech bot for MacOS (, windows and linux via GoogleCloudTTS)
+# Twitch Text to Speech Bot
 
-**!!CAUTION!! / 注意**  
-**!!this readme might be incorrect / このREADMEは正しくない可能性があります!!**
+Twitch配信用の高品質・高機能テキスト読み上げ（TTS）ボット。  
+**COEIROINK**、**Kokoro TTS**、**Piper TTS**、**VOICEVOX**、および macOS標準の **say** に対応し、外国語コメントの自然なカタカナ変換やネイティブ英語読み上げもサポートしています。
 
-## Concept / コンセプト
+---
 
-1. Just double click and ready / ダブルクリックで起動するだけで使える
-1. No third party app for TTS (e.g. limechat) / メイン機能のTTSでは別のアプリケーション不要（limechatなど）
-1. Remember command for username and keywords / ユーザー名やキーワードを教育
-1. Listeners can check chat log before open the stream / 配信を開く前のチャットログをリスナーさんが見れる
-    - This is using discord... / discordを利用します。。
-    - Using discord, streamer can receive comment as notification of discord even if streaming with (via) iPhone or iPad. (e.g. I can't see "PC monitor" during playing Music Game)  
-      / discordを使うことでiPhone, iPad配信でもコメントを通知として受け取れます。（音ゲー中などPCを見れない場合でも通知であれば見れるという人
-1. TTS and Discord transfer functions should be turned off individually / TTSやdiscord転送は個別に使用・未使用を切り替えられる
+## 🌟 主な特徴
 
-## Functions / 機能
+1. **多彩なローカル音声合成エンジンに対応**:
+   - **COEIROINK**: お好みのキャラクターの高品位音声（エディタ辞書との自動同期対応）
+   - **Kokoro TTS (82M)**: ElevenLabs並みに流暢な超高音質英語ボイス（`af_heart`）および日本語ボイス（`jf_alpha`）
+   - **Piper TTS**: 高速・省メモリのローカルCLI音声合成（ノイズ・クリッピング対策済み）
+   - **VOICEVOX**: 四国めたん、ずんだもん等
+   - **macOS say**: macOS標準の合成音声（Kyoko, Susan等）
+2. **外国語コメントの自然な処理**:
+   - **カタカナ変換モード (`KATAKANA`)**: 英語・ロシア語・スペイン語・韓国語などのコメントをフォニックス（発音規則）に基づいて自然なカタカナに自動変換し、日本語ボイスで違和感なくスムーズに読み上げます。
+   - **ネイティブモード (`NATIVE`)**: 英語コメントを Kokoro のネイティブボイスで流暢に読み上げます。
+   - **無視モード (`IGNORE`)**: 外国語コメントを読み飛ばします。
+3. **音の重複を防ぐ直列FIFO再生キュー**:
+   - 複数のコメントが連続で投稿されても、音声が重ならず順番にクリアに再生されます。
+4. **教育機能・便利機能**:
+   - `!remember 単語=読み方`: チャットから辞書をリアルタイム教育
+   - `!forget 単語`: 辞書から削除
+   - `!dice 1d6 2d20`: サイコロ機能
+   - Discordチャンネルへのコメント自動転送（スマホ通知連携）
 
-1. speak comment(this is main function. but optional) / コメントの読み上げ
-    - comment will be converted to voice data via `say` command. / Macの`say`コマンドを使ってtwitchのコメントを読み上げます  
-    ( Google TTS version is now developing. / Googleのテキスト読み上げサービスを利用したバージョンも開発中 )
-    - add `!remember {keyword}={how_to_read}` and `!forget {keyword}` command for text to speech /  
-    読み方の教育機能つけました。`!remember {keyword}={how_to_read}` で教育、`!forget {keyword}`で忘却
-    - add `!dice {options}` command. / `!dice` コマンド  
-    e.g.  
-    `!dice 1d6 3d4` => throw one normal die, and three 4-sided dice /  
-    `!dice 1d6 3d4` => 普通のサイコロを1個、4面サイコロを3個振る
-1. transfer comments to discord(optional)
-    - if notification setting of discord was ON, you can receive comment as notification on mobile devise during streaming iOS games or something /  
-    discordの通知をONにしておけば、スマホ・タブレットなどでコメントを通知として表示できます。音ゲーなんかで目を離せない場合に便利
+---
 
-## Requirement / 必要なもの
+## 🚀 クイックスタート（配布バイナリを利用する場合）
 
-- Generous heart(mandatory) / 優しい心（必須
-- Courage to talk to me when something wrong(optional) / 何かあったときに僕に話しかける勇気（任意
+### 1. 配布ZIPを展開
+配布された `twitch-tts-bot.zip` を任意のフォルダに解凍します。
 
-### Mandatory for source use / sourceから使う場合に必須
+### 2. 設定ファイルの作成
+1. `config/default.js.sample` を同じフォルダ内にコピーし、名前を `default.js` に変更します。
+2. テキストエディタで `config/default.js` を開き、以下の項目を設定します：
 
-1. node(~12.6.0)
-1. yarn(~1.15.2)
+```javascript
+// Twitch 接続設定
+TW_OAUTH_TOKEN: "oauth:xxxxxxxxxxxxxxxxxxxxxx", // https://twitchapps.com/tmi/ で取得
+TW_CHANNEL_NAME: "your_channel_name",            // 読み上げを行いたいチャンネル名
 
-### Mandatory / 必須
+// 使用する音声エンジン ("COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac")
+TTS_ENGINE: "COEIROINK",
 
-1. for text to speech / 読み上げに必要なもの
-    - twitch IRC token( see <https://twitchapps.com/tmi/>
+// 外国語コメントの処理 ("KATAKANA" | "NATIVE" | "IGNORE")
+FOREIGN_LANGUAGE_MODE: "KATAKANA",
+```
 
-### Optional / 省略可能
+### 3. 起動
+フォルダ内の `twitch-tts-bot` を実行します。  
+`Connected to irc-ws.chat.twitch.tv:443` と表示されれば準備完了です！
 
-1. for text to speech / 読み上げに必要なもの
-    - mac
-        1. install voice data via config / 音声データのインストール
-    - cloudTTS ( 1~4 of [GCP TTS document](https://cloud.google.com/text-to-speech/docs/quickstart-client-libraries))
-        1. create or login to GCP / 既存のGCPプロジェクトへログインor作成
-        1. make new service accout for cloudTTS / cloudTTS 用のサービスアカウント作成・DL
-        1. setup `serviceAccount.json` file to use　(there is 2 method) / `serviceAccount.json` ファイルを使えるようにセットアップ（2つの中から好きな方法で)
-            - place file in `config` dir / `config` フォルダへファイルを設置
-                1. save to `config` dir as `serviceAccount.json` / `config` フォルダの中に `serviceAccount.json` という名前で保存
-                1. ( OR
-                    - remove `.sample` from filename of `config/serviceAccount.json.sample` / `config/serviceAccount.json.sample` のファイル名から `.sample` を削除
-                    - paste contents of downloaded service account file / DLしたファイルの中身をリネームしたファイルにペースとして保存
-            - add `GOOGLE_APPLICATION_CREDENTIALS` of `Environment variable` / 環境変数 `GOOGLE_APPLICATION_CREDENTIALS` へpathを追加
-1. for transfer to discord / discordへの転送に必要なもの
-    - create bot
-    - token
-    - channel ID  
-    search at google, like [discord+bot+token+channel+id](https://www.google.com/search?safe=off&q=discord+bot+token+channel+id&oq=discord+bot+token+channel+id)  
-    see e.g. <https://github.com/Chikachi/DiscordIntegration/wiki/How-to-get-a-token-and-channel-ID-for-Discord>
+> [!TIP]
+> **macOSで「開発元を確認できないため開けません」と表示される場合**:  
+> バイナリファイルを **右クリック（または Control + クリック）して「開く」** を選択し、表示される確認ダイアログで「開く」をクリックしてください。またはターミナルで `xattr -d com.apple.quarantine twitch-tts-bot` を実行してセキュリティ警告を解除できます。
 
-## How to use / 使い方
+---
 
-### Install / インストール
+## 🛠️ 各音声エンジンの利用準備
 
-#### Using binary / こちらでビルドした実行ファイルを使う
+### COEIROINK を使う場合
+1. [COEIROINK 公式サイト](https://coeiroink.com/) から COEIROINK（v2）をダウンロードして起動します。
+2. `config/default.js` の `TTS_ENGINE` を `"COEIROINK"` に設定します。
+3. お好みのキャラクターを使用する場合は `config/default.js` の `COEIROINK_STYLE_ID` を変更してください。
 
-1. move to latest release / latest releaseに移動: https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
-    - download as zip & unzip / zipで落として解凍
-    - download binary and place to same folder / 実行ファイルをDLして同じフォルダへ配置
-        - mac: twitch_text_to_speech_bot
-        - windows: twitch_text_to_speech_bot.exe
-    - edit config/default.js / コンフィグファイルセットアップ
+### Kokoro TTS を使う場合
+- 高音質な英語・日本語合成が完全ローカルで動作します。
+- Python 3.10+ 環境が必要です（初回起動時にモデル `hexgrad/Kokoro-82M` が自動ダウンロードされます）。
 
-#### Using source / ソースコードからyarn, nodeで使う
+### Piper TTS を使う場合
+- `models/piper/` 配下に ONNX モデルファイル（`ja_JP-hi_fi_captain-medium.onnx` 等）を配置して利用します。
 
-1. download this repo / 下記の中から好きな方法でリポジトリをダウンロード
-    1. clone / クローン
-        - use HTTPS
-            - `git clone https://github.com/allpaqa-jgk/twitch_text_to_speech_bot.git`
-        - use SSH
-            - `git clone git@github.com:allpaqa-jgk/twitch_text_to_speech_bot.git`
-1. install node / nodeのインストール
-    1. install using（homebrewを利用する場合
-        - mac: run `brew install node`
-    1. use `n` or `nodenv` / （`n`や`nodenv`を使いたい人はご自由にどうぞ
-        - see <https://github.com/tj/n>
-        - see <https://github.com/nodenv/nodenv>
-1. install yarn / yarnというパッケージマネージャを入れる（別にnpmでもいいっちゃいいんだけど
-    1. run `npm install -g yarn`
-1. install packages / パッケージのインストール
-    1. move to dir of this repository / このファイルのあるフォルダへ移動
-    1. run `yarn install` to install packages to `node_module` directory.
-1. install voice data / 音声データのインストール
-    ![スクリーンショット 2019-04-17 11 40 26](https://user-images.githubusercontent.com/49287928/56260686-1ff60300-6113-11e9-8316-e61b3ea5fbcf.png)
-    ![スクリーンショット 2019-04-17 11 41 59](https://user-images.githubusercontent.com/49287928/56260687-1ff60300-6113-11e9-9c75-91772bb1ee11.png)
-    ![スクリーンショット 2019-04-17 11 45 20](https://user-images.githubusercontent.com/49287928/56260688-1ff60300-6113-11e9-88ac-45c9419b9069.png)
+### VOICEVOX を使う場合
+1. [VOICEVOX 公式サイト](https://voicevox.hiroshiba.jp/) から VOICEVOX を起動（または Docker コンテナを起動）します。
+2. `config/default.js` の `TTS_ENGINE` を `"VOICEVOX"` に設定します。
 
-### Setting / 初期設定・設定変更
+---
 
-1. copy `config.js.sample` to `config.js`
-1. set token, ID and so on
-1. change setting if you need
-    - TTS_MODE: only 'Mac' is available, Google Cloud TTS version is now developing. Windows is not supported /  
-    'Mac'のみ利用可能。Google Cloud TTS版開発中、Windowsはサポート外
-    - READ_USERNAME: speak username who commented or not / コメントしたユーザー名も読み上げるかどうか
-    - USE_SIMPLE_NAME: remove characters after '_' or numbers end of username / '_' や末尾の数字を除去して読み上げ
-    - SPEAKER_ENGLISH: "Susan" / 英語時の読み上げ音声の名前
-    - SPEAKER_JAPANESE: "Kyoko" / 日本語のような2バイト文字の読み上げ音声の名前
-    - RATE_ENGLISH: 150 / 英語の読み上げスピード
-    - RATE_JAPANESE: 200 / 日本語の読み上げスピード
-    - BILINGAL_MODE: false / 英語日本語で読み分けるかどうか
-    - COMMENT_REMEMVER_AVAILABLE: true / 教育機能オンオフ
-    - COMMENT_REMEMVER_REGEXP: "^!(remember)" / 教育コマンドのパターン
-    - COMMENT_FORGET_REGEXP: "^!(forget)" / 忘却コマンドのパターン
-    - DISCORD_TOKEN: '' / discord botのtoken
-    - DISCORD_CHANNEL_ID: '' / discordへ転送するチャンネルのID
-    - TW_OAUTH_TOKEN: '' / twitchのコメントを取得したりコメントを書き込んだりするユーザーのtoken（`{username}_bot`などのアカウントをもう一つ作ってそいつにやらせるのがおすすめ）
-    - TW_CHANNEL_NAME: '' / twitchで監視するチャンネル名
-    - BOT_USERNAME: '' / botの名前を変えたいときに使う（微妙
+## 💻 開発・ソースコードから実行する場合
 
-### Exec / 起動
+本プロジェクトは **Bun + TypeScript** をベースに構築されています。
 
-#### Binary
+### 動作要件
+- [Bun](https://bun.sh/) (v1.1+)
 
-1. exec binary file ( downloaded from https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest
+### セットアップ・実行
+```bash
+# 依存パッケージのインストール
+cd src
+bun install
 
-#### Source
+# 開発実行
+bun run index.ts
 
-1. start / スタート
-    - move to repository dir / このリポジトリのディレクトリに移動
-    - run `yarn start`
-1. stop / 終了
-    - push `ctrl - c` on your keyboard / キーボードで`ctrl - c`
+# ユニットテスト実行（全26テスト）
+bun test
 
-### Update / 更新
+# スタンドアロンバイナリのビルド
+bun run build
+```
 
-which way did you choose when you download repo? / ダウンロード方法によってアップデート方法が違うよ
+---
 
-1. binary / 実行ファイルをダウンロードした場合
-    - Download new files from (latest release)[https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest] / (latest release)[https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases/latest] から最新版をダウンロード
-    - unzip / 解凍
-    - overwrite existing files / 既存ファイル上書き
-1. clone as git repository / cloneした場合
-    - `git status`  
-    check unstaged change. / コミットしていない変更がないかチェック  
-    memo which version you using. / 戻したいときに戻せるように使ってるバージョンをチェック
-    - `git pull origin master`
-1. zip / zipでDLした場合
-    - take backup of your setting and convert list / フォルダーごとバックアップをとる
-    - download zip file of current `master branch` / DLし直します
-    - unzip / 解凍
-    - overwrite files / 上書き
+## ⚠️ 音声合成の利用規約・クレジット表記について
 
-## FAQ
+各音声合成エンジンやキャラクターの音声を配信・動画・商用利用で使用する場合は、それぞれの公式利用規約に従ってください。
 
-1. Who are you? / お前誰
-    - twitter: <https://twitter.com/haaaaaaa_8>
-    - twitch: <https://www.twitch.tv/haaaaaaa>
-1. Is this free to use? / ただで使える？
-    - for Mac mode / Mac モード
-      - YES! but I'm happy if you follow my twitch channel. /  
-      いいよ！もし気に入ったらtwitchのチャンネルをフォローしてもらえると嬉しいな
-    - GoogleCloudTTS mode / GoogleCloudTTS モード
-      - Free up to 1 million character/month / 100万文字/月まで無料
-1. How can I use on Windows? / windowsで使える？
-    - This bot is available for only Mac OS. Windows can use only CloudTTS mode. /  
-    MacモードはMacのみ対応。WindowsはCloudTTSモードのみ対応
-1. Bug! / Question! / Great idea! / ばぐみつけた！ / 質問がある! / いいこと思いついた!
-    1. tell me via twitter / 問題があったときや質問があればツイッターで教えて欲しいな
-    1. feel free to make issue / issueにしてくれてもOK
-    1. or discord / discordも可  
-    （you can find invitation on info panel on my twitch channel / twitchのチャンネルの情報パネルに招待リンクあるはず
-1. How can I support of developing this repo? / 何かサポートしてやってもいいよって人
-    - twitter
-        - send message / リプ・DM多分返します。多分
-    - twitch
-        - make comment during streaming / コメント歓迎
-        - follow/subscribe / フォロー・サブスク
-        - donate / ドネーション（寄付）  
-        see info panel of my twitch channel / 情報パネルにリンクがあるよ
-    - github
-        - star this repo / このリポジトリにスターをつける
-        - contribute to this repo / 開発社ぼしうちう
-        - make issue about bug, idea and so on. / バグやアイディアをissueに書いて欲しいな
-        - make PR for bugfix. / バグ修正
+- **COEIROINK**: キャラクターごとに利用規約が異なります。配信概要欄等にクレジット表記（例: `音声：COEIROINK:キャラクター名`）が必要な場合があります。詳細は各キャラクターおよび [COEIROINK利用規約](https://coeiroink.com/) をご確認ください。
+- **VOICEVOX**: 配信・動画等で使用する際は、クレジット表記（例: `VOICEVOX:四国めたん`）が必須です。詳細は [VOICEVOX利用規約](https://voicevox.hiroshiba.jp/) をご確認ください。
+- **Kokoro TTS**: Apache-2.0 ライセンスに基づくオープンソースTTSです。
 
-## Special Thanks
+---
 
-### Packages
-
-- discordjs/uws
-- google-cloud/text-to-speech
-- config
-- csv
-- csv-parse
-- discord.js
-- forever
-- forever-monitor
-- play-sound
-- request
-- request-promise
-- tmi.js
-
-### Packages for dev
-
-- eslint
-- nexe
-- prettier
-
-### I used this repository as reference
-
-- https://blog.sikmi.com/twitch_speaker
-  - https://github.com/sikmi/twitch_speaker (ruby)
-
-## Please feel free to send message / なにかあればお気軽にー
-
-- twitter: <https://twitter.com/haaaaaaa_8>
-- twitch: <https://www.twitch.tv/haaaaaaa>
+## 📝 ライセンス
+MIT License

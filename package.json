@@ -1,69 +1,19 @@
 {
-  "private": true,
-  "version": "0.0.9",
   "name": "twitch_text_to_speech_bot",
-  "description": "TextToSpeech bot for twitch.tv. and share all comment to discord channel. remember and forget function convert commented keywords to another string before passed to TTS.",
-  "license": "MIT",
-  "homepage": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot",
-  "bug": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/issues",
-  "repository": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot",
-  "author": {
-    "name": "allpaqa-jgk"
-  },
-  "files": [
-    "LICENSE",
-    "README.md",
-    "config/*.sample",
-    ".eslintrc.js",
-    ".gitignore",
-    ".vscode",
-    "data/.keep",
-    "data/emoteList.csv",
-    "tmp/.keep",
-    "build.js",
-    "main.js",
-    "update_emote.js",
-    "src",
-    "package.json",
-    "yarn.lock"
-  ],
-  "main": "main.js",
+  "version": "2.0.0",
+  "description": "Text to Speech bot for Twitch with COEIROINK, Kokoro, Piper, VOICEVOX, and macOS say support",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "start": "NODE_ENV=development node --unhandled-rejections=strict ./main.js",
-    "lint": "eslint src",
-    "update_emote": "node ./updateEmote.js",
-    "build": "node ./build.js"
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "test": "cd src && bun test",
+    "build": "cd src && bun run build",
+    "package": "bun run scripts/build_package.ts"
   },
-  "engines": {
-    "node": "^12.6.0",
-    "yarn": "~1.22.2"
-  },
-  "dependencies": {
-    "@discordjs/uws": "^10.149.0",
-    "@google-cloud/text-to-speech": "^3.3.1",
-    "config": "^3.3.6",
-    "csv": "^5.1",
-    "csv-parse": "^4.4",
-    "discord.js": "^11.6.0",
-    "forever": "^4.0.1",
-    "forever-monitor": "^3.0.3",
-    "lodash.merge": "4.6.2",
-    "play-sound": "^1.1",
-    "request": "^2.34",
-    "request-promise": "^4.2",
-    "tmi.js": "^1.4"
-  },
-  "devDependencies": {
-    "eslint": "^7.32.0",
-    "eslint-cli": "^1.1.1",
-    "eslint-config-prettier": "^4.1.0",
-    "eslint-config-standard": "^12.0.0",
-    "eslint-plugin-import": "^2.24.2",
-    "eslint-plugin-node": "^8.0.1",
-    "eslint-plugin-prettier": "^3.0.1",
-    "eslint-plugin-promise": "^4.0.1",
-    "eslint-plugin-standard": "^4.0.0",
-    "nexe": "^3.3.7",
-    "prettier": "^1.16.4"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot"
   }
 }

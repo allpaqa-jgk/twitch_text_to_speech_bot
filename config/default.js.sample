@@ -42,6 +42,42 @@ module.exports = {
   // for TTS_MODE: CloudTTS
   BILINGAL_MODE: false,
 
+  // TTS Engine for primary text
+  // Options: "COEIROINK" | "VOICEVOX" | "PIPER" | "KOKORO" | "Mac"
+  TTS_ENGINE: "COEIROINK",
+  // TTS_ENGINE: "VOICEVOX",
+  // TTS_ENGINE: "PIPER",
+  // TTS_ENGINE: "KOKORO",
+  // TTS_ENGINE: "Mac",
+
+  // Foreign language mode:
+  // "KATAKANA": 外国語（英語・ロシア語・スペイン語等）を自然な発音カタカナに変換して読む（推奨）
+  // "NATIVE": 英語音声エンジン等でネイティブ発音で読む
+  // "IGNORE": 外国語は読み飛ばす
+  FOREIGN_LANGUAGE_MODE: "KATAKANA",
+
+  // English TTS Engine (FOREIGN_LANGUAGE_MODE: "NATIVE" 時に使用)
+  // Options: "KOKORO" | "PIPER" | "Mac"
+  ENGLISH_TTS_ENGINE: "KOKORO",
+  KOKORO_ENGLISH_VOICE: "af_heart", // ElevenLabs並みの高音質英語ボイス
+
+  // for COEIROINK
+  COEIROINK_HOST: "127.0.0.1",
+  COEIROINK_PORT: 50032,
+  COEIROINK_STYLE_ID: 0, // 利用したいキャラクターのスタイルID (COEIROINKエディタ等で確認可能)
+  COEIROINK_SPEED_SCALE: 1.0,
+  COEIROINK_VOLUME_SCALE: 1.0,
+
+  // for VOICEVOX (also used as fallback if TTS_ENGINE is not set)
+  USE_VOICEVOX: false,
+  VOICEVOX_HOST: '127.0.0.1',
+  VOICEVOX_PORT: 50021,
+  VOICEVOX_SPEAKER_ID: 1,
+
+  // for Kokoro TTS
+  KOKORO_VOICE: "jf_alpha",
+  KOKORO_SPEED: 1.0,
+
   /// //////////////////
   //     TWITCH      //
   /// //////////////////
@@ -62,7 +98,8 @@ module.exports = {
   /// //////////////////
 
   // see following page to check detail. https://support.discordapp.com/hc/en-us/articles/228383668-Intro-to-Webhooks
-  DISCORD_TRANSFER_ENABLED: true,
+  DISCORD_TRANSFER_ENABLED: false,
+  DISCORD_WEBHOOK_URL: "", // Discord Webhook URL (推奨: Bot Token不要で軽量動作)
   DISCORD_TOKEN: "",
   DISCORD_CHANNEL_ID: "",
 };

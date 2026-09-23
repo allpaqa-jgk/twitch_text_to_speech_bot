@@ -1,0 +1,26 @@
+{
+  "name": "twitch-tts-v2",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun --watch run index.ts",
+    "test": "bun test",
+    "build": "bun build ./index.ts --compile --outfile ../dist/twitch-tts-v2",
+    "package": "bun run ../scripts/build_package.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/tmi.js": "^1.8.6"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "csv-parse": "^7.0.2",
+    "franc-min": "^6.2.0",
+    "play-sound": "^1.1.6",
+    "tmi.js": "^1.8.5"
+  }
+}

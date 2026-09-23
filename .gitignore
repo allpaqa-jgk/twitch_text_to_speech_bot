@@ -70,5 +70,16 @@ default.js
 
 dist
 
-/config
+/config/*
 !/config/*.sample
+!/config/.keep
+
+# Python virtual environment & models
+.venv/
+/models/**
+!/models/**/
+!/models/**/.keep
+
+# Bun build temp files
+*.bun-build
+.*.bun-build

@@ -4,6 +4,11 @@ import { paths } from "../../paths";
 import path from "path";
 import fs from "fs";
 
+interface KokoroWorkerResponse {
+  status: "ok" | "error";
+  error?: string;
+}
+
 export class KokoroEngine implements TTSEngine {
   public readonly name = "Kokoro";
 
@@ -13,12 +18,12 @@ export class KokoroEngine implements TTSEngine {
   private speed: number;
   private lang: string;
 
-  private proc: any = null;
+  private proc: ReturnType<typeof Bun.spawn> | null = null;
   private isReady = false;
   private readyPromise: Promise<void> | null = null;
   private currentRequest: {
-    resolve: (res: any) => void;
-    reject: (err: any) => void;
+    resolve: (res: KokoroWorkerResponse) => void;
+    reject: (err: Error) => void;
   } | null = null;
 
   constructor(
@@ -142,11 +147,16 @@ export class KokoroEngine implements TTSEngine {
       lang: this.lang,
     });
 
-    // Wait for response from resident worker
-    const response = await new Promise<any>((resolve, reject) => {
+    // Wait for response from resident worker.
+    // NOTE: TTSQueue guarantees serial execution, so concurrent calls should not
+    // happen in practice. This guard prevents silent promise leaks if they ever do.
+    const response = await new Promise<KokoroWorkerResponse>((resolve, reject) => {
+      if (this.currentRequest) {
+        this.currentRequest.reject(new Error("[KokoroEngine] Overwritten by a new request before response was received."));
+      }
       this.currentRequest = { resolve, reject };
-      this.proc.stdin.write(payload + "\n");
-      this.proc.stdin.flush();
+      this.proc!.stdin.write(payload + "\n");
+      this.proc!.stdin.flush();
     });
 
     if (response.status !== "ok") {

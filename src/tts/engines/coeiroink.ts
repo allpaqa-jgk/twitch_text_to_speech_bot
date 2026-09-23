@@ -5,6 +5,25 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
+interface CoeiroinkDictionaryWord {
+  word: string;
+  yomi: string;
+  accent: number;
+  numMoras: number;
+}
+
+interface CoeiroinkDictionaryStore {
+  dictionary?: CoeiroinkDictionaryWord[];
+}
+
+interface CoeiroinkSpeakerMeta {
+  speakerUuid: string;
+}
+
+interface CoeiroinkProsodyDetail {
+  [key: string]: unknown;
+}
+
 export class CoeiroinkEngine implements TTSEngine {
   public readonly name = "COEIROINK";
 
@@ -68,8 +87,8 @@ export class CoeiroinkEngine implements TTSEngine {
       }
 
       const dictContent = fs.readFileSync(dictPath, "utf-8");
-      const dictData = JSON.parse(dictContent);
-      const words: any[] = [];
+      const dictData = JSON.parse(dictContent) as CoeiroinkDictionaryStore;
+      const words: CoeiroinkDictionaryWord[] = [];
       if (Array.isArray(dictData.dictionary)) {
         for (const item of dictData.dictionary) {
           if (
@@ -118,7 +137,7 @@ export class CoeiroinkEngine implements TTSEngine {
       throw new Error(`Failed to resolve speakerUuid for styleId ${styleId} (Status: ${res.status})`);
     }
 
-    const data: any = await res.json();
+    const data = await res.json() as CoeiroinkSpeakerMeta;
     if (!data?.speakerUuid) {
       throw new Error(`Invalid speaker meta returned for styleId ${styleId}`);
     }
@@ -127,7 +146,7 @@ export class CoeiroinkEngine implements TTSEngine {
     return data.speakerUuid;
   }
 
-  private async fetchEstimateProsody(text: string): Promise<any[]> {
+  private async fetchEstimateProsody(text: string): Promise<CoeiroinkProsodyDetail[]> {
     const res = await fetch(`${this.baseUrl}/v1/estimate_prosody`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -138,13 +157,13 @@ export class CoeiroinkEngine implements TTSEngine {
       throw new Error(`estimate_prosody failed with status ${res.status}`);
     }
 
-    const data: any = await res.json();
+    const data = await res.json() as { detail: CoeiroinkProsodyDetail[] };
     return data.detail;
   }
 
   private async fetchSynthesis(
     text: string,
-    prosodyDetail: any[],
+    prosodyDetail: CoeiroinkProsodyDetail[],
     speakerUuid: string,
     styleId: number
   ): Promise<ArrayBuffer> {

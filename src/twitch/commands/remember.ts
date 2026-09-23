@@ -5,9 +5,14 @@ export interface CommandResult {
   replyMessage: string;
 }
 
+/** Escape special RegExp characters in a user-supplied string */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function handleRememberCommand(msg: string): CommandResult {
   const isUser = new RegExp(
-    `^!(${config.COMMENT_REMEMVER_COMMAND}U)`
+    `^!(${escapeRegExp(config.COMMENT_REMEMVER_COMMAND)}U)`
   ).test(msg);
   const listType: ListType = isUser ? "usernameConvertList" : "messageConvertList";
 
@@ -43,7 +48,7 @@ export function handleRememberCommand(msg: string): CommandResult {
 
 export function handleForgetCommand(msg: string): CommandResult {
   const isUser = new RegExp(
-    `^!(${config.COMMENT_FORGET_COMMAND}U)`
+    `^!(${escapeRegExp(config.COMMENT_FORGET_COMMAND)}U)`
   ).test(msg);
   const listType: ListType = isUser ? "usernameConvertList" : "messageConvertList";
 

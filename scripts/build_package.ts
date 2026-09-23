@@ -1,13 +1,47 @@
 import path from "path";
 import fs from "fs";
 
-async function buildPackage() {
-  const rootDir = path.resolve(import.meta.dir, "..");
-  const distDir = path.join(rootDir, "dist");
-  const packageDir = path.join(distDir, "twitch-tts-bot");
-  const zipPath = path.join(distDir, "twitch-tts-bot-mac-arm64.zip");
+interface TargetPlatform {
+  id: string;
+  name: string;
+  target?: string; // undefined means host default (mac-arm64)
+  binaryName: string;
+  zipName: string;
+}
 
-  console.log("==> 1. Clean up dist directories...");
+const PLATFORMS: TargetPlatform[] = [
+  {
+    id: "mac-arm64",
+    name: "macOS (Apple Silicon / M1 / M2 / M3 / M4)",
+    target: "bun-darwin-arm64",
+    binaryName: "twitch-tts-bot",
+    zipName: "twitch-tts-bot-mac-arm64.zip",
+  },
+  {
+    id: "windows-x64",
+    name: "Windows (x64)",
+    target: "bun-windows-x64",
+    binaryName: "twitch-tts-bot.exe",
+    zipName: "twitch-tts-bot-windows-x64.zip",
+  },
+  {
+    id: "linux-x64",
+    name: "Linux (x64)",
+    target: "bun-linux-x64",
+    binaryName: "twitch-tts-bot",
+    zipName: "twitch-tts-bot-linux-x64.zip",
+  },
+];
+
+async function buildPlatformPackage(p: TargetPlatform, rootDir: string, distDir: string) {
+  console.log(`\n======================================================`);
+  console.log(`🔨 Building package for ${p.name} ...`);
+  console.log(`======================================================`);
+
+  const packageDir = path.join(distDir, `twitch-tts-bot-${p.id}`);
+  const zipPath = path.join(distDir, p.zipName);
+
+  // 1. Clean up platform folder and zip
   if (fs.existsSync(packageDir)) {
     fs.rmSync(packageDir, { recursive: true, force: true });
   }
@@ -19,34 +53,41 @@ async function buildPackage() {
   fs.mkdirSync(path.join(packageDir, "data"), { recursive: true });
   fs.mkdirSync(path.join(packageDir, "scripts"), { recursive: true });
   fs.mkdirSync(path.join(packageDir, "tmp"), { recursive: true });
+  fs.mkdirSync(path.join(packageDir, "models/piper"), { recursive: true });
 
-  console.log("==> 2. Compiling standalone binary with Bun...");
-  const binaryOutput = path.join(packageDir, "twitch-tts-bot");
-  const buildProc = Bun.spawn(
-    [
-      "bun",
-      "build",
-      "./src/index.ts",
-      "--compile",
-      "--outfile",
-      binaryOutput,
-    ],
-    {
-      cwd: rootDir,
-      stdout: "inherit",
-      stderr: "inherit",
-    }
-  );
+  // 2. Compile standalone binary with Bun
+  const binaryOutput = path.join(packageDir, p.binaryName);
+  const buildArgs = [
+    "bun",
+    "build",
+    "./src/index.ts",
+    "--compile",
+  ];
+  if (p.target) {
+    buildArgs.push(`--target=${p.target}`);
+  }
+  buildArgs.push("--outfile", binaryOutput);
+
+  console.log(`==> Compiling standalone binary (${p.binaryName})...`);
+  const buildProc = Bun.spawn(buildArgs, {
+    cwd: rootDir,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
 
   const exitCode = await buildProc.exited;
   if (exitCode !== 0) {
-    throw new Error(`Bun compilation failed with exit code ${exitCode}`);
+    throw new Error(`Bun compilation failed for ${p.name} with exit code ${exitCode}`);
   }
 
-  // Ensure binary is executable
-  fs.chmodSync(binaryOutput, 0o755);
+  // Ensure executable permissions
+  try {
+    fs.chmodSync(binaryOutput, 0o755);
+  } catch {
+    // ignore
+  }
 
-  console.log("==> 3. Copying configuration, data, scripts, and documentation...");
+  // 3. Copy resources
   // config
   fs.copyFileSync(
     path.join(rootDir, "config/default.js.sample"),
@@ -68,11 +109,8 @@ async function buildPackage() {
     }
   }
 
-  // tmp
+  // tmp & models
   fs.writeFileSync(path.join(packageDir, "tmp/.keep"), "");
-
-  // models
-  fs.mkdirSync(path.join(packageDir, "models/piper"), { recursive: true });
   fs.writeFileSync(path.join(packageDir, "models/piper/.keep"), "");
 
   // scripts
@@ -87,9 +125,12 @@ async function buildPackage() {
     path.join(packageDir, "README.md")
   );
 
-  console.log("==> 4. Creating release ZIP archive...");
+  // 4. Create ZIP
+  console.log(`==> Creating release ZIP: ${p.zipName}...`);
+  // Rename packageDir temporarily or zip with folder name 'twitch-tts-bot' for friendly extraction
+  const folderName = path.basename(packageDir);
   const zipProc = Bun.spawn(
-    ["zip", "-r", zipPath, "twitch-tts-bot"],
+    ["zip", "-r", zipPath, folderName],
     {
       cwd: distDir,
       stdout: "ignore",
@@ -98,14 +139,34 @@ async function buildPackage() {
   );
   await zipProc.exited;
 
-  console.log("\n========================================");
-  console.log("✅ Distribution package successfully built!");
-  console.log(`📁 Package Folder: ${packageDir}`);
-  console.log(`📦 Release ZIP:    ${zipPath}`);
-  console.log("========================================\n");
+  console.log(`✅ ${p.zipName} created (${(fs.statSync(zipPath).size / 1024 / 1024).toFixed(2)} MB)`);
 }
 
-buildPackage().catch((err) => {
+async function buildAll() {
+  const rootDir = path.resolve(import.meta.dir, "..");
+  const distDir = path.join(rootDir, "dist");
+
+  if (!fs.existsSync(distDir)) {
+    fs.mkdirSync(distDir, { recursive: true });
+  }
+
+  // Build for all platforms
+  for (const p of PLATFORMS) {
+    await buildPlatformPackage(p, rootDir, distDir);
+  }
+
+  console.log("\n======================================================");
+  console.log("🎉 All packages successfully built!");
+  console.log("======================================================");
+  for (const p of PLATFORMS) {
+    const zipPath = path.join(distDir, p.zipName);
+    const size = (fs.statSync(zipPath).size / 1024 / 1024).toFixed(2);
+    console.log(`📦 ${p.zipName.padEnd(35, " ")} (${size} MB) - ${p.name}`);
+  }
+  console.log("======================================================\n");
+}
+
+buildAll().catch((err) => {
   console.error("Build failed:", err);
   process.exit(1);
 });

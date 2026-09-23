@@ -19,7 +19,9 @@ function openBrowser(url: string) {
   if (plat === "darwin") {
     cmd = ["open", url];
   } else if (plat === "win32") {
-    cmd = ["cmd", "/c", "start", url];
+    // Windows: cmd /c start treats '&' as command separator and strips query parameters.
+    // rundll32 url.dll,FileProtocolHandler passes the entire URL directly to default browser.
+    cmd = ["rundll32", "url.dll,FileProtocolHandler", url];
   } else {
     cmd = ["xdg-open", url];
   }

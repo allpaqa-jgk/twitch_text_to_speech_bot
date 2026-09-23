@@ -10,6 +10,7 @@ import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
 import { printAvailableSpeakers } from "./tts/speakers";
+import { startInteractiveConsole } from "./cli/interactive";
 import pkg from "../package.json";
 
 const BOT_VERSION = pkg.version || "2.0.1";
@@ -153,6 +154,9 @@ bot.start().catch((err) => {
   }
   process.exit(1);
 });
+
+// 5. Start interactive console for terminal commands (?, speakers, say, clear, q)
+startInteractiveConsole(queue);
 
 // Graceful shutdown
 process.on("SIGINT", () => {

@@ -9,11 +9,14 @@ import type { TTSEngine } from "./tts/engine";
 import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
+import pkg from "../package.json";
+
+const BOT_VERSION = pkg.version || "2.0.0";
 
 // CLI auth command: ./twitch-tts-bot auth or bun run index.ts auth
 if (process.argv.includes("auth") || process.argv.includes("--auth")) {
   console.log("////////////////////////////////////////");
-  console.log("//     Twitch Bot Authentication      //");
+  console.log(`//   Twitch Bot Auth (v${BOT_VERSION})`.padEnd(38, " ") + "//");
   console.log("////////////////////////////////////////");
   try {
     await startTwitchOAuthFlow();
@@ -26,7 +29,7 @@ if (process.argv.includes("auth") || process.argv.includes("--auth")) {
 }
 
 console.log("////////////////////////////////////////");
-console.log("//   Twitch Text to Speech Bot (v2)   //");
+console.log(`//   Twitch Text to Speech Bot v${BOT_VERSION}`.padEnd(38, " ") + "//");
 console.log("////////////////////////////////////////");
 
 // 1. Select primary Japanese TTS Engine

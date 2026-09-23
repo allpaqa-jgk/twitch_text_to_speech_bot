@@ -13,6 +13,10 @@ export type ListType =
 export class CsvListStorage {
   private dataDir: string;
 
+  // mtime-based in-memory cache (avoids disk reads on every Twitch message)
+  private mtimeCache = new Map<ListType, number>();
+  private contentCache = new Map<ListType, string[][]>();
+
   constructor(dataDir = paths.dataDir()) {
     this.dataDir = dataDir;
     this.ensureDirectory();
@@ -44,19 +48,34 @@ export class CsvListStorage {
     }
   }
 
+  /** Invalidate the in-memory cache for a specific list type */
+  private invalidateCache(type: ListType): void {
+    this.mtimeCache.delete(type);
+    this.contentCache.delete(type);
+  }
+
   public readList(type: ListType): string[][] {
     this.ensureFileExists(type);
     const filePath = this.getFilePath(type);
 
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      if (!content.trim()) {
-        return [];
+      const stats = fs.statSync(filePath);
+      const cachedMtime = this.mtimeCache.get(type);
+
+      // Return cache if file has not changed since last read
+      if (cachedMtime !== undefined && stats.mtimeMs <= cachedMtime) {
+        return this.contentCache.get(type)!;
       }
-      return parse(content, {
-        relaxColumnCount: true,
-        skipEmptyLines: true,
-      });
+
+      // File is new or modified — read from disk and update cache
+      const content = fs.readFileSync(filePath, "utf-8");
+      const data: string[][] = content.trim()
+        ? parse(content, { relaxColumnCount: true, skipEmptyLines: true })
+        : [];
+
+      this.mtimeCache.set(type, stats.mtimeMs);
+      this.contentCache.set(type, data);
+      return data;
     } catch (err) {
       console.error(`[CsvListStorage] Error reading ${type}:`, err);
       return [];
@@ -79,6 +98,9 @@ export class CsvListStorage {
     );
 
     fs.writeFileSync(filePath, lines.join("\n") + (lines.length > 0 ? "\n" : ""), "utf-8");
+
+    // Invalidate cache immediately so the next readList() picks up the new content
+    this.invalidateCache(type);
   }
 
   public appendRow(type: ListType, row: string[]): void {

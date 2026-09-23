@@ -9,9 +9,16 @@ import type { TTSEngine } from "./tts/engine";
 import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
+import { printAvailableSpeakers } from "./tts/speakers";
 import pkg from "../package.json";
 
-const BOT_VERSION = pkg.version || "2.0.0";
+const BOT_VERSION = pkg.version || "2.0.1";
+
+// CLI speakers command: ./twitch-tts-bot speakers or --speakers
+if (process.argv.includes("speakers") || process.argv.includes("--speakers") || process.argv.includes("voices")) {
+  await printAvailableSpeakers();
+  process.exit(0);
+}
 
 // CLI auth command: ./twitch-tts-bot auth or bun run index.ts auth
 if (process.argv.includes("auth") || process.argv.includes("--auth")) {
@@ -38,10 +45,12 @@ let primaryEngine: TTSEngine;
 switch (config.TTS_ENGINE) {
   case "COEIROINK":
     console.log(`[Init] Using COEIROINK engine (Style ID: ${config.COEIROINK_STYLE_ID})`);
+    console.log(`       💡 キャラクター・スタイルIDの確認: ./twitch-tts-bot speakers`);
     primaryEngine = new CoeiroinkEngine();
     break;
   case "VOICEVOX":
     console.log(`[Init] Using VOICEVOX engine (Speaker ID: ${config.VOICEVOX_SPEAKER_ID})`);
+    console.log(`       💡 キャラクター・スタイルIDの確認: ./twitch-tts-bot speakers`);
     primaryEngine = new VoicevoxEngine();
     break;
   case "PIPER":

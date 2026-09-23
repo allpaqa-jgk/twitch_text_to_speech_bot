@@ -8,6 +8,7 @@
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
     "auth": "bun run scripts/auth.ts",
+    "speakers": "bun run src/index.ts speakers",
     "test": "cd src && bun test",
     "build": "cd src && bun run build",
     "package": "bun run scripts/build_package.ts"

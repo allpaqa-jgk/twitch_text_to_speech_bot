@@ -46,7 +46,7 @@ module.exports = {
   // for COEIROINK
   COEIROINK_HOST: "127.0.0.1",
   COEIROINK_PORT: 50032,
-  COEIROINK_STYLE_ID: 0, // 利用したいキャラクターのスタイルID (COEIROINKエディタ等で確認可能)
+  COEIROINK_STYLE_ID: 0, // 利用したいキャラクターのスタイルID (./twitch-tts-bot speakers で一覧確認可能)
   COEIROINK_SPEED_SCALE: 1.0,
   COEIROINK_VOLUME_SCALE: 1.0,
 
@@ -54,7 +54,7 @@ module.exports = {
   USE_VOICEVOX: false,
   VOICEVOX_HOST: "127.0.0.1",
   VOICEVOX_PORT: 50021,
-  VOICEVOX_SPEAKER_ID: 1,
+  VOICEVOX_SPEAKER_ID: 1, // 利用したいキャラクターのスピーカーID (./twitch-tts-bot speakers で一覧確認可能)
 
   // for Kokoro TTS
   KOKORO_VOICE: "jf_alpha",

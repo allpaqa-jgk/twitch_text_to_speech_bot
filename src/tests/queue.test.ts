@@ -63,4 +63,34 @@ describe("TTSQueue", () => {
 
     expect(callCount).toBe(3);
   });
+
+  it("should handle offline connection errors gracefully with warning", async () => {
+    const offlineEngine: TTSEngine = {
+      name: "COEIROINK",
+      isAvailable: async () => false,
+      say: async () => {
+        const err: any = new TypeError("Unable to connect. Is the computer able to access the url?");
+        err.code = "ConnectionRefused";
+        err.errno = 0;
+        throw err;
+      },
+    };
+
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(" "));
+    };
+
+    try {
+      const queue = new TTSQueue(offlineEngine);
+      await queue.enqueue("テストメッセージ");
+
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain("音声エンジン (COEIROINK) に接続できませんでした");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
 });
+

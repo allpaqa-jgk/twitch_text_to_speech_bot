@@ -75,8 +75,20 @@ export class TTSQueue {
     try {
       await engine.say(current.text);
       current.resolve();
-    } catch (err) {
-      console.error(`[TTSQueue] Error speaking "${current.text}":`, err);
+    } catch (err: any) {
+      const errStr = String(err?.message || err);
+      const isConnectionRefused =
+        err?.code === "ConnectionRefused" ||
+        err?.errno === 0 ||
+        errStr.includes("ConnectionRefused") ||
+        errStr.includes("Unable to connect") ||
+        errStr.includes("fetch failed");
+
+      if (isConnectionRefused) {
+        console.warn(`⚠️  [TTSQueue] 音声エンジン (${engine.name}) に接続できませんでした。アプリが起動しているか確認してください。`);
+      } else {
+        console.error(`[TTSQueue] Error speaking "${current.text}":`, err?.message || err);
+      }
       // We resolve rather than reject to avoid unhandled rejections on callers,
       // while proceeding to the next message in queue.
       current.resolve();

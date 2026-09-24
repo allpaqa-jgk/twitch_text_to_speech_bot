@@ -120,7 +120,17 @@ export class CoeiroinkEngine implements TTSEngine {
         this.lastDictionaryMtime = stats.mtimeMs;
       }
     } catch (err: any) {
-      console.warn("[CoeiroinkEngine] Dictionary sync error:", err?.message || err);
+      const errStr = String(err?.message || err);
+      const isConnectionRefused =
+        err?.code === "ConnectionRefused" ||
+        err?.errno === 0 ||
+        errStr.includes("ConnectionRefused") ||
+        errStr.includes("Unable to connect") ||
+        errStr.includes("fetch failed");
+
+      if (!isConnectionRefused) {
+        console.warn("[CoeiroinkEngine] Dictionary sync error:", err?.message || err);
+      }
     }
   }
 

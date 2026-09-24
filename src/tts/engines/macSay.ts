@@ -21,11 +21,13 @@ export class MacSayEngine implements TTSEngine {
       return;
     }
 
-    const option = `[[RATE ${this.rate}]]`;
-    const escaped = text.replace(/'/g, "'\\''");
-    const script = `echo '${option} ${escaped}' | say -v '${this.speaker}'`;
+    const args = ["say", "-v", this.speaker];
+    if (this.rate && !isNaN(this.rate)) {
+      args.push("-r", String(this.rate));
+    }
+    args.push(text);
 
-    const proc = Bun.spawn(["bash", "-c", script], {
+    const proc = Bun.spawn(args, {
       stdout: "ignore",
       stderr: "inherit",
     });

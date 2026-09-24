@@ -101,13 +101,14 @@ const AUTH_HTML = `<!DOCTYPE html>
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const token = params.get('access_token');
+    const state = params.get('state');
     const error = params.get('error_description') || params.get('error');
 
     if (token) {
       fetch('/save-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token })
+        body: JSON.stringify({ token: token, state: state })
       })
       .then(res => res.json())
       .then(data => {
@@ -146,11 +147,13 @@ const AUTH_HTML = `<!DOCTYPE html>
  * Twitch の OAuth 認証サーバーを起動し、ブラウザで認証を行ってトークンとユーザー名を取得・保存する
  */
 export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
+  const expectedState = crypto.randomUUID();
+
   const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(
     TWITCH_REDIRECT_URI
   )}&response_type=token&scope=${encodeURIComponent(
     TWITCH_SCOPES.join(" ")
-  )}&force_verify=true`;
+  )}&state=${expectedState}&force_verify=true`;
 
   console.log("\n=======================================================");
   console.log("🔑 Twitch 認証を開始します");
@@ -165,6 +168,7 @@ export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
 
     try {
       server = Bun.serve({
+        hostname: "127.0.0.1", // Security: bind to localhost loopback only
         port: TWITCH_PORT,
         async fetch(req) {
           const url = new URL(req.url);
@@ -179,8 +183,16 @@ export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
           // ブラウザの JS がトークンを抽出して POST してきたとき
           if (url.pathname === "/save-token" && req.method === "POST") {
             try {
-              const body = (await req.json()) as { token: string };
+              const body = (await req.json()) as { token: string; state?: string };
               const token = body.token;
+
+              // Security: validate state parameter (CSRF protection)
+              if (!body.state || body.state !== expectedState) {
+                return Response.json(
+                  { success: false, error: "無効な CSRF トークン (state 不一致) です" },
+                  { status: 403 }
+                );
+              }
 
               if (!token) {
                 return Response.json(
@@ -216,7 +228,7 @@ export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
 
               const fullOauthToken = `oauth:${token}`;
 
-              // 1. auth.json に保存
+              // 1. auth.json に保存 (Security: mode 0600 - owner read/write only)
               const authPath = paths.authJson();
               const authData = {
                 oauthToken: fullOauthToken,
@@ -226,7 +238,10 @@ export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
                 updatedAt: new Date().toISOString(),
               };
 
-              fs.writeFileSync(authPath, JSON.stringify(authData, null, 2), "utf-8");
+              fs.writeFileSync(authPath, JSON.stringify(authData, null, 2), {
+                encoding: "utf-8",
+                mode: 0o600,
+              });
 
               console.log("\n-------------------------------------------------------");
               console.log("🎉 Twitch 認証に成功しました！");

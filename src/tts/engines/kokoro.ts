@@ -1,6 +1,7 @@
 import type { TTSEngine } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
+import { config } from "../../config";
 import path from "path";
 import fs from "fs";
 
@@ -139,12 +140,16 @@ export class KokoroEngine implements TTSEngine {
       `kokoro_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`
     );
 
+    const masterVol = config.MASTER_VOLUME ?? 1.0;
+    const effectiveVolume = Math.min(1.0, Math.max(0.0, masterVol));
+
     const payload = JSON.stringify({
       text,
       outputPath,
       voice: this.voice,
       speed: this.speed,
       lang: this.lang,
+      volume: effectiveVolume,
     });
 
     // Wait for response from resident worker.

@@ -46,6 +46,7 @@ def main():
             default_voice = "af_heart" if lang == "a" else "jf_alpha"
             voice = req.get("voice") or default_voice
             speed = float(req.get("speed", 1.0))
+            volume = float(req.get("volume", 1.0))
 
             if not text or not output_path:
                 sys.stdout.write(json.dumps({"status": "error", "error": "Empty text or outputPath"}) + "\n")
@@ -66,6 +67,8 @@ def main():
                 continue
 
             combined = np.concatenate(audio_segments)
+            if volume != 1.0:
+                combined = np.clip(combined * volume, -1.0, 1.0)
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             sf.write(output_path, combined, 24000)
 

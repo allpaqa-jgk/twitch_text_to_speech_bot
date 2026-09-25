@@ -8,11 +8,18 @@ export class VoicevoxEngine implements TTSEngine {
   private host: string;
   private port: number;
   private speakerId: number;
+  private speedScale: number;
+  private volumeScale: number;
+  private outputSamplingRate: number;
 
   constructor() {
     this.host = config.VOICEVOX_HOST;
     this.port = config.VOICEVOX_PORT;
     this.speakerId = config.VOICEVOX_SPEAKER_ID;
+    this.speedScale = config.VOICEVOX_SPEED_SCALE ?? 1.0;
+    const effectiveVolume = (config.VOICEVOX_VOLUME_SCALE ?? 1.0) * (config.MASTER_VOLUME ?? 1.0);
+    this.volumeScale = Math.min(1.0, Math.max(0.0, Math.round(effectiveVolume * 1000) / 1000));
+    this.outputSamplingRate = config.VOICEVOX_OUTPUT_SAMPLING_RATE ?? 24000;
   }
 
   private get baseUrl(): string {
@@ -70,6 +77,9 @@ export class VoicevoxEngine implements TTSEngine {
     }
 
     const audioQuery = await this.fetchAudioQuery(text);
+    if (this.speedScale != null) audioQuery.speedScale = this.speedScale;
+    if (this.volumeScale != null) audioQuery.volumeScale = this.volumeScale;
+    if (this.outputSamplingRate != null) audioQuery.outputSamplingRate = this.outputSamplingRate;
     const wavBuffer = await this.fetchSynthesis(audioQuery);
     await playWavBuffer(wavBuffer);
   }

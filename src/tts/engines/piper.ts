@@ -1,6 +1,7 @@
 import type { TTSEngine } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
+import { config } from "../../config";
 import path from "path";
 import fs from "fs";
 
@@ -39,6 +40,9 @@ export class PiperEngine implements TTSEngine {
       `piper_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`
     );
 
+    const masterVol = config.MASTER_VOLUME ?? 1.0;
+    const piperVol = Math.min(1.0, Math.max(0.0, 0.8 * masterVol)).toFixed(2);
+
     const proc = Bun.spawn(
       [
         this.piperPath,
@@ -47,7 +51,7 @@ export class PiperEngine implements TTSEngine {
         "--output_file",
         outputPath,
         "--volume",
-        "0.8",
+        piperVol,
         "--noise-scale",
         "0.333",
       ],

@@ -38,6 +38,7 @@ module.exports = {
   READ_USERNAME: true,
   USE_SIMPLE_NAME: true,
   STARTING_MESSAGE: "Starting TTS",
+  MASTER_VOLUME: 1.0, // 全体マスター音量 (推奨: 0.0〜1.0。最大 1.2 程度までブースト可能ですが、音割れ防止のため通常は 1.0 以下を推奨)
 
   /// //////////////////
   // ENGINE DETAILS  //
@@ -49,12 +50,16 @@ module.exports = {
   COEIROINK_STYLE_ID: 0, // 利用したいキャラクターのスタイルID (./twitch-tts-bot speakers で一覧確認可能)
   COEIROINK_SPEED_SCALE: 1.0,
   COEIROINK_VOLUME_SCALE: 1.0,
+  COEIROINK_OUTPUT_SAMPLING_RATE: 44100, // サンプリングレート (44100: COEIROINK公式標準 / OBS等の配信環境に揃える場合は 48000 推奨)
 
   // for VOICEVOX (also used as fallback if TTS_ENGINE is not set)
   USE_VOICEVOX: false,
   VOICEVOX_HOST: "127.0.0.1",
   VOICEVOX_PORT: 50021,
   VOICEVOX_SPEAKER_ID: 1, // 利用したいキャラクターのスピーカーID (./twitch-tts-bot speakers で一覧確認可能)
+  VOICEVOX_SPEED_SCALE: 1.0,
+  VOICEVOX_VOLUME_SCALE: 1.0,
+  VOICEVOX_OUTPUT_SAMPLING_RATE: 24000, // サンプリングレート (24000: VOICEVOX公式標準 / OBS等の配信環境に揃える場合は 48000 推奨)
 
   // for Kokoro TTS
   KOKORO_VOICE: "jf_alpha",

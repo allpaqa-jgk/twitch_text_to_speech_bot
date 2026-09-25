@@ -33,6 +33,7 @@ export class CoeiroinkEngine implements TTSEngine {
   private speakerUuidConfig?: string;
   private speedScale: number;
   private volumeScale: number;
+  private outputSamplingRate: number;
 
   private speakerUuidCache: Map<number, string> = new Map();
   private lastDictionaryMtime: number | null = null;
@@ -43,7 +44,9 @@ export class CoeiroinkEngine implements TTSEngine {
     this.styleId = config.COEIROINK_STYLE_ID;
     this.speakerUuidConfig = config.COEIROINK_SPEAKER_UUID;
     this.speedScale = config.COEIROINK_SPEED_SCALE;
-    this.volumeScale = config.COEIROINK_VOLUME_SCALE;
+    const effectiveVolume = (config.COEIROINK_VOLUME_SCALE ?? 1.0) * (config.MASTER_VOLUME ?? 1.0);
+    this.volumeScale = Math.min(1.0, Math.max(0.0, Math.round(effectiveVolume * 1000) / 1000));
+    this.outputSamplingRate = config.COEIROINK_OUTPUT_SAMPLING_RATE ?? 44100;
   }
 
   private get baseUrl(): string {
@@ -191,7 +194,7 @@ export class CoeiroinkEngine implements TTSEngine {
       intonationScale: 1.0,
       prePhonemeLength: 0.1,
       postPhonemeLength: 0.1,
-      outputSamplingRate: 24000,
+      outputSamplingRate: this.outputSamplingRate,
     };
 
     const res = await fetch(`${this.baseUrl}/v1/synthesis`, {

@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import os from "os";
 
 /**
  * アプリケーションのルートディレクトリ（プロジェクトルートまたは配布パッケージのディレクトリ）を取得する
@@ -31,7 +32,7 @@ export const paths = {
   root: getAppRootDir(),
   configDir: () => path.join(getAppRootDir(), "config"),
   dataDir: () => path.join(getAppRootDir(), "data"),
-  tmpDir: () => path.join(getAppRootDir(), "tmp"),
+  tmpDir: () => path.join(os.tmpdir(), "twitch_tts_bot"),
   scriptsDir: () => path.join(getAppRootDir(), "scripts"),
   modelsDir: () => path.join(getAppRootDir(), "models"),
   venvDir: () => path.join(getAppRootDir(), ".venv"),

@@ -48,6 +48,14 @@ const SPECIAL_SLANG: Record<string, string> = {
   se: "エスイー",
   op: "オーピー",
   ng: "エヌジー",
+
+  // Streaming & social platforms
+  youtube: "ユーチューブ",
+  youtuber: "ユーチューバー",
+  yt: "ワイティー",
+  vtuber: "ブイチューバー",
+  tiktok: "ティックトック",
+  twitter: "ツイッター",
 };
 
 /**

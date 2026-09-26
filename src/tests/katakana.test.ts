@@ -36,6 +36,15 @@ describe("KatakanaTransformer", () => {
         "エフピーエスアールピージービージーエムピーブイピーユーアールエル"
       );
     });
+
+    it("should convert YouTube, VTuber, and streaming platform terms", () => {
+      expect(transformer.transform("YouTube")).toBe("ユーチューブ");
+      expect(transformer.transform("YouTube Live")).toBe("ユーチューブライブ");
+      expect(transformer.transform("YouTuber")).toBe("ユーチューバー");
+      expect(transformer.transform("VTuber")).toBe("ブイチューバー");
+      expect(transformer.transform("TikTok")).toBe("ティックトック");
+      expect(transformer.transform("Twitter")).toBe("ツイッター");
+    });
   });
 
   describe("Cyrillic (Russian) conversion", () => {

@@ -1,4 +1,4 @@
-import type { TTSEngine } from "../engine";
+import type { TTSEngine, PreparedAudio } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
 import { config } from "../../config";
@@ -124,9 +124,9 @@ export class KokoroEngine implements TTSEngine {
     return this.readyPromise;
   }
 
-  public async say(text: string): Promise<void> {
+  public async prepare(text: string): Promise<PreparedAudio> {
     if (!text || !text.trim()) {
-      return;
+      return { play: async () => {} };
     }
 
     await this.ensureWorkerStarted();
@@ -175,7 +175,14 @@ export class KokoroEngine implements TTSEngine {
       // ignore
     }
 
-    await playWavBuffer(wavBuffer);
+    return {
+      play: () => playWavBuffer(wavBuffer),
+    };
+  }
+
+  public async say(text: string): Promise<void> {
+    const audio = await this.prepare(text);
+    await audio.play();
   }
 
   public stop(): void {

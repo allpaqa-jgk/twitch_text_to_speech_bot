@@ -1,4 +1,4 @@
-import type { TTSEngine } from "../engine";
+import type { TTSEngine, PreparedAudio } from "../engine";
 import { config } from "../../config";
 
 export class MacSayEngine implements TTSEngine {
@@ -28,6 +28,12 @@ export class MacSayEngine implements TTSEngine {
       }
       this.currentProc = null;
     }
+  }
+
+  public async prepare(text: string): Promise<PreparedAudio> {
+    return {
+      play: () => this.say(text),
+    };
   }
 
   public async say(text: string): Promise<void> {

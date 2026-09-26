@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { TTSQueue } from "../tts/queue";
-import type { TTSEngine } from "../tts/engine";
+import type { TTSEngine, PreparedAudio } from "../tts/engine";
 
 class MockEngine implements TTSEngine {
   public readonly name = "MockEngine";
@@ -120,6 +120,115 @@ describe("TTSQueue", () => {
     expect(queue.pendingCount).toBe(0);
 
     await Promise.all([p1, p2, p3]);
+  });
+
+  it("should prefetch next item using prepare() while current item is playing", async () => {
+    class PrefetchMockEngine implements TTSEngine {
+      public readonly name = "PrefetchMockEngine";
+      public prepareCalls: string[] = [];
+      public playCalls: string[] = [];
+
+      public async isAvailable(): Promise<boolean> {
+        return true;
+      }
+
+      public async say(text: string): Promise<void> {
+        const audio = await this.prepare(text);
+        await audio.play();
+      }
+
+      public async prepare(text: string): Promise<PreparedAudio> {
+        this.prepareCalls.push(text);
+        await new Promise((r) => setTimeout(r, 10));
+        return {
+          play: async () => {
+            this.playCalls.push(text);
+            await new Promise((r) => setTimeout(r, 50));
+          },
+        };
+      }
+    }
+
+    const engine = new PrefetchMockEngine();
+    const queue = new TTSQueue(engine);
+
+    const p1 = queue.enqueue("Message 1");
+    const p2 = queue.enqueue("Message 2");
+
+    // Wait a brief moment for item 1 to start playing and item 2 prefetch to be triggered
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Message 1 is currently playing, but Message 2's prepare should have already been called
+    expect(engine.prepareCalls).toContain("Message 1");
+    expect(engine.prepareCalls).toContain("Message 2");
+    expect(engine.playCalls).toEqual(["Message 1"]);
+
+    await Promise.all([p1, p2]);
+
+    expect(engine.playCalls).toEqual(["Message 1", "Message 2"]);
+  });
+
+  it("should handle error in prepare() during prefetch gracefully and continue", async () => {
+    let callCount = 0;
+    const failingPrefetchEngine: TTSEngine = {
+      name: "FailingPrefetchEngine",
+      isAvailable: async () => true,
+      say: async () => {},
+      prepare: async (text: string) => {
+        callCount++;
+        if (text === "Fail") {
+          throw new Error("Prefetch synthesis error");
+        }
+        return {
+          play: async () => {},
+        };
+      },
+    };
+
+    const queue = new TTSQueue(failingPrefetchEngine);
+    const p1 = queue.enqueue("Msg 1");
+    const p2 = queue.enqueue("Fail");
+    const p3 = queue.enqueue("Msg 3");
+
+    await Promise.all([p1, p2, p3]);
+    expect(callCount).toBe(3);
+  });
+
+  it("should not play prefetched audio if clear() was called", async () => {
+    class PrefetchMockEngine implements TTSEngine {
+      public readonly name = "PrefetchMockEngine";
+      public playCalls: string[] = [];
+
+      public async isAvailable(): Promise<boolean> {
+        return true;
+      }
+
+      public async say(text: string): Promise<void> {
+        const audio = await this.prepare(text);
+        await audio.play();
+      }
+
+      public async prepare(text: string): Promise<PreparedAudio> {
+        return {
+          play: async () => {
+            this.playCalls.push(text);
+            await new Promise((r) => setTimeout(r, 80));
+          },
+        };
+      }
+    }
+
+    const engine = new PrefetchMockEngine();
+    const queue = new TTSQueue(engine);
+
+    const p1 = queue.enqueue("Message 1");
+    const p2 = queue.enqueue("Message 2");
+
+    await new Promise((r) => setTimeout(r, 20));
+    queue.clear();
+
+    await Promise.all([p1, p2]);
+    expect(engine.playCalls).toEqual(["Message 1"]);
   });
 });
 

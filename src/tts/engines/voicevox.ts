@@ -1,4 +1,4 @@
-import type { TTSEngine } from "../engine";
+import type { TTSEngine, PreparedAudio } from "../engine";
 import { config } from "../../config";
 import { playWavBuffer } from "../audioPlayer";
 
@@ -71,9 +71,9 @@ export class VoicevoxEngine implements TTSEngine {
     return await res.arrayBuffer();
   }
 
-  public async say(text: string): Promise<void> {
+  public async prepare(text: string): Promise<PreparedAudio> {
     if (!text || !text.trim()) {
-      return;
+      return { play: async () => {} };
     }
 
     const audioQuery = await this.fetchAudioQuery(text);
@@ -81,6 +81,13 @@ export class VoicevoxEngine implements TTSEngine {
     if (this.volumeScale != null) audioQuery.volumeScale = this.volumeScale;
     if (this.outputSamplingRate != null) audioQuery.outputSamplingRate = this.outputSamplingRate;
     const wavBuffer = await this.fetchSynthesis(audioQuery);
-    await playWavBuffer(wavBuffer);
+    return {
+      play: () => playWavBuffer(wavBuffer),
+    };
+  }
+
+  public async say(text: string): Promise<void> {
+    const audio = await this.prepare(text);
+    await audio.play();
   }
 }

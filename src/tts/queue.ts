@@ -1,4 +1,4 @@
-import type { TTSEngine } from "./engine";
+import type { TTSEngine, PreparedAudio } from "./engine";
 import { stopAudio } from "./audioPlayer";
 
 export interface QueueItem {
@@ -7,6 +7,7 @@ export interface QueueItem {
   engine?: TTSEngine;
   resolve: () => void;
   reject: (err: any) => void;
+  preparedPromise?: Promise<PreparedAudio>;
 }
 
 export class TTSQueue {
@@ -34,6 +35,18 @@ export class TTSQueue {
     return this.queue.length;
   }
 
+  private triggerPrefetch(): void {
+    const nextItem = this.queue[0];
+    if (nextItem && !nextItem.preparedPromise) {
+      const engine = nextItem.engine || this.defaultEngine;
+      if (engine.prepare) {
+        const promise = engine.prepare(nextItem.text);
+        promise.catch(() => {});
+        nextItem.preparedPromise = promise;
+      }
+    }
+  }
+
   public enqueue(text: string, engine?: TTSEngine): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -56,6 +69,7 @@ export class TTSQueue {
         reject,
       };
       this.queue.push(item);
+      this.triggerPrefetch();
       this.processNext();
     });
   }
@@ -74,11 +88,25 @@ export class TTSQueue {
       return;
     }
 
+    this.triggerPrefetch();
+
     const engine = current.engine || this.defaultEngine;
     this.currentRunningEngine = engine;
 
     try {
-      await engine.say(current.text);
+      if (current.preparedPromise) {
+        const audio = await current.preparedPromise;
+        if (!this.isCleared) {
+          await audio.play();
+        }
+      } else if (engine.prepare) {
+        const audio = await engine.prepare(current.text);
+        if (!this.isCleared) {
+          await audio.play();
+        }
+      } else {
+        await engine.say(current.text);
+      }
       current.resolve();
     } catch (err: any) {
       if (this.isCleared) {

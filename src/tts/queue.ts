@@ -1,4 +1,5 @@
 import type { TTSEngine } from "./engine";
+import { stopAudio } from "./audioPlayer";
 
 export interface QueueItem {
   id: string;
@@ -11,6 +12,8 @@ export interface QueueItem {
 export class TTSQueue {
   private queue: QueueItem[] = [];
   private isProcessing = false;
+  private isCleared = false;
+  private currentRunningEngine?: TTSEngine;
   private defaultEngine: TTSEngine;
   private maxQueueSize: number;
 
@@ -63,6 +66,7 @@ export class TTSQueue {
     }
 
     this.isProcessing = true;
+    this.isCleared = false;
     const current = this.queue.shift();
 
     if (!current) {
@@ -71,37 +75,58 @@ export class TTSQueue {
     }
 
     const engine = current.engine || this.defaultEngine;
+    this.currentRunningEngine = engine;
 
     try {
       await engine.say(current.text);
       current.resolve();
     } catch (err: any) {
-      const errStr = String(err?.message || err);
-      const isConnectionRefused =
-        err?.code === "ConnectionRefused" ||
-        err?.errno === 0 ||
-        errStr.includes("ConnectionRefused") ||
-        errStr.includes("Unable to connect") ||
-        errStr.includes("fetch failed");
-
-      if (isConnectionRefused) {
-        console.warn(`⚠️  [TTSQueue] 音声エンジン (${engine.name}) に接続できませんでした。アプリが起動しているか確認してください。`);
+      if (this.isCleared) {
+        // Playback was aborted by clear() - suppress error logging
+        current.resolve();
       } else {
-        console.error(`[TTSQueue] Error speaking "${current.text}":`, err?.message || err);
+        const errStr = String(err?.message || err);
+        const isConnectionRefused =
+          err?.code === "ConnectionRefused" ||
+          err?.errno === 0 ||
+          errStr.includes("ConnectionRefused") ||
+          errStr.includes("Unable to connect") ||
+          errStr.includes("fetch failed");
+
+        if (isConnectionRefused) {
+          console.warn(`⚠️  [TTSQueue] 音声エンジン (${engine.name}) に接続できませんでした。アプリが起動しているか確認してください。`);
+        } else {
+          console.error(`[TTSQueue] Error speaking "${current.text}":`, err?.message || err);
+        }
+        current.resolve();
       }
-      // We resolve rather than reject to avoid unhandled rejections on callers,
-      // while proceeding to the next message in queue.
-      current.resolve();
     } finally {
+      this.currentRunningEngine = undefined;
       this.isProcessing = false;
       this.processNext();
     }
   }
 
+  /**
+   * Clears all pending queue items AND immediately aborts currently playing audio.
+   */
   public clear(): void {
+    this.isCleared = true;
+
+    // 1. Drain pending speech items
     while (this.queue.length > 0) {
       const item = this.queue.shift();
       item?.resolve();
+    }
+
+    // 2. Terminate currently playing audio process immediately
+    stopAudio();
+    if (this.currentRunningEngine?.stop) {
+      try {
+        this.currentRunningEngine.stop();
+      } catch {
+        // ignore
+      }
     }
   }
 }

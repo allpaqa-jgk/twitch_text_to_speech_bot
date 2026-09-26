@@ -92,5 +92,34 @@ describe("TTSQueue", () => {
       console.warn = origWarn;
     }
   });
+
+  it("should clear pending items and invoke stop() on running engine", async () => {
+    let stopCalled = false;
+    const longRunningEngine: TTSEngine = {
+      name: "SlowEngine",
+      isAvailable: async () => true,
+      say: async () => {
+        await new Promise((r) => setTimeout(r, 200));
+      },
+      stop: () => {
+        stopCalled = true;
+      },
+    };
+
+    const queue = new TTSQueue(longRunningEngine);
+    const p1 = queue.enqueue("Playing item");
+    const p2 = queue.enqueue("Pending item 1");
+    const p3 = queue.enqueue("Pending item 2");
+
+    expect(queue.pendingCount).toBe(2);
+
+    // Call clear while item 1 is playing
+    queue.clear();
+
+    expect(stopCalled).toBe(true);
+    expect(queue.pendingCount).toBe(0);
+
+    await Promise.all([p1, p2, p3]);
+  });
 });
 

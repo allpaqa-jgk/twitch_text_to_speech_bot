@@ -6,6 +6,7 @@ export class MacSayEngine implements TTSEngine {
 
   private speaker: string;
   private rate: number;
+  private currentProc: any = null;
 
   constructor(speaker = config.SPEAKER_JAPANESE, rate = config.RATE_JAPANESE) {
     this.speaker = speaker;
@@ -14,6 +15,19 @@ export class MacSayEngine implements TTSEngine {
 
   public async isAvailable(): Promise<boolean> {
     return process.platform === "darwin";
+  }
+
+  public stop(): void {
+    if (this.currentProc) {
+      try {
+        if (typeof this.currentProc.kill === "function") {
+          this.currentProc.kill();
+        }
+      } catch {
+        // ignore errors
+      }
+      this.currentProc = null;
+    }
   }
 
   public async say(text: string): Promise<void> {
@@ -31,6 +45,13 @@ export class MacSayEngine implements TTSEngine {
       stdout: "ignore",
       stderr: "inherit",
     });
-    await proc.exited;
+    this.currentProc = proc;
+    try {
+      await proc.exited;
+    } finally {
+      if (this.currentProc === proc) {
+        this.currentProc = null;
+      }
+    }
   }
 }

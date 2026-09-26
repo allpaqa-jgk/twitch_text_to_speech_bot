@@ -1,6 +1,6 @@
 {
   "name": "twitch_text_to_speech_bot",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Text to Speech bot for Twitch with COEIROINK, Kokoro, Piper, VOICEVOX, and macOS say support",
   "private": true,
   "type": "module",
@@ -9,6 +9,7 @@
     "dev": "bun --watch run src/index.ts",
     "auth": "bun run scripts/auth.ts",
     "speakers": "bun run src/index.ts speakers",
+    "demo": "bun run src/index.ts demo",
     "test": "cd src && bun test",
     "build": "cd src && bun run build",
     "package": "bun run scripts/build_package.ts"

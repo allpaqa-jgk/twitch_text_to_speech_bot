@@ -8,6 +8,11 @@ const TAIWAN_PHRASES: Record<string, string> = {
   // Taiwan-specific pronunciations
   垃圾: "レースー",
   // Taiwan Twitch slang & greetings
+  你好: "ニーハオ",
+  謝謝: "シエシエ",
+  谢谢: "シエシエ",
+  再見: "ザイジエン",
+  再见: "ザイジエン",
   安安: "アンアン",
   笑死: "シアオスー",
   按讚: "アンザン",
@@ -18,7 +23,6 @@ const TAIWAN_PHRASES: Record<string, string> = {
   太強了: "タイチャンラ",
   太好笑了: "タイハオシアオラ",
   辛苦了: "シンクーラ",
-  靠北: "カオベイ",
   實況: "シークアン",
   實況主: "シークアンジュー",
   加油: "ジャーヨウ",
@@ -36,7 +40,7 @@ const TAIWAN_PHRASES: Record<string, string> = {
  * but NEVER used in standard Japanese sentences.
  */
 const CHINESE_MARKER_REGEX =
-  /[这为们过对发会个么谁让说话见还没从听点赞這們麼誰裡點沒很得嗎吧啦喔呢讚靠]/;
+  /[这为们过对发会个么谁让说话见还没从听点赞這們麼誰裡點沒很得嗎吧啦喔呢讚]/;
 
 const CHINESE_COMMON_WORDS = [
   "你好", "謝謝", "谢谢", "加油", "辛苦了", "歡迎", "欢迎",
@@ -133,20 +137,27 @@ function pinyinWordToKatakana(py: string): string {
 }
 
 /**
+ * Replaces distinctive Taiwan priority phrases, greetings, and Twitch slang.
+ * Can be safely applied even to mixed Japanese comments.
+ */
+export function replaceTaiwanPhrases(text: string): string {
+  let result = text;
+  for (const [phrase, katakana] of Object.entries(TAIWAN_PHRASES)) {
+    if (result.includes(phrase)) {
+      result = result.split(phrase).join(katakana);
+    }
+  }
+  return result;
+}
+
+/**
  * Converts Chinese / Taiwan Mandarin text to Katakana:
  * 1. Matches Taiwan priority slang & pronunciations without adding spaces.
  * 2. Converts remaining Hanzi blocks to Pinyin -> Katakana (connected smoothly without spaces).
  * 3. Normalizes Chinese punctuation to Japanese punctuation for natural TTS prosody.
  */
 export function convertChineseToKatakana(text: string): string {
-  let result = text;
-
-  // 1. Taiwan phrases first (direct replacement without inserting spaces)
-  for (const [phrase, katakana] of Object.entries(TAIWAN_PHRASES)) {
-    if (result.includes(phrase)) {
-      result = result.split(phrase).join(katakana);
-    }
-  }
+  let result = replaceTaiwanPhrases(text);
 
   // 2. Only remaining Hanzi blocks: join syllables directly WITHOUT spaces
   result = result.replace(/[\u4E00-\u9FFF]+/g, (hanziMatch) => {

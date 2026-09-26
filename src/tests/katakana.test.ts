@@ -7,10 +7,10 @@ describe("KatakanaTransformer", () => {
   describe("English conversion via CMUdict & loanword rules", () => {
     it("should convert common greetings and Twitch slang", () => {
       expect(transformer.transform("hello")).toBe("ハロー");
-      expect(transformer.transform("Hello World")).toBe("ハロー ワールド");
-      expect(transformer.transform("nice stream bro")).toBe("ナイス ストリーム ブロ");
-      expect(transformer.transform("gg wp")).toBe("ジージー ウェルプレイド");
-      expect(transformer.transform("this is test")).toBe("ディス イズ テスト");
+      expect(transformer.transform("Hello World")).toBe("ハローワールド");
+      expect(transformer.transform("nice stream bro")).toBe("ナイスストリームブロ");
+      expect(transformer.transform("gg wp")).toBe("ジージーウェルプレイド");
+      expect(transformer.transform("this is test")).toBe("ディスイズテスト");
     });
 
     it("should convert gaming terms and loanwords naturally with loanword sokuon/chouon rules", () => {
@@ -31,9 +31,9 @@ describe("KatakanaTransformer", () => {
     });
 
     it("should handle smart curly apostrophes and stream acronyms", () => {
-      expect(transformer.transform("don’t do that")).toBe("ドーント ドゥー ザット");
+      expect(transformer.transform("don’t do that")).toBe("ドーントドゥーザット");
       expect(transformer.transform("fps rpg bgm pvp url")).toBe(
-        "エフピーエス アールピージー ビージーエム ピーブイピー ユーアールエル"
+        "エフピーエスアールピージービージーエムピーブイピーユーアールエル"
       );
     });
   });
@@ -48,8 +48,8 @@ describe("KatakanaTransformer", () => {
 
   describe("Spanish conversion", () => {
     it("should convert Spanish phrases with silent H and special letters", () => {
-      expect(transformer.transform("¡Hola! amigo")).toBe("オラ! アミーゴ");
-      expect(transformer.transform("muchas gracias")).toBe("ムチャス グラシアス");
+      expect(transformer.transform("¡Hola! amigo")).toBe("オラ！アミーゴ");
+      expect(transformer.transform("muchas gracias")).toBe("ムチャスグラシアス");
       expect(transformer.transform("señor")).toBe("セニョール");
     });
   });
@@ -60,9 +60,9 @@ describe("KatakanaTransformer", () => {
       expect(transformer.transform("감사합니다")).toBe("カムサハムニダ");
       expect(
         transformer.transform("안녕하세요! 방송 너무 재미있어요 화이팅!")
-      ).toBe("アンニョンハセヨ! パンソン ノム チェミイッソヨ ファイティン!");
+      ).toBe("アンニョンハセヨ！パンソンノムチェミイッソヨファイティン！");
       expect(transformer.transform("진짜 대박 잘자요")).toBe(
-        "チンチャ テバク チャルジャヨ"
+        "チンチャテバクチャルジャヨ"
       );
     });
   });
@@ -72,8 +72,11 @@ describe("KatakanaTransformer", () => {
       expect(transformer.transform("你好！玩得很好，加油！")).toBe(
         "ニーハオ！ワンドゥヘンハオ、ジャーヨウ！"
       );
-      expect(transformer.transform("這個是垃圾遊戲，安安笑死")).toBe(
-        "ジャーガーシーレースーヨウシー、アンアンシアオスー"
+      expect(transformer.transform("大家安安！實況主太強了，謝謝乾爹！")).toBe(
+        "ダージアアンアン！シークアンジュータイチャンラ、シエシエガンディエ！"
+      );
+      expect(transformer.transform("這個是垃圾桶")).toBe(
+        "ジャーガーシーレースートン"
       );
       expect(transformer.transform("實況主太厲害了吧")).toBe(
         "シークアンジュータイリーハイラバー"
@@ -94,8 +97,13 @@ describe("KatakanaTransformer", () => {
         "今日の配信 ナイス だったよ！"
       );
       expect(transformer.transform("みんな hello! Привет!")).toBe(
-        "みんな ハロー! プリヴィエト!"
+        "みんな ハロー！プリヴィエト！"
       );
+      expect(
+        transformer.transform(
+          "こんにちは！ Hello! Hola! Привет! 안녕하세요! 你好！"
+        )
+      ).toBe("こんにちは！ハロー！オラ！プリヴィエト！アンニョンハセヨ！ニーハオ！");
       expect(transformer.transform("twitchで配信中！gg")).toBe(
         "ツイッチで配信中！ジージー"
       );
@@ -106,7 +114,7 @@ describe("KatakanaTransformer", () => {
         transformer.transform(
           "haaaaaaa is now live! Streaming Egging On: ちょっとたまご"
         )
-      ).toBe("ハアアアアアア イズ ナウ ライブ! ストリーミング エギング オン: ちょっとたまご");
+      ).toBe("ハアアアアアアイズナウライブ！ストリーミングエギングオン: ちょっとたまご");
     });
   });
 });

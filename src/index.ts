@@ -11,6 +11,7 @@ import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
 import { printAvailableSpeakers } from "./tts/speakers";
 import { startInteractiveConsole } from "./cli/interactive";
+import { runDemoCli } from "./tts/demo";
 import pkg from "../package.json";
 
 const BOT_VERSION = pkg.version || "2.0.1";
@@ -104,7 +105,16 @@ async function resolvePrimaryEngine(): Promise<TTSEngine> {
 
 const primaryEngine = await resolvePrimaryEngine();
 
-// 2. Optional English engine (for NATIVE mode or BILINGAL_MODE)
+// CLI demo command: ./twitch-tts-bot demo or bun run index.ts demo
+if (
+  process.argv.includes("demo") ||
+  process.argv.includes("--demo") ||
+  process.argv.includes("languages")
+) {
+  const transformer = new KatakanaTransformer();
+  await runDemoCli(primaryEngine, transformer);
+  process.exit(0);
+}
 let englishEngine: TTSEngine | undefined;
 
 if (config.FOREIGN_LANGUAGE_MODE === "NATIVE" || config.BILINGAL_MODE) {

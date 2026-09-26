@@ -4,6 +4,7 @@ import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
 import { detectLanguage } from "../twitch/languageDetector";
 import { printAvailableSpeakers } from "../tts/speakers";
+import { enqueueDemo } from "../tts/demo";
 import { config } from "../config";
 
 export function startInteractiveConsole(
@@ -25,6 +26,7 @@ export function startInteractiveConsole(
   console.log("\n======================================================================");
   console.log("🎮 対話型コンソールが有効です (「?」を入力して Enter でヘルプ表示)");
   console.log("======================================================================\n");
+  console.log("💡 対話コマンド一覧は「?」または「help」と入力してください。\n");
 
   rl.on("line", async (line) => {
     const trimmed = line.trim();
@@ -49,6 +51,7 @@ export function startInteractiveConsole(
         break;
 
       case "say":
+      case "s":
         let textToSay = args.join(" ").trim();
         if (!textToSay) {
           console.log("⚠️ 使用方法: say <喋らせたいテキスト>");
@@ -77,6 +80,12 @@ export function startInteractiveConsole(
           console.log(`🗣️ テスト発声中: "${textToSay}"`);
           queue.enqueue(textToSay, engineToUse);
         }
+        break;
+
+      case "demo":
+      case "languages":
+      case "lang":
+        await enqueueDemo(queue, transformer);
         break;
 
       case "clear":
@@ -117,8 +126,9 @@ function printHelp(): void {
   console.log("======================================================================");
   console.log("  ? / help        : このヘルプを表示します");
   console.log("  speakers / list : インストール済みボイス・スタイルID一覧を表示します");
-  console.log("  say <テキスト>  : 入力したテキストをテスト発声します");
-  console.log("  clear           : 再生待ちの音声をすべてクリア（キャンセル）します");
+  console.log("  say / s <テキスト> : 入力したテキストをテスト発声します");
+  console.log("  demo / lang     : 主要言語（日・英・中・韓・露・西等）の読み上げデモを実行します");
+  console.log("  clear           : 再生中の音声を即時停止し、待ちキューもすべてキャンセルします");
   console.log("  status          : 接続中のチャンネルやキューの待ち件数を表示します");
   console.log("  q / exit        : ボットを終了します");
   console.log("======================================================================\n");

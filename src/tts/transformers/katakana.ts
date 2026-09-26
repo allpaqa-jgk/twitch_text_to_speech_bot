@@ -1,7 +1,11 @@
 import type { TextTransformer } from "./types";
 import { dictionary } from "cmu-pronouncing-dictionary";
 import { hangulToKatakana } from "./korean";
-import { isChineseText, convertChineseToKatakana } from "./chinese";
+import {
+  isChineseText,
+  convertChineseToKatakana,
+  replaceTaiwanPhrases,
+} from "./chinese";
 
 /**
  * Twitch & Gaming specific abbreviations/slang that have non-phonetic readings in Japanese streams.
@@ -459,6 +463,16 @@ function spanishPreprocess(text: string): string {
     .replace(/ñ/gi, "ニャ")
     .replace(/ll/gi, "リャ")
     .replace(/rr/gi, "ル")
+    .replace(/ü/gi, "u")
+    .replace(/ä/gi, "e")
+    .replace(/ö/gi, "o")
+    .replace(/ß/gi, "ss")
+    .replace(/à|â/gi, "a")
+    .replace(/è|ê|ë/gi, "e")
+    .replace(/î|ï/gi, "i")
+    .replace(/ô/gi, "o")
+    .replace(/û|ù/gi, "u")
+    .replace(/ç/gi, "s")
     .replace(/á/gi, "a")
     .replace(/é/gi, "e")
     .replace(/í/gi, "i")
@@ -488,8 +502,14 @@ export class KatakanaTransformer implements TextTransformer {
       result = hangulToKatakana(result);
     }
 
-    // 3. Chinese / Taiwan Mandarin (Guarded: only if zero Kana and matches Chinese markers)
-    if (isChineseText(result)) {
+    // Check if the original text was pure Chinese text (zero Kana + Chinese markers)
+    const isChinese = isChineseText(result);
+
+    // 3. Common Chinese greetings & Taiwan slang (applied even in mixed Japanese comments)
+    result = replaceTaiwanPhrases(result);
+
+    // 4. Pure Chinese / Taiwan Mandarin (converts all remaining Hanzi via Pinyin)
+    if (isChinese) {
       result = convertChineseToKatakana(result);
     }
 
@@ -509,7 +529,9 @@ export class KatakanaTransformer implements TextTransformer {
     }
 
     // 4. Exact word match via CMU Pronouncing Dictionary (135,000+ words) or fallback
-    result = result.replace(/[A-Za-zñáéíóúÑÁÉÍÓÚ]+('[A-Za-z]+)?/g, (match) => {
+    result = result.replace(
+      /[A-Za-zñáéíóúüäößàâèêëîïôûùçÑÁÉÍÓÚÜÄÖÀÂÈÊËÎÏÔÛÙÇ]+('[A-Za-z]+)?/g,
+      (match) => {
       const lower = match.toLowerCase();
 
       // Check special slang first (gg, ez, w, etc.)
@@ -535,8 +557,21 @@ export class KatakanaTransformer implements TextTransformer {
     // Clean up any remaining inverted punctuation
     result = result.replace(/[¡¿]/g, "");
 
-    // Clean up spaces before punctuation (e.g. "ハロー !" -> "ハロー!")
-    result = result.replace(/\s+([、。！？!?,\.])/g, "$1");
+    // 5. Normalize Western punctuation to Japanese punctuation for natural breath pauses
+    result = result
+      .replace(/,/g, "、")
+      .replace(/\.(?=\s|$)/g, "。")
+      .replace(/!/g, "！")
+      .replace(/\?/g, "？");
+
+    // 6. Connect consecutive Katakana words by removing foreign word spaces
+    // e.g. "ハロー ガイズ" -> "ハローガイズ", "ユー プレイ" -> "ユープレイ"
+    result = result.replace(/(?<=[\u30A0-\u30FFー])\s+(?=[\u30A0-\u30FFー])/g, "");
+
+    // 7. Remove spaces before/after Japanese punctuation
+    result = result
+      .replace(/\s+([、。！？])/g, "$1")
+      .replace(/([、。！？])\s+/g, "$1");
 
     return result.replace(/[\s\u3000]+/g, " ").trim();
   }

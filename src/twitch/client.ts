@@ -1,21 +1,12 @@
 import tmi from "tmi.js";
 import { config } from "../config";
-import { csvList } from "../storage/csvList";
-import {
-  formatUsername,
-  formatMessage,
-  isIgnoredMessage,
-  escapeMassMention,
-  escapeTtsErrorString,
-  isEnglishString,
-} from "./messageProcessor";
-import { detectLanguage } from "./languageDetector";
-import { rollDice } from "./commands/dice";
+import { escapeMassMention } from "./messageProcessor";
 import {
   handleRememberCommand,
   handleForgetCommand,
 } from "./commands/remember";
 import { sendToDiscord } from "../discord/webhook";
+import { processComment } from "../tts/commentProcessor";
 import type { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
@@ -25,6 +16,8 @@ export class TwitchTTSBot {
   private ttsQueue: TTSQueue;
   private englishEngine?: TTSEngine;
   private transformer?: TextTransformer;
+  private isManuallyDisconnected = false;
+  private reconnectTimer: any = null;
 
   constructor(
     ttsQueue: TTSQueue,
@@ -42,6 +35,42 @@ export class TwitchTTSBot {
 
   public setEnglishEngine(engine?: TTSEngine) {
     this.englishEngine = engine;
+  }
+
+  public isConnected(): boolean {
+    return (
+      !this.isManuallyDisconnected &&
+      this.client !== null &&
+      this.client.readyState() === "OPEN"
+    );
+  }
+
+  public async disconnect(): Promise<void> {
+    this.isManuallyDisconnected = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.client) {
+      try {
+        await this.client.disconnect();
+      } catch {
+        // Ignore error if already disconnected
+      }
+    }
+  }
+
+  public async connect(): Promise<void> {
+    this.isManuallyDisconnected = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (!this.client) {
+      await this.start();
+      return;
+    }
+    await this.client.connect();
   }
 
   public async start(): Promise<void> {
@@ -71,14 +100,19 @@ export class TwitchTTSBot {
     });
 
     this.client.on("disconnected", (reason) => {
+      if (this.isManuallyDisconnected) {
+        return;
+      }
       if (String(reason).toLowerCase().includes("authentication failed")) {
         console.error("\n❌ [TwitchBot] 認証エラーにより切断されました。");
         console.error("💡 config/auth.json を削除してアプリを再起動し、再連携してください。\n");
         return;
       }
       console.warn(`* [TwitchBot] Disconnected: ${reason}. Reconnecting in 5s...`);
-      setTimeout(() => {
-        this.client?.connect().catch((err) => console.error("[TwitchBot] Reconnect error:", err));
+      this.reconnectTimer = setTimeout(() => {
+        if (!this.isManuallyDisconnected) {
+          this.client?.connect().catch((err) => console.error("[TwitchBot] Reconnect error:", err));
+        }
       }, 5000);
     });
 
@@ -95,13 +129,6 @@ export class TwitchTTSBot {
 
     const trimmedMsg = rawMsg.trim();
     if (!trimmedMsg) return;
-
-    // Handle Commands
-    if (trimmedMsg.startsWith("!dice")) {
-      const diceResult = rollDice(trimmedMsg);
-      this.client?.say(target, diceResult);
-      return;
-    }
 
     if (config.COMMENT_REMEMVER_AVAILABLE) {
       if (
@@ -128,62 +155,27 @@ export class TwitchTTSBot {
       return;
     }
 
-    // Read Lists for Conversion
-    const usernameList = csvList.readList("usernameConvertList");
-    const messageList = csvList.readList("messageConvertList");
-    const ignoreList = csvList.readList("messageIgnoreList");
-
     const rawUsername = context.username || context["display-name"] || "anonymous";
-    const displayName = formatUsername(rawUsername, usernameList, config.USE_SIMPLE_NAME);
 
-    // Check Ignore
-    if (isIgnoredMessage(rawMsg, ignoreList)) {
+    const result = await processComment(
+      { rawUsername, rawText: rawMsg, service: "Twitch" },
+      {
+        ttsQueue: this.ttsQueue,
+        transformer: this.transformer,
+        englishEngine: this.englishEngine,
+      }
+    );
+
+    if (result.ignored) {
       return;
     }
 
-    const modifiedContent = formatMessage(rawMsg, messageList);
-    console.log(`${displayName}: ${rawMsg}`);
+    console.log(`${result.displayName}: ${rawMsg}`);
 
     // Discord message
     const discordContent = config.READ_USERNAME
-      ? `\`${displayName}\`: ${escapeMassMention(rawMsg)}`
+      ? `\`${result.displayName}\`: ${escapeMassMention(rawMsg)}`
       : escapeMassMention(rawMsg);
     sendToDiscord(discordContent);
-
-    // TTS message
-    if (!config.ENABLE_TTS) {
-      return;
-    }
-
-    const sanitizedSegment = escapeTtsErrorString(modifiedContent);
-    let speechText = config.READ_USERNAME
-      ? `${displayName}: ${sanitizedSegment}`
-      : sanitizedSegment;
-
-    const lang = detectLanguage(sanitizedSegment);
-    const isForeign = lang !== "jpn";
-
-    // If IGNORE mode is enabled, skip reading foreign comments entirely
-    if (config.FOREIGN_LANGUAGE_MODE === "IGNORE" && isForeign) {
-      return;
-    }
-
-    // Apply Katakana transformation if configured
-    if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && this.transformer) {
-      speechText = await this.transformer.transform(speechText);
-    }
-
-    // Determine engine (Native English vs Default Japanese)
-    let engineToUse: TTSEngine | undefined;
-    if (
-      config.FOREIGN_LANGUAGE_MODE === "NATIVE" &&
-      lang === "eng" &&
-      this.englishEngine
-    ) {
-      engineToUse = this.englishEngine;
-    }
-
-    // Enqueue speech (non-blocking, strictly sequential!)
-    this.ttsQueue.enqueue(speechText, engineToUse);
   }
 }

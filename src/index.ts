@@ -12,6 +12,7 @@ import { startTwitchOAuthFlow } from "./twitch/auth";
 import { printAvailableSpeakers } from "./tts/speakers";
 import { startInteractiveConsole } from "./cli/interactive";
 import { runDemoCli } from "./tts/demo";
+import { HttpServer } from "./server/httpServer";
 import pkg from "../package.json";
 
 const BOT_VERSION = pkg.version || "2.0.1";
@@ -159,50 +160,62 @@ if (config.STARTING_MESSAGE) {
 const katakanaTransformer = new KatakanaTransformer();
 console.log(`[Init] Foreign language mode: ${config.FOREIGN_LANGUAGE_MODE}`);
 
-// 6. Start Twitch Bot
-if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME) {
-  console.log("\n⚠️ Twitch の認証情報（トークンまたはチャンネル名）が設定されていません。");
-  console.log("ブラウザを開いて Twitch 認証を行います...\n");
-  try {
-    const authResult = await startTwitchOAuthFlow();
-    config.TW_OAUTH_TOKEN = authResult.token;
-    config.TW_CHANNEL_NAME = authResult.login;
-    config.BOT_USERNAME = authResult.login;
-  } catch (err) {
-    console.error("[Fatal] Twitch 認証に失敗しました:", err);
-    process.exit(1);
+// 6. Start HTTP Server (for OneComme, CastCraft, Webhooks)
+let httpServer: HttpServer | null = null;
+if (config.HTTP_SERVER_ENABLED) {
+  httpServer = new HttpServer({
+    queue,
+    transformer: katakanaTransformer,
+    englishEngine,
+  });
+  httpServer.start();
+}
+
+// 7. Twitch handling
+const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
+
+if (!config.ENABLE_TWITCH) {
+  console.log("ℹ️  [Twitch] ENABLE_TWITCH=false のため直接接続をスキップしました（HTTP読み上げモードで待機中）");
+} else {
+  const hasAuth = !!(config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME);
+  if (hasAuth) {
+    bot.start().catch((err) => {
+      const errMsg = String(err?.message || err);
+      if (
+        errMsg.toLowerCase().includes("authentication failed") ||
+        errMsg.toLowerCase().includes("auth")
+      ) {
+        console.error("\n❌ [TwitchBot] Twitch へのログイン認証に失敗しました。");
+        console.error(
+          "   トークンが期限切れ、またはTwitchのパスワードが変更された可能性があります。"
+        );
+        console.error("💡 【対処法】");
+        console.error(
+          "   フォルダ内の config/auth.json を削除してアプリを再起動してください。"
+        );
+        console.error("   自動でブラウザが開き、新しく連携画面が表示されます。\n");
+      } else {
+        console.error("[Fatal] Failed to start Twitch Bot:", err);
+      }
+    });
+  } else {
+    console.log("ℹ️  [Twitch] 未連携です（YouTube / わんコメ等のHTTP読み上げモードで待機中）");
+    console.log("💡 Twitchとも連携したい場合は、対話コンソールで「twitch」または「auth」と入力してください。\n");
   }
 }
 
-const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
-
-bot.start().catch((err) => {
-  const errMsg = String(err?.message || err);
-  if (
-    errMsg.toLowerCase().includes("authentication failed") ||
-    errMsg.toLowerCase().includes("auth")
-  ) {
-    console.error("\n❌ [TwitchBot] Twitch へのログイン認証に失敗しました。");
-    console.error(
-      "   トークンが期限切れ、またはTwitchのパスワードが変更された可能性があります。"
-    );
-    console.error("💡 【対処法】");
-    console.error(
-      "   フォルダ内の config/auth.json を削除してアプリを再起動してください。"
-    );
-    console.error("   自動でブラウザが開き、新しく連携画面が表示されます。\n");
-  } else {
-    console.error("[Fatal] Failed to start Twitch Bot:", err);
-  }
-  process.exit(1);
-});
-
-// 5. Start interactive console for terminal commands (?, speakers, say, clear, q)
-startInteractiveConsole(queue, katakanaTransformer, englishEngine);
+// 8. Start interactive console for terminal commands (?, speakers, say, clear, twitch, status, q)
+startInteractiveConsole(queue, katakanaTransformer, englishEngine, bot, httpServer);
 
 // Graceful shutdown
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   console.log("\n[Shutdown] Stopping bot...");
+  if (httpServer) {
+    httpServer.stop();
+  }
+  if (bot) {
+    await bot.disconnect();
+  }
   queue.clear();
   process.exit(0);
 });

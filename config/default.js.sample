@@ -73,8 +73,23 @@ module.exports = {
   RATE_JAPANESE: 200,
 
   /// //////////////////
+  //   HTTP / WEBHOOK  //
+  /// //////////////////
+
+  // わんコメ (OneComme) や CastCraft 等と連携するためのローカル HTTP サーバー
+  HTTP_SERVER_ENABLED: true,
+  HTTP_SERVER_PORT: 3939, // POST http://127.0.0.1:3939/say
+
+  // 棒読みちゃん連携互換サーバー (わんコメの棒読みちゃん連携がそのまま使えます)
+  BOUYOMI_COMPAT_ENABLED: true,
+  BOUYOMI_COMPAT_PORT: 50080, // GET http://127.0.0.1:50080/Talk?text=...
+
+  /// //////////////////
   //     TWITCH      //
   /// //////////////////
+
+  // Twitch チャット読み上げの有効化 (わんコメ等のみで使う場合は false に設定可能)
+  ENABLE_TWITCH: true,
 
   // 読み上げを行いたい配信チャンネル名
   // ※空欄（デフォルト）の場合、ブラウザで連携したアカウント自身の配信チャンネルになります。

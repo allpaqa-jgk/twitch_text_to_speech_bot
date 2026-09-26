@@ -56,9 +56,16 @@ export interface BotConfig {
   COMMENT_FORGET_COMMAND: string;
 
   // Twitch
+  ENABLE_TWITCH: boolean;
   TW_OAUTH_TOKEN: string;
   TW_CHANNEL_NAME: string;
   BOT_USERNAME: string;
+
+  // HTTP / Webhook server
+  HTTP_SERVER_ENABLED: boolean;
+  HTTP_SERVER_PORT: number;
+  BOUYOMI_COMPAT_ENABLED: boolean;
+  BOUYOMI_COMPAT_PORT: number;
 
   // Discord
   DISCORD_TRANSFER_ENABLED: boolean;
@@ -148,6 +155,7 @@ export const config: BotConfig = {
   COMMENT_REMEMVER_COMMAND: rawConfig.COMMENT_REMEMVER_COMMAND || "remember",
   COMMENT_FORGET_COMMAND: rawConfig.COMMENT_FORGET_COMMAND || "forget",
 
+  ENABLE_TWITCH: rawConfig.ENABLE_TWITCH ?? true,
   TW_OAUTH_TOKEN: rawConfig.TW_OAUTH_TOKEN || authConfig.oauthToken || "",
   TW_CHANNEL_NAME: rawConfig.TW_CHANNEL_NAME || authConfig.channelName || "",
   BOT_USERNAME:
@@ -156,6 +164,11 @@ export const config: BotConfig = {
     (rawConfig.TW_CHANNEL_NAME || authConfig.channelName
       ? `${rawConfig.TW_CHANNEL_NAME || authConfig.channelName}_bot`
       : ""),
+
+  HTTP_SERVER_ENABLED: rawConfig.HTTP_SERVER_ENABLED ?? true,
+  HTTP_SERVER_PORT: rawConfig.HTTP_SERVER_PORT ?? 3939,
+  BOUYOMI_COMPAT_ENABLED: rawConfig.BOUYOMI_COMPAT_ENABLED ?? true,
+  BOUYOMI_COMPAT_PORT: rawConfig.BOUYOMI_COMPAT_PORT ?? 50080,
 
   DISCORD_TRANSFER_ENABLED: rawConfig.DISCORD_TRANSFER_ENABLED ?? false,
   DISCORD_WEBHOOK_URL: rawConfig.DISCORD_WEBHOOK_URL || "",

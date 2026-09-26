@@ -104,7 +104,7 @@ if (fs.existsSync(authJsonPath)) {
   try {
     authConfig = JSON.parse(fs.readFileSync(authJsonPath, "utf-8"));
   } catch {
-    console.warn(`[Config] Failed to parse "${authJsonPath}".`);
+    console.warn('[Config] Failed to parse "config/auth.json".');
   }
 }
 

@@ -247,7 +247,7 @@ export async function startTwitchOAuthFlow(): Promise<TwitchAuthResult> {
               console.log("🎉 Twitch 認証に成功しました！");
               console.log(`👤 ユーザー名 : ${displayName} (@${login})`);
               console.log(`📺 対象チャンネル: #${login}`);
-              console.log(`💾 認証ファイルを保存: ${authPath}`);
+              console.log("💾 認証ファイルを保存: config/auth.json");
               console.log("-------------------------------------------------------\n");
 
               // ブラウザへ応答

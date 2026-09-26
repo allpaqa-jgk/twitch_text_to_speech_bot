@@ -121,10 +121,10 @@ function decomposeHangulSyllable(code: number): { l: number; v: number; t: numbe
 export function hangulToKatakana(text: string): string {
   let processed = text;
 
-  // 1. Common frequent phrases priority override
+  // 1. Common frequent phrases priority override (direct replacement without extra spaces)
   for (const [phrase, katakana] of Object.entries(COMMON_KOREAN_PHRASES)) {
     if (processed.includes(phrase)) {
-      processed = processed.split(phrase).join(` ${katakana} `);
+      processed = processed.split(phrase).join(katakana);
     }
   }
 
@@ -162,6 +162,9 @@ export function hangulToKatakana(text: string): string {
 
     result += base + batchimSound;
   }
+
+  // 3. Remove unnecessary spaces before punctuation
+  result = result.replace(/\s+([、。！？!?,\.])/g, "$1");
 
   return result.replace(/[\s\u3000]+/g, " ").trim();
 }

@@ -60,7 +60,7 @@ describe("KatakanaTransformer", () => {
       expect(transformer.transform("감사합니다")).toBe("カムサハムニダ");
       expect(
         transformer.transform("안녕하세요! 방송 너무 재미있어요 화이팅!")
-      ).toBe("アンニョンハセヨ ! パンソン ノム チェミイッソヨ ファイティン !");
+      ).toBe("アンニョンハセヨ! パンソン ノム チェミイッソヨ ファイティン!");
       expect(transformer.transform("진짜 대박 잘자요")).toBe(
         "チンチャ テバク チャルジャヨ"
       );
@@ -70,15 +70,15 @@ describe("KatakanaTransformer", () => {
   describe("Chinese / Taiwan Mandarin conversion", () => {
     it("should convert Chinese text with Taiwan slang and pronunciations prioritized", () => {
       expect(transformer.transform("你好！玩得很好，加油！")).toBe(
-        "ニー ハオ！ワン ドゥ ヘン ハオ， ジャーヨウ ！"
+        "ニーハオ！ワンドゥヘンハオ、ジャーヨウ！"
       );
       expect(transformer.transform("這個是垃圾遊戲，安安笑死")).toBe(
-        "ジャー ガー シー レースー ヨウ シー， アンアン シアオスー"
+        "ジャーガーシーレースーヨウシー、アンアンシアオスー"
       );
       expect(transformer.transform("實況主太厲害了吧")).toBe(
-        "シークアン ジュー タイ リー ハイ ラ バー"
+        "シークアンジュータイリーハイラバー"
       );
-      expect(transformer.transform("謝謝乾爹")).toBe("シエ シエ ガンディエ");
+      expect(transformer.transform("謝謝乾爹")).toBe("シエシエガンディエ");
     });
 
     it("should strictly preserve Japanese pure Kanji sentences without altering them", () => {

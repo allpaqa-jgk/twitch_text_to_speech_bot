@@ -134,24 +134,37 @@ function pinyinWordToKatakana(py: string): string {
 
 /**
  * Converts Chinese / Taiwan Mandarin text to Katakana:
- * 1. Matches Taiwan priority slang & pronunciations.
- * 2. Converts remaining Hanzi blocks to Pinyin -> Katakana.
+ * 1. Matches Taiwan priority slang & pronunciations without adding spaces.
+ * 2. Converts remaining Hanzi blocks to Pinyin -> Katakana (connected smoothly without spaces).
+ * 3. Normalizes Chinese punctuation to Japanese punctuation for natural TTS prosody.
  */
 export function convertChineseToKatakana(text: string): string {
   let result = text;
 
-  // 1. Taiwan phrases first
+  // 1. Taiwan phrases first (direct replacement without inserting spaces)
   for (const [phrase, katakana] of Object.entries(TAIWAN_PHRASES)) {
     if (result.includes(phrase)) {
-      result = result.split(phrase).join(` ${katakana} `);
+      result = result.split(phrase).join(katakana);
     }
   }
 
-  // 2. Only remaining Hanzi blocks
+  // 2. Only remaining Hanzi blocks: join syllables directly WITHOUT spaces
   result = result.replace(/[\u4E00-\u9FFF]+/g, (hanziMatch) => {
     const tokens = pinyin(hanziMatch, { toneType: "none", type: "array" });
-    return tokens.map(pinyinWordToKatakana).join(" ");
+    return tokens.map(pinyinWordToKatakana).join("");
   });
+
+  // 3. Normalize Chinese punctuation to Japanese punctuation for natural prosody
+  result = result
+    .replace(/，/g, "、")
+    .replace(/。/g, "。")
+    .replace(/！/g, "！")
+    .replace(/？/g, "？");
+
+  // 4. Remove unnecessary spaces around punctuation
+  result = result
+    .replace(/\s+([、。！？!?,\.])/g, "$1")
+    .replace(/([、。！？!?,\.])\s+/g, "$1");
 
   return result.replace(/[\s\u3000]+/g, " ").trim();
 }

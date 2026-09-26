@@ -535,6 +535,9 @@ export class KatakanaTransformer implements TextTransformer {
     // Clean up any remaining inverted punctuation
     result = result.replace(/[¡¿]/g, "");
 
-    return result;
+    // Clean up spaces before punctuation (e.g. "ハロー !" -> "ハロー!")
+    result = result.replace(/\s+([、。！？!?,\.])/g, "$1");
+
+    return result.replace(/[\s\u3000]+/g, " ").trim();
   }
 }

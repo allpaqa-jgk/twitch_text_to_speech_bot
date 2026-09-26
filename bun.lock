@@ -1,0 +1,18 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "twitch_text_to_speech_bot",
+      "dependencies": {
+        "cmu-pronouncing-dictionary": "^3.0.0",
+        "pinyin-pro": "^3.29.4",
+      },
+    },
+  },
+  "packages": {
+    "cmu-pronouncing-dictionary": ["cmu-pronouncing-dictionary@3.0.0", "", {}, "sha512-6y5X4OxsYFnHERo6WSVPnLrk53G07MOQ8aUb2z555JgwynpbZsHR0a//WdN6DUcmE1j2auTF2TtL4PpoKze8QQ=="],
+
+    "pinyin-pro": ["pinyin-pro@3.29.4", "", {}, "sha512-SPXpDT2cHEy+d26V1RXYMlVzXN42hotFAak1fzyWPi4o2dKXb61UqD4pzxDJHwk6gbv8vQ6EfErd+hYX0Qhzug=="],
+  }
+}

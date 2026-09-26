@@ -1,6 +1,6 @@
 {
   "name": "twitch-tts-v2",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -20,8 +20,10 @@
     "typescript": "^7"
   },
   "dependencies": {
+    "cmu-pronouncing-dictionary": "^3.0.0",
     "csv-parse": "^7.0.2",
     "franc-min": "^6.2.0",
+    "pinyin-pro": "^3.29.4",
     "play-sound": "^1.1.6",
     "tmi.js": "^1.8.5"
   }

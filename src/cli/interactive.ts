@@ -1,9 +1,16 @@
 import readline from "readline";
 import type { TTSQueue } from "../tts/queue";
+import type { TextTransformer } from "../tts/transformers/types";
+import type { TTSEngine } from "../tts/engine";
+import { detectLanguage } from "../twitch/languageDetector";
 import { printAvailableSpeakers } from "../tts/speakers";
 import { config } from "../config";
 
-export function startInteractiveConsole(queue: TTSQueue): void {
+export function startInteractiveConsole(
+  queue: TTSQueue,
+  transformer?: TextTransformer,
+  englishEngine?: TTSEngine
+): void {
   // Only start interactive terminal if stdin is a TTY
   if (!process.stdin.isTTY) {
     return;
@@ -42,12 +49,33 @@ export function startInteractiveConsole(queue: TTSQueue): void {
         break;
 
       case "say":
-        const textToSay = args.join(" ").trim();
+        let textToSay = args.join(" ").trim();
         if (!textToSay) {
           console.log("⚠️ 使用方法: say <喋らせたいテキスト>");
         } else {
+          const lang = detectLanguage(textToSay);
+          const isForeign = lang !== "jpn";
+
+          if (config.FOREIGN_LANGUAGE_MODE === "IGNORE" && isForeign) {
+            console.log(`ℹ️ [Say] FOREIGN_LANGUAGE_MODE=IGNORE のためスキップされました`);
+            break;
+          }
+
+          if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && transformer) {
+            textToSay = await transformer.transform(textToSay);
+          }
+
+          let engineToUse: TTSEngine | undefined;
+          if (
+            config.FOREIGN_LANGUAGE_MODE === "NATIVE" &&
+            lang === "eng" &&
+            englishEngine
+          ) {
+            engineToUse = englishEngine;
+          }
+
           console.log(`🗣️ テスト発声中: "${textToSay}"`);
-          queue.enqueue(textToSay);
+          queue.enqueue(textToSay, engineToUse);
         }
         break;
 

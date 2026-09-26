@@ -168,8 +168,8 @@ export class TwitchTTSBot {
       return;
     }
 
-    // Apply Katakana transformation if configured for foreign comments
-    if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && isForeign && this.transformer) {
+    // Apply Katakana transformation if configured
+    if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && this.transformer) {
       speechText = await this.transformer.transform(speechText);
     }
 

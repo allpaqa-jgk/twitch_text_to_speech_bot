@@ -31,4 +31,12 @@ describe("detectLanguage", () => {
     expect(detectLanguage("안녕하세요")).toBe("kor");
     expect(detectLanguage("감사합니다")).toBe("kor");
   });
+
+  it("should detect Chinese / Taiwan Mandarin while keeping pure Japanese Kanji as Japanese", () => {
+    expect(detectLanguage("你好！玩得很好，加油！")).toBe("zho");
+    expect(detectLanguage("這個遊戲太強了")).toBe("zho");
+    expect(detectLanguage("了解")).toBe("jpn");
+    expect(detectLanguage("初見歓迎")).toBe("jpn");
+    expect(detectLanguage("神回")).toBe("jpn");
+  });
 });

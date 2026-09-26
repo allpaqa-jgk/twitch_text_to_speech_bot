@@ -1,276 +1,70 @@
 import type { TextTransformer } from "./types";
+import { dictionary } from "cmu-pronouncing-dictionary";
+import { hangulToKatakana } from "./korean";
+import { isChineseText, convertChineseToKatakana } from "./chinese";
 
 /**
- * Common English & Multilingual frequent words/phrases pronunciation dictionary.
+ * Twitch & Gaming specific abbreviations/slang that have non-phonetic readings in Japanese streams.
  */
-const COMMON_DICTIONARY: Record<string, string> = {
-  // English Greetings & Reactions
-  hello: "ハロー",
-  hi: "ハイ",
-  hey: "ヘイ",
-  bye: "バイバイ",
-  goodbye: "グッバイ",
-  cya: "スィーヤ",
-  welcome: "ウェルカム",
-  thanks: "サンクス",
-  thank: "サンク",
-  you: "ユー",
-  "thank you": "サンキュー",
-  thx: "サンクス",
-  ty: "サンキュー",
-  pls: "プリーズ",
-  please: "プリーズ",
-  sorry: "ソーリー",
-  sry: "ソーリー",
-  yes: "イエス",
-  no: "ノー",
-  yeah: "イェー",
-  yep: "イェップ",
-  nope: "ノープ",
-  ok: "オーケー",
-  okay: "オーケー",
+const SPECIAL_SLANG: Record<string, string> = {
+  w: "わら",
+  ww: "わらわら",
+  www: "わらわら",
+  wwww: "わらわら",
   gg: "ジージー",
+  ggs: "ジージーズ",
   wp: "ウェルプレイド",
   "gg wp": "ジージー ウェルプレイド",
   gl: "グッドラック",
   hf: "ハブファン",
   glhf: "グッドラック ハブファン",
-  lol: "エルオーエル",
-  lmao: "エルエムエーオー",
-  omg: "オーマイガー",
-  wtf: "ダブリューティーエフ",
   ez: "イージー",
   pog: "ポグ",
   poggers: "ポガーズ",
   pogchamp: "ポグチャンプ",
   kekw: "ケクダブリュー",
-  kappa: "カッパ",
-  lfg: "エルエフジー",
   afk: "エーエフケー",
   brb: "ビーアールビー",
-  rip: "リップ",
-  ggs: "ジージーズ",
-  nice: "ナイス",
-  good: "グッド",
-  great: "グレート",
-  awesome: "オーサム",
-  cool: "クール",
-  cute: "キュート",
-  amazing: "アメイジング",
-  perfect: "パーフェクト",
-  beautiful: "ビューティフル",
-  congrats: "コングラッツ",
-  congratulations: "コングラチュレーションズ",
-  wow: "ワオ",
+  lol: "ロル",
+  lmao: "エルエムエーオー",
+  wtf: "ダブリューティーエフ",
+  nt: "ナイストライ",
+  kusa: "くさ",
   bro: "ブロ",
-  dude: "デュード",
-  guy: "ガイ",
-  guys: "ガイズ",
-  man: "マン",
-  friend: "フレンド",
-  stream: "ストリーム",
-  streamer: "ストリーマー",
-  gaming: "ゲーミング",
-  game: "ゲーム",
-  play: "プレイ",
-  player: "プレイヤー",
-  chat: "チャット",
-  bot: "ボット",
-  twitch: "ツイッチ",
-  live: "ライブ",
-  love: "ラブ",
-  like: "ライク",
-  subscribe: "サブスクライブ",
-  follow: "フォロー",
-  follower: "フォロワー",
-  raid: "レイド",
-  host: "ホスト",
-  clip: "クリップ",
-  highlight: "ハイライト",
-  music: "ミュージック",
-  song: "ソング",
-  sound: "サウンド",
-  voice: "ボイス",
-  audio: "オーディオ",
-  video: "ビデオ",
-  what: "ワット",
-  why: "ワイ",
-  how: "ハウ",
-  where: "ウェア",
-  when: "ウェン",
-  who: "フー",
-  night: "ナイト",
-  knight: "ナイト",
-  fight: "ファイト",
-  light: "ライト",
-  right: "ライト",
-  station: "ステーション",
-  morning: "モーニング",
-  evening: "イブニング",
-  today: "トゥデイ",
-  tomorrow: "トゥモロー",
-  yesterday: "イエスタデイ",
-  time: "タイム",
-  world: "ワールド",
-  people: "ピープル",
-  happy: "ハッピー",
-  sad: "サッド",
-  crazy: "クレイジー",
-  real: "リアル",
-  true: "トゥルー",
-  false: "フォルス",
-  one: "ワン",
-  two: "ツー",
-  three: "スリー",
-  four: "フォー",
-  five: "ファイブ",
-  six: "シックス",
-  seven: "セブン",
-  eight: "エイト",
-  nine: "ナイン",
-  ten: "テン",
+  fps: "エフピーエス",
+  rpg: "アールピージー",
+  bgm: "ビージーエム",
+  npc: "エヌピーシー",
+  pvp: "ピーブイピー",
+  pve: "ピーブイイー",
+  dps: "ディーピーエス",
+  id: "アイディー",
+  url: "ユーアールエル",
+  mp: "エムピー",
+  se: "エスイー",
+  op: "オーピー",
+  ng: "エヌジー",
+};
 
-  // Core English Grammar & Common Words
-  this: "ディス",
-  that: "ザット",
-  these: "ディーズ",
-  those: "ゾーズ",
-  the: "ザ",
-  a: "ア",
-  an: "アン",
-  is: "イズ",
-  are: "アー",
-  am: "アム",
-  was: "ワズ",
-  were: "ワー",
-  be: "ビー",
-  been: "ビーン",
-  being: "ビーイング",
-  it: "イット",
-  its: "イッツ",
-  "it's": "イッツ",
-  i: "アイ",
-  my: "マイ",
-  me: "ミー",
-  mine: "マイン",
-  your: "ユア",
-  yours: "ユアーズ",
-  he: "ヒー",
-  his: "ヒズ",
-  him: "ヒム",
-  she: "シー",
-  her: "ハー",
-  hers: "ハーズ",
-  we: "ウィー",
-  our: "アワー",
-  us: "アス",
-  they: "ゼイ",
-  their: "ゼア",
-  them: "ゼム",
-  do: "ドゥー",
-  does: "ダズ",
-  did: "ディド",
-  done: "ダン",
-  have: "ハブ",
-  has: "ハズ",
-  had: "ハド",
-  can: "キャン",
-  "can't": "キャント",
-  cant: "キャント",
-  could: "クッド",
-  will: "ウィル",
-  "won't": "ウォント",
-  wont: "ウォント",
-  would: "ウッド",
-  should: "シュッド",
-  must: "マスト",
-  may: "メイ",
-  might: "マイト",
-  not: "ノット",
-  and: "アンド",
-  but: "バット",
-  or: "オア",
-  so: "ソー",
-  if: "イフ",
-  as: "アズ",
-  because: "ビコーズ",
-  in: "イン",
-  on: "オン",
-  at: "アット",
-  to: "トゥー",
-  for: "フォー",
-  of: "オブ",
-  with: "ウィズ",
-  without: "ウィズアウト",
-  by: "バイ",
-  from: "フロム",
-  about: "アバウト",
-  into: "イントゥー",
-  over: "オーバー",
-  after: "アフター",
-  before: "ビフォー",
-  test: "テスト",
-  testing: "テスティング",
-  check: "チェック",
-  try: "トライ",
-  start: "スタート",
-  stop: "ストップ",
-  here: "ヒア",
-  there: "ゼア",
-  now: "ナウ",
-  then: "ゼン",
-  all: "オール",
-  any: "エニー",
-  some: "サム",
-  very: "ベリー",
-  much: "マッチ",
-  many: "メニー",
-  too: "トゥー",
-  also: "オールソー",
-  just: "ジャスト",
-  only: "オンリー",
-  really: "リアリー",
-  sure: "シュア",
-  which: "ウィッチ",
-  than: "ザン",
-  get: "ゲット",
-  make: "メイク",
-  go: "ゴー",
-  see: "シー",
-  come: "カム",
-  take: "テイク",
-  know: "ノウ",
-  think: "シンク",
-  look: "ルック",
-  want: "ウォント",
-  give: "ギブ",
-  find: "ファインド",
-  tell: "テル",
-  ask: "アスク",
-  doing: "ドゥーイング",
-  watch: "ウォッチ",
-  watching: "ウォッチング",
-  work: "ワーク",
-  feel: "フィール",
-  leave: "リーブ",
-  call: "コール",
-
-  // Spanish Phrases
-  hola: "オラ",
-  adios: "アディオス",
-  amigo: "アミーゴ",
-  amigos: "アミーゴス",
-  gracias: "グラシアス",
+/**
+ * Multilingual Spanish phrases & common greetings
+ */
+const SPANISH_PHRASES: Record<string, string> = {
   "muchas gracias": "ムチャス グラシアス",
   "por favor": "ポル ファボール",
-  buenas: "ブエナス",
   "buenos dias": "ブエノス ディアス",
   "buenas noches": "ブエナス ノーチェス",
   "como estas": "コモ エスタス",
+  hola: "オラ",
+  amigo: "アミーゴ",
+  amigos: "アミーゴス",
+  gracias: "グラシアス",
+  adios: "アディオス",
+  buenas: "ブエナス",
   bien: "ビエン",
-  si: "スィ",
   señor: "セニョール",
   señora: "セニョーラ",
+  si: "スィ",
 };
 
 /**
@@ -298,35 +92,195 @@ const CYRILLIC_MAP: Record<string, string> = {
   э: "エ", ю: "ユ", я: "ヤ",
 };
 
-/**
- * Korean Hangul phrases
- */
-const HANGUL_COMMON_MAP: Record<string, string> = {
-  안녕하세요: "アンニョンハセヨ",
-  안녕: "アンニョン",
-  감사합니다: "カムサハムニダ",
-  고마워: "コマウォ",
-  죄송합니다: "チェソンハムニダ",
-  미안해: "ミアネ",
-  네: "ネー",
-  아니요: "アニヨ",
-  대박: "テバク",
-  진짜: "チンチャ",
-  화이팅: "ファイティン",
-  파이팅: "パイティン",
-  사랑해: "サランへ",
-};
+const SHORT_VOWELS = new Set(["IH", "EH", "AE", "AH", "UH"]);
+const STOPS = new Set(["P", "T", "K", "B", "D", "G", "CH"]);
 
 /**
- * Convert English word to natural katakana phonetics (Phonics rules)
+ * Converts ARPAbet phonetic string (from CMU Pronouncing Dictionary)
+ * into natural-sounding Japanese Katakana using standard loanword rules.
+ */
+export function arpabetToKatakana(arpaStr: string, originalWord = ""): string {
+  const rawPhonemes = arpaStr.split(/\s+/);
+  const phonemes = rawPhonemes.map((p) => p.replace(/[0-9]/g, ""));
+  const lowerWord = originalWord.toLowerCase();
+
+  // Check if vowel in spelling is short 'o' (like hot, stop, bot, dog, not, comment, box, on, off)
+  const isShortO =
+    /[bcdfghjklmnpqrstvwxyz]o[bcdfghjklmnpqrstvwxyz]/i.test(lowerWord) ||
+    lowerWord === "on" ||
+    lowerWord === "off";
+
+  // Diphthong 'ey' written as 'ay' or 'ai' in spelling -> 'エイ' (play, player, rain)
+  const isAiAy = lowerWord.includes("ay") || lowerWord.includes("ai");
+
+  const vowels: Record<string, string> = {
+    AA: lowerWord.includes("o") ? (isShortO ? "オ" : "オー") : "ア",
+    AE: "ア",
+    AH: "ア",
+    AO: isShortO ? "オ" : "オー",
+    AW: "アウ",
+    AY: "アイ",
+    EH: "エ",
+    ER: "アー",
+    EY: isAiAy ? "エイ" : "エー",
+    IH: "イ",
+    IY: "イー",
+    OW: "オー",
+    OY: "オイ",
+    UH: "ウ",
+    UW: "ウー",
+  };
+
+  const getCv = (c: string, v: string): string => {
+    const isO = (v === "AA" && lowerWord.includes("o")) || v === "AO" || v === "OW";
+    const oExt = isShortO ? "" : "ー";
+    const eyExt = isAiAy ? "イ" : "ー";
+
+    // Special K + AE -> キャ (cat, camp, can)
+    if (c === "K" && v === "AE") {
+      return "キャ";
+    }
+
+    const cvMap: Record<string, Record<string, string>> = {
+      B: { AA: isO ? "ボ" + oExt : "バ", AE: "バ", AH: "バ", AO: "ボ" + oExt, AW: "バウ", AY: "バイ", EH: "ベ", ER: "バー", EY: "ベ" + eyExt, IH: "ビ", IY: "ビー", OW: "ボー", OY: "ボイ", UH: "ブ", UW: "ブー" },
+      CH: { AA: isO ? "チョ" + oExt : "チャ", AE: "チャ", AH: "チャ", AO: "チョ" + oExt, AW: "チャウ", AY: "チャイ", EH: "チェ", ER: "チャー", EY: "チェ" + eyExt, IH: "チ", IY: "チー", OW: "チョウ", OY: "チョイ", UH: "チュ", UW: "チュー" },
+      D: { AA: isO ? "ド" + oExt : "ダ", AE: "ダ", AH: "ダ", AO: "ド" + oExt, AW: "ダウ", AY: "ダイ", EH: "デ", ER: "ダー", EY: "デ" + eyExt, IH: "ディ", IY: "ディー", OW: "ドー", OY: "ドイ", UH: "ドゥ", UW: "ドゥー" },
+      DH: { AA: isO ? "ゾ" + oExt : "ザ", AE: "ザ", AH: "ザ", AO: "ゾ" + oExt, AW: "ザウ", AY: "ザイ", EH: "ゼ", ER: "ザー", EY: "ゼ" + eyExt, IH: "ディ", IY: "ディー", OW: "ゾウ", OY: "ゾイ", UH: "ズ", UW: "ズー" },
+      F: { AA: isO ? "フォ" + oExt : "ファ", AE: "ファ", AH: "ファ", AO: "フォ" + oExt, AW: "ファウ", AY: "ファイ", EH: "フェ", ER: "ファー", EY: "フェ" + eyExt, IH: "フィ", IY: "フィー", OW: "フォー", OY: "フォイ", UH: "フ", UW: "フー" },
+      G: { AA: isO ? "ゴ" + oExt : "ガ", AE: "ガ", AH: "ガ", AO: "ゴ" + oExt, AW: "ガウ", AY: "ガイ", EH: "ゲ", ER: "ガー", EY: "ゲ" + eyExt, IH: "ギ", IY: "ギー", OW: "ゴー", OY: "ゴイ", UH: "グ", UW: "グー" },
+      HH: { AA: isO ? "ホ" + oExt : "ハ", AE: "ハ", AH: "ハ", AO: "ホ" + oExt, AW: "ハウ", AY: "ハイ", EH: "ヘ", ER: "ハー", EY: "ヘ" + eyExt, IH: "ヒ", IY: "ヒー", OW: "ホー", OY: "ホイ", UH: "フ", UW: "フー" },
+      JH: { AA: isO ? "ジョ" + oExt : "ジャ", AE: "ジャ", AH: "ジャ", AO: "ジョ" + oExt, AW: "ジャウ", AY: "ジャイ", EH: "ジェ", ER: "ジャー", EY: "ジェ" + eyExt, IH: "ジ", IY: "ジー", OW: "ジョウ", OY: "ジョイ", UH: "ジュ", UW: "ジュー" },
+      K: { AA: isO ? "コ" + oExt : "カ", AE: "キャ", AH: "カ", AO: "コ" + oExt, AW: "カウ", AY: "カイ", EH: "ケ", ER: "カー", EY: "ケ" + eyExt, IH: "キ", IY: "キー", OW: "コー", OY: "コイ", UH: "ク", UW: "クー" },
+      L: { AA: isO ? "ロ" + oExt : "ラ", AE: "ラ", AH: "ラ", AO: "ロ" + oExt, AW: "ラウ", AY: "ライ", EH: "レ", ER: "ラー", EY: "レ" + eyExt, IH: "リ", IY: "リー", OW: "ロー", OY: "ロイ", UH: "ル", UW: "ルー" },
+      M: { AA: isO ? "モ" + oExt : "マ", AE: "マ", AH: "マ", AO: "モ" + oExt, AW: "マウ", AY: "マイ", EH: "メ", ER: "マー", EY: "メ" + eyExt, IH: "ミ", IY: "ミー", OW: "モー", OY: "モイ", UH: "ム", UW: "ムー" },
+      N: { AA: isO ? "ノ" + oExt : "ナ", AE: "ナ", AH: "ナ", AO: "ノ" + oExt, AW: "ナウ", AY: "ナイ", EH: "ネ", ER: "ナー", EY: "ネ" + eyExt, IH: "ニ", IY: "ニー", OW: "ノー", OY: "ノイ", UH: "ヌ", UW: "ヌー" },
+      P: { AA: isO ? "ポ" + oExt : "パ", AE: "パ", AH: "パ", AO: "ポ" + oExt, AW: "パウ", AY: "パイ", EH: "ペ", ER: "パー", EY: "ペ" + eyExt, IH: "ピ", IY: "ピー", OW: "ポー", OY: "ポイ", UH: "プ", UW: "プー" },
+      R: { AA: isO ? "ロ" + oExt : "ラ", AE: "ラ", AH: "ラ", AO: "ロ" + oExt, AW: "ラウ", AY: "ライ", EH: "レ", ER: "ラー", EY: "レ" + eyExt, IH: "リ", IY: "リー", OW: "ロー", OY: "ロイ", UH: "ル", UW: "ルー" },
+      S: { AA: isO ? "ソ" + oExt : "サ", AE: "サ", AH: "サ", AO: "ソ" + oExt, AW: "サウ", AY: "サイ", EH: "セ", ER: "サー", EY: "セ" + eyExt, IH: "シ", IY: "シー", OW: "ソー", OY: "ソイ", UH: "ス", UW: "スー" },
+      SH: { AA: isO ? "ショ" + oExt : "シャ", AE: "シャ", AH: "シャ", AO: "ショ" + oExt, AW: "シャウ", AY: "シャイ", EH: "シェ", ER: "シャー", EY: "シェ" + eyExt, IH: "シ", IY: "シー", OW: "ショー", OY: "ショイ", UH: "シュ", UW: "シュー" },
+      T: { AA: isO ? "ト" + oExt : "タ", AE: "タ", AH: "タ", AO: "ト" + oExt, AW: "タウ", AY: "タイ", EH: "テ", ER: "ター", EY: "テ" + eyExt, IH: "ティ", IY: "ティー", OW: "トー", OY: "トイ", UH: "トゥ", UW: "トゥー" },
+      TH: { AA: isO ? "ソ" + oExt : "サ", AE: "サ", AH: "サ", AO: "ソ" + oExt, AW: "サウ", AY: "サイ", EH: "セ", ER: "サー", EY: "セ" + eyExt, IH: "シ", IY: "シー", OW: "ソー", OY: "ソイ", UH: "ス", UW: "スー" },
+      V: { AA: isO ? "ヴォ" + oExt : "ヴァ", AE: "ヴァ", AH: "ヴァ", AO: "ヴォ" + oExt, AW: "ヴァウ", AY: "ヴァイ", EH: "ヴェ", ER: "ヴァー", EY: "ヴェ" + eyExt, IH: "ヴィ", IY: "ヴィー", OW: "ヴォー", OY: "ヴォイ", UH: "ヴ", UW: "ヴー" },
+      W: { AA: isO ? "ウォ" + oExt : "ワ", AE: "ワ", AH: "ワ", AO: "ウォ" + oExt, AW: "ワウ", AY: "ワイ", EH: "ウェ", ER: "ワー", EY: "ウェ" + eyExt, IH: "ウィ", IY: "ウィー", OW: "ウォー", OY: "ウォイ", UH: "ウ", UW: "ウー" },
+      Y: { AA: isO ? "ヨ" + oExt : "ヤ", AE: "ヤ", AH: "ヤ", AO: "ヨ" + oExt, AW: "ヤウ", AY: "ヤイ", EH: "イェ", ER: "ヤー", EY: "イェ" + eyExt, IH: "イ", IY: "イー", OW: "ヨー", OY: "ヨイ", UH: "ユ", UW: "ユー" },
+      Z: { AA: isO ? "ゾ" + oExt : "ザ", AE: "ザ", AH: "ザ", AO: "ゾ" + oExt, AW: "ザウ", AY: "ザイ", EH: "ゼ", ER: "ザー", EY: "ゼ" + eyExt, IH: "ジ", IY: "ジー", OW: "ゾウ", OY: "ゾイ", UH: "ズ", UW: "ズー" },
+      ZH: { AA: isO ? "ジョ" + oExt : "ジャ", AE: "ジャ", AH: "ジャ", AO: "ジョ" + oExt, AW: "ジャウ", AY: "ジャイ", EH: "ジェ", ER: "ジャー", EY: "ジェ" + eyExt, IH: "ジ", IY: "ジー", OW: "ジョウ", OY: "ジョイ", UH: "ジュ", UW: "ジュー" },
+    };
+    return cvMap[c]?.[v] || "";
+  };
+
+  const standaloneC: Record<string, string> = {
+    B: "ブ", CH: "チ", D: "ド", DH: "ズ", F: "フ", G: "グ", HH: "ハ",
+    JH: "ジ", K: "ク", L: "ル", M: "ム", N: "ン", P: "プ", R: "ル",
+    S: "ス", SH: "シュ", T: "ト", TH: "ス", V: "ブ", W: "ウ", Y: "イ",
+    Z: "ズ", ZH: "ジュ", NG: "ング",
+  };
+
+  let out = "";
+  let i = 0;
+  let lastWasShortVowel = false;
+
+  while (i < phonemes.length) {
+    const p = phonemes[i];
+    const next = phonemes[i + 1];
+
+    // TW + Vowel -> ツィ/ツァ/ツ/etc. (e.g. twitch -> T W IH CH -> ツイッチ)
+    if (p === "T" && next === "W" && phonemes[i + 2] && vowels[phonemes[i + 2]]) {
+      const v = phonemes[i + 2];
+      if (v === "IH" || v === "IY") out += "ツイ";
+      else if (v === "AE" || v === "AA" || v === "AH") out += "ツァ";
+      else if (v === "EH" || v === "EY") out += "ツェ";
+      else out += "ツ";
+      lastWasShortVowel = SHORT_VOWELS.has(v);
+      i += 3;
+      continue;
+    }
+
+    // NG before K (e.g. thanks -> TH AE NG K S -> サンクス, think -> シンク)
+    if (p === "NG" && next === "K") {
+      out += "ン";
+      lastWasShortVowel = false;
+      i++;
+      continue;
+    }
+
+    // T + S at word-end -> ツ (e.g. cats -> キャッツ, comments -> コメンツ)
+    if (p === "T" && next === "S" && i + 2 === phonemes.length) {
+      if (lastWasShortVowel && !out.endsWith("ッ") && !out.endsWith("ー") && !out.endsWith("ン")) {
+        out += "ッ";
+      }
+      out += "ツ";
+      i += 2;
+      continue;
+    }
+
+    // R before consonant or at end of word -> prolonged sound (ー)
+    if (p === "R" && (!next || !vowels[next])) {
+      if (out.length > 0 && !out.endsWith("ー") && !out.endsWith("ッ")) {
+        out += "ー";
+      }
+      lastWasShortVowel = false;
+      i++;
+      continue;
+    }
+
+    // ER after /i/ sound (e.g. player -> プレイヤー)
+    if (p === "ER" && out.endsWith("イ")) {
+      out += "ヤー";
+      lastWasShortVowel = false;
+      i++;
+      continue;
+    }
+
+    // Consonant + Vowel
+    if (next && vowels[next]) {
+      const cvSound = getCv(p, next);
+      if (cvSound) {
+        out += cvSound;
+        lastWasShortVowel = SHORT_VOWELS.has(next) || ((next === "AA" || next === "AO") && isShortO);
+        i += 2;
+        continue;
+      }
+    }
+
+    // Word-final stop after short vowel -> add ッ (e.g. cat -> キャット, egg -> エッグ, dog -> ドッグ)
+    if (
+      STOPS.has(p) &&
+      (i === phonemes.length - 1 || (i === phonemes.length - 2 && phonemes[i + 1] === "S"))
+    ) {
+      if (lastWasShortVowel && !out.endsWith("ッ") && !out.endsWith("ー") && !out.endsWith("ン")) {
+        out += "ッ";
+      }
+    }
+
+    // Vowel alone
+    if (vowels[p]) {
+      out += vowels[p];
+      lastWasShortVowel = SHORT_VOWELS.has(p) || ((p === "AA" || p === "AO") && isShortO);
+      i++;
+      continue;
+    }
+
+    // Standalone Consonant
+    if (standaloneC[p]) {
+      out += standaloneC[p];
+      lastWasShortVowel = false;
+      i++;
+      continue;
+    }
+
+    i++;
+  }
+
+  return out;
+}
+
+/**
+ * Fallback phonics-based converter for words not in the CMU dictionary
+ * (slang, character elongations like 'haaaaaaa', usernames, typos).
  */
 export function phonicsToKatakana(rawWord: string): string {
   let word = rawWord.toLowerCase();
-
-  // Direct dictionary check
-  if (COMMON_DICTIONARY[word]) {
-    return COMMON_DICTIONARY[word];
-  }
 
   // 1. Common suffixes
   word = word
@@ -362,7 +316,7 @@ export function phonicsToKatakana(rawWord: string): string {
     .replace(/ou/g, "アウ")
     .replace(/ow/g, "オウ");
 
-  // 3. Consonant clusters (Initial / Medial)
+  // 3. Consonant clusters
   word = word
     .replace(/str/g, "ストラ")
     .replace(/st/g, "スト")
@@ -453,7 +407,7 @@ export function phonicsToKatakana(rawWord: string): string {
     word = word.replace(pattern, rep);
   }
 
-  // 6. Remaining individual consonants to Japanese sounds
+  // 6. Remaining consonants
   const consonantTable: [RegExp, string][] = [
     [/b/g, "ブ"], [/c/g, "ク"], [/d/g, "ド"], [/f/g, "フ"], [/g/g, "グ"],
     [/h/g, "ハ"], [/j/g, "ジ"], [/k/g, "ク"], [/l/g, "ル"], [/m/g, "ム"],
@@ -466,9 +420,7 @@ export function phonicsToKatakana(rawWord: string): string {
     word = word.replace(pattern, rep);
   }
 
-  // Clean-up any trailing English ASCII
   word = word.replace(/[a-z]/g, "");
-
   return word || rawWord;
 }
 
@@ -499,76 +451,89 @@ function spanishPreprocess(text: string): string {
   return text
     .replace(/¡/g, "")
     .replace(/¿/g, "")
-    .replace(/ñ/g, "ニャ")
-    .replace(/ll/g, "リャ")
-    .replace(/rr/g, "ル")
-    .replace(/á/g, "a")
-    .replace(/é/g, "e")
-    .replace(/í/g, "i")
-    .replace(/ó/g, "o")
-    .replace(/ú/g, "u");
+    .replace(/ña/gi, "ニャ")
+    .replace(/ñe/gi, "ニェ")
+    .replace(/ñi/gi, "ニ")
+    .replace(/ño/gi, "ニョ")
+    .replace(/ñu/gi, "ニュ")
+    .replace(/ñ/gi, "ニャ")
+    .replace(/ll/gi, "リャ")
+    .replace(/rr/gi, "ル")
+    .replace(/á/gi, "a")
+    .replace(/é/gi, "e")
+    .replace(/í/gi, "i")
+    .replace(/ó/gi, "o")
+    .replace(/ú/gi, "u");
 }
 
 /**
- * Convert Hangul text to Katakana
- */
-function hangulToKatakana(text: string): string {
-  let result = text;
-  for (const [phrase, katakana] of Object.entries(HANGUL_COMMON_MAP)) {
-    result = result.replace(new RegExp(phrase, "g"), katakana);
-  }
-  return result;
-}
-
-/**
- * KatakanaTransformer: Converts foreign text (English, Cyrillic, Spanish, Hangul)
+ * KatakanaTransformer: Converts foreign text (English, Cyrillic, Spanish, Hangul, Chinese)
  * into natural-sounding Katakana suitable for Japanese TTS engines.
+ * Powered by CMU Pronouncing Dictionary (135,000+ words) + Taiwan/Chinese Pinyin + Korean decomposition.
  */
 export class KatakanaTransformer implements TextTransformer {
   public readonly name = "KatakanaTransformer";
 
   public transform(text: string): string {
-    let result = text;
+    // Normalize smart curly apostrophes (from mobile / macOS) to standard ASCII apostrophe
+    let result = text.replace(/[\u2018\u2019]/g, "'");
 
     // 1. Cyrillic (Russian)
     if (/[\u0400-\u04FF]/.test(result)) {
       result = cyrillicToKatakana(result);
     }
 
-    // 2. Hangul (Korean)
-    if (/[\uAC00-\uD7AF]/.test(result)) {
+    // 2. Hangul (Korean) - Mathematical phonetic decomposition + common stream phrases
+    if (/[\uAC00-\uD7AF\u1100-\u11FF]/.test(result)) {
       result = hangulToKatakana(result);
     }
 
-    // 3. Multi-word phrases / idioms first (e.g. "thank you", "muchas gracias", "buenos dias")
+    // 3. Chinese / Taiwan Mandarin (Guarded: only if zero Kana and matches Chinese markers)
+    if (isChineseText(result)) {
+      result = convertChineseToKatakana(result);
+    }
+
+    // 3. Multi-word phrases / idioms
     const lowerResult = result.toLowerCase();
-    for (const [phrase, katakana] of Object.entries(COMMON_DICTIONARY)) {
+    for (const [phrase, katakana] of Object.entries(SPANISH_PHRASES)) {
+      if (lowerResult.includes(phrase)) {
+        const regex = new RegExp(`\\b${phrase}\\b`, "gi");
+        result = result.replace(regex, katakana);
+      }
+    }
+    for (const [phrase, katakana] of Object.entries(SPECIAL_SLANG)) {
       if (phrase.includes(" ") && lowerResult.includes(phrase)) {
         const regex = new RegExp(`\\b${phrase}\\b`, "gi");
         result = result.replace(regex, katakana);
       }
     }
 
-    // 4. Exact full word match for known dictionary words (including Spanish like señor, hola, etc.)
+    // 4. Exact word match via CMU Pronouncing Dictionary (135,000+ words) or fallback
     result = result.replace(/[A-Za-zñáéíóúÑÁÉÍÓÚ]+('[A-Za-z]+)?/g, (match) => {
       const lower = match.toLowerCase();
-      if (COMMON_DICTIONARY[lower]) {
-        return COMMON_DICTIONARY[lower];
+
+      // Check special slang first (gg, ez, w, etc.)
+      if (SPECIAL_SLANG[lower]) {
+        return SPECIAL_SLANG[lower];
       }
-      // If not in dictionary, apply Spanish character preprocessing then phonics
+
+      // Check common Spanish words (hola, amigo, gracias, etc.)
+      if (SPANISH_PHRASES[lower]) {
+        return SPANISH_PHRASES[lower];
+      }
+
+      // Check CMU Pronouncing Dictionary (135,155 English words)
+      if (dictionary[lower]) {
+        return arpabetToKatakana(dictionary[lower], match);
+      }
+
+      // Fallback for slang, non-dictionary elongations (haaaaaaa), or Spanish
       const preprocessed = spanishPreprocess(match);
       return phonicsToKatakana(preprocessed);
     });
 
     // Clean up any remaining inverted punctuation
     result = result.replace(/[¡¿]/g, "");
-
-    // 5. Compact spaces between Katakana words to eliminate excessively long pauses in Japanese TTS engines
-    let prev: string;
-    do {
-      prev = result;
-      result = result.replace(/([ァ-ヴー])[\s\u3000]+([ァ-ヴー])/g, "$1$2");
-    } while (result !== prev);
 
     return result;
   }

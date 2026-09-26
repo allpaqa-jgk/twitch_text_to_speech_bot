@@ -188,7 +188,7 @@ bot.start().catch((err) => {
 });
 
 // 5. Start interactive console for terminal commands (?, speakers, say, clear, q)
-startInteractiveConsole(queue);
+startInteractiveConsole(queue, katakanaTransformer, englishEngine);
 
 // Graceful shutdown
 process.on("SIGINT", () => {

@@ -1,4 +1,5 @@
 import { franc } from "franc-min";
+import { isChineseText } from "../tts/transformers/chinese";
 
 export type DetectedLanguage =
   | "jpn" // Japanese
@@ -6,6 +7,7 @@ export type DetectedLanguage =
   | "rus" // Russian / Cyrillic
   | "spa" // Spanish
   | "kor" // Korean
+  | "zho" // Chinese (Traditional / Simplified)
   | "other";
 
 /**
@@ -18,8 +20,8 @@ export function detectLanguage(text: string): DetectedLanguage {
     return "other";
   }
 
-  // 1. Japanese (Hiragana, Katakana, CJK Kanji)
-  if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(trimmed)) {
+  // 1. Japanese Guard: Hiragana or Katakana present -> 100% Japanese
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(trimmed)) {
     return "jpn";
   }
 
@@ -51,6 +53,16 @@ export function detectLanguage(text: string): DetectedLanguage {
   // Default Latin text to English (covers "gg", "nice stream", "pog", etc.)
   if (/^[A-Za-z0-9\s.,!?'"`~@#$%^&*()_\-+=[\]{}|\\:;<>]+$/.test(trimmed)) {
     return "eng";
+  }
+
+  // 6. Chinese / Taiwan Mandarin (Hanzi without Kana)
+  if (isChineseText(trimmed)) {
+    return "zho";
+  }
+
+  // 7. Remaining pure Kanji (e.g. 了解, 初見, 感謝) -> default to Japanese
+  if (/[\u4E00-\u9FAF]/.test(trimmed)) {
+    return "jpn";
   }
 
   return "other";

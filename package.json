@@ -1,6 +1,6 @@
 {
   "name": "twitch_text_to_speech_bot",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Text to Speech bot for Twitch with COEIROINK, Kokoro, Piper, VOICEVOX, and macOS say support",
   "private": true,
   "type": "module",
@@ -17,5 +17,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot"
+  },
+  "dependencies": {
+    "cmu-pronouncing-dictionary": "^3.0.0",
+    "pinyin-pro": "^3.29.4"
   }
 }

@@ -51,6 +51,7 @@ module.exports = {
   COEIROINK_SPEED_SCALE: 1.0,
   COEIROINK_VOLUME_SCALE: 1.0,
   COEIROINK_OUTPUT_SAMPLING_RATE: 44100, // サンプリングレート (44100: COEIROINK公式標準 / OBS等の配信環境に揃える場合は 48000 推奨)
+  COEIROINK_PAUSE_LENGTH: 0.04, // 単語間スペースの無音ポーズ秒数 (デフォルト: 0.04秒)
 
   // for VOICEVOX (also used as fallback if TTS_ENGINE is not set)
   USE_VOICEVOX: false,

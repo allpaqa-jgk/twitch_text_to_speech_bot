@@ -119,6 +119,7 @@ export class CoeiroinkEngine implements TTSEngine {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dictionaryWords: words }),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (res.ok) {
@@ -149,7 +150,10 @@ export class CoeiroinkEngine implements TTSEngine {
 
     const res = await fetch(
       `${this.baseUrl}/v1/style_id_to_speaker_meta?styleId=${styleId}`,
-      { method: "POST" }
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(10000),
+      }
     );
     if (!res.ok) {
       throw new Error(`Failed to resolve speakerUuid for styleId ${styleId} (Status: ${res.status})`);
@@ -169,6 +173,7 @@ export class CoeiroinkEngine implements TTSEngine {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!res.ok) {
@@ -207,6 +212,7 @@ export class CoeiroinkEngine implements TTSEngine {
         Accept: "audio/wav",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!res.ok) {

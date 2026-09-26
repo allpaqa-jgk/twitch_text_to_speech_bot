@@ -45,6 +45,7 @@ export class VoicevoxEngine implements TTSEngine {
     });
     const res = await fetch(`${this.baseUrl}/audio_query?${params.toString()}`, {
       method: "POST",
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) {
       throw new Error(`VOICEVOX audio_query failed with status ${res.status}`);
@@ -64,6 +65,7 @@ export class VoicevoxEngine implements TTSEngine {
         Accept: "audio/wav",
       },
       body: JSON.stringify(audioQuery),
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) {
       throw new Error(`VOICEVOX synthesis failed with status ${res.status}`);

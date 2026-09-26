@@ -87,7 +87,41 @@ describe("TTSQueue", () => {
       await queue.enqueue("テストメッセージ");
 
       expect(warnings.length).toBe(1);
-      expect(warnings[0]).toContain("音声エンジン (COEIROINK) に接続できませんでした");
+      expect(warnings[0]).toContain('音声エンジン (COEIROINK) に接続できませんでした: "テストメッセージ"');
+      expect(warnings[0]).toContain("Unable to connect");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it("should retry transient connection errors during prepare() and log warning after exhausting retries", async () => {
+    let attempts = 0;
+    const offlinePrepareEngine: TTSEngine = {
+      name: "COEIROINK",
+      isAvailable: async () => false,
+      say: async () => {},
+      prepare: async () => {
+        attempts++;
+        const err: any = new TypeError("fetch failed");
+        err.code = "ConnectionRefused";
+        throw err;
+      },
+    };
+
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(" "));
+    };
+
+    try {
+      const queue = new TTSQueue(offlinePrepareEngine);
+      await queue.enqueue("再試行テスト");
+
+      // Initial attempt + 2 retries = 3 attempts total
+      expect(attempts).toBe(3);
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain('音声エンジン (COEIROINK) に接続できませんでした: "再試行テスト"');
     } finally {
       console.warn = origWarn;
     }
@@ -191,7 +225,113 @@ describe("TTSQueue", () => {
     const p3 = queue.enqueue("Msg 3");
 
     await Promise.all([p1, p2, p3]);
-    expect(callCount).toBe(3);
+    // Call count is 4 because prefetch error on "Fail" falls back to real-time synthesis attempt
+    expect(callCount).toBe(4);
+  });
+
+  it("should never run prepare() concurrently for multiple enqueued items", async () => {
+    let currentConcurrent = 0;
+    let maxConcurrent = 0;
+
+    class SerialMockEngine implements TTSEngine {
+      public readonly name = "SerialMockEngine";
+      public spoken: string[] = [];
+
+      public async isAvailable(): Promise<boolean> {
+        return true;
+      }
+
+      public async say(text: string): Promise<void> {
+        const audio = await this.prepare(text);
+        await audio.play();
+      }
+
+      public async prepare(text: string): Promise<PreparedAudio> {
+        currentConcurrent++;
+        maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        await new Promise((r) => setTimeout(r, 20));
+        currentConcurrent--;
+        return {
+          play: async () => {
+            await new Promise((r) => setTimeout(r, 30));
+            this.spoken.push(text);
+          },
+        };
+      }
+    }
+
+    const engine = new SerialMockEngine();
+    const queue = new TTSQueue(engine);
+
+    // Rapidly enqueue 4 items
+    const promises = [
+      queue.enqueue("Item 1"),
+      queue.enqueue("Item 2"),
+      queue.enqueue("Item 3"),
+      queue.enqueue("Item 4"),
+    ];
+
+    await Promise.all(promises);
+
+    expect(maxConcurrent).toBe(1);
+    expect(engine.spoken).toEqual(["Item 1", "Item 2", "Item 3", "Item 4"]);
+  });
+
+  it("should fallback to real-time synthesis if prefetch failed and successfully speak", async () => {
+    const spoken: string[] = [];
+    let prefetchAttempt = true;
+
+    const fallbackEngine: TTSEngine = {
+      name: "FallbackEngine",
+      isAvailable: async () => true,
+      say: async () => {},
+      prepare: async (text: string) => {
+        if (text === "Item 2" && prefetchAttempt) {
+          prefetchAttempt = false;
+          throw new TypeError("fetch failed");
+        }
+        return {
+          play: async () => {
+            spoken.push(text);
+          },
+        };
+      },
+    };
+
+    const queue = new TTSQueue(fallbackEngine);
+    const p1 = queue.enqueue("Item 1");
+    const p2 = queue.enqueue("Item 2");
+
+    await Promise.all([p1, p2]);
+    expect(spoken).toEqual(["Item 1", "Item 2"]);
+  });
+
+  it("should retry transient connection errors with backoff before succeeding", async () => {
+    let attempts = 0;
+    const spoken: string[] = [];
+
+    const transientFlakyEngine: TTSEngine = {
+      name: "TransientFlakyEngine",
+      isAvailable: async () => true,
+      say: async () => {},
+      prepare: async (text: string) => {
+        attempts++;
+        if (attempts < 3) {
+          throw new TypeError("fetch failed");
+        }
+        return {
+          play: async () => {
+            spoken.push(text);
+          },
+        };
+      },
+    };
+
+    const queue = new TTSQueue(transientFlakyEngine);
+    await queue.enqueue("Retry test");
+
+    expect(attempts).toBe(3);
+    expect(spoken).toEqual(["Retry test"]);
   });
 
   it("should not play prefetched audio if clear() was called", async () => {

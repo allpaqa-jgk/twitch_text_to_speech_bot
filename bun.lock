@@ -10,7 +10,7 @@
     },
     "src": {
       "name": "twitch-tts-v2",
-      "version": "2.3.0",
+      "version": "2.4.0",
       "dependencies": {
         "csv-parse": "^7.0.2",
         "franc-min": "^6.2.0",

@@ -19,8 +19,10 @@
     "type": "git",
     "url": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot"
   },
+  "workspaces": [
+    "src"
+  ],
   "dependencies": {
-    "cmu-pronouncing-dictionary": "^3.0.0",
-    "pinyin-pro": "^3.29.4"
+    "@allpaqa/multilingual-katakana": "^0.1.0"
   }
 }

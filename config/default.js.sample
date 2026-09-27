@@ -35,7 +35,7 @@ module.exports = {
   /// //////////////////
 
   ENABLE_TTS: true,
-  READ_USERNAME: true,
+  READ_USERNAME: false,
   USE_SIMPLE_NAME: true,
   STARTING_MESSAGE: "Starting TTS",
   MASTER_VOLUME: 1.0, // 全体マスター音量 (推奨: 0.0〜1.0。最大 1.2 程度までブースト可能ですが、音割れ防止のため通常は 1.0 以下を推奨)

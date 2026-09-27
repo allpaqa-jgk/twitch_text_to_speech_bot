@@ -1,5 +1,5 @@
 import { franc } from "franc-min";
-import { isChineseText } from "../tts/transformers/chinese";
+import { isChinese } from "@allpaqa/multilingual-katakana";
 
 export type DetectedLanguage =
   | "jpn" // Japanese
@@ -56,7 +56,7 @@ export function detectLanguage(text: string): DetectedLanguage {
   }
 
   // 6. Chinese / Taiwan Mandarin (Hanzi without Kana)
-  if (isChineseText(trimmed)) {
+  if (isChinese(trimmed)) {
     return "zho";
   }
 

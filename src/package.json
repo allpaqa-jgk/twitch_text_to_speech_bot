@@ -20,10 +20,8 @@
     "typescript": "^7"
   },
   "dependencies": {
-    "cmu-pronouncing-dictionary": "^3.0.0",
     "csv-parse": "^7.0.2",
     "franc-min": "^6.2.0",
-    "pinyin-pro": "^3.29.4",
     "play-sound": "^1.1.6",
     "tmi.js": "^1.8.5"
   }

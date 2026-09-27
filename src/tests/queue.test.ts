@@ -572,6 +572,8 @@ describe("TTSQueue", () => {
 
       // 6.4 MacSayEngine
       let macRate = 0;
+      const origPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
       Bun.spawn = ((args: any, opts: any) => {
         const rateIdx = args.indexOf("-r");
         if (rateIdx !== -1) {
@@ -592,6 +594,7 @@ describe("TTSQueue", () => {
         expect(macRate).toBe(100);
       } finally {
         Bun.spawn = origSpawn;
+        Object.defineProperty(process, "platform", { value: origPlatform, configurable: true });
       }
 
       // 6.5 PiperEngine

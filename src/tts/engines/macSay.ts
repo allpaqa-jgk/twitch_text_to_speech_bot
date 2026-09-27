@@ -1,4 +1,4 @@
-import type { TTSEngine, PreparedAudio } from "../engine";
+import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { config } from "../../config";
 
 export class MacSayEngine implements TTSEngine {
@@ -30,20 +30,24 @@ export class MacSayEngine implements TTSEngine {
     }
   }
 
-  public async prepare(text: string): Promise<PreparedAudio> {
+  public async prepare(text: string, options?: SpeechOptions): Promise<PreparedAudio> {
     return {
-      play: () => this.say(text),
+      play: () => this.say(text, options),
     };
   }
 
-  public async say(text: string): Promise<void> {
+  public async say(text: string, options?: SpeechOptions): Promise<void> {
     if (!text || !text.trim() || process.platform !== "darwin") {
       return;
     }
 
     const args = ["say", "-v", this.speaker];
     if (this.rate && !isNaN(this.rate)) {
-      args.push("-r", String(this.rate));
+      const effectiveRate = Math.min(
+        350,
+        Math.max(100, Math.round(this.rate * (options?.speedScale ?? 1.0)))
+      );
+      args.push("-r", String(effectiveRate));
     }
     args.push(text);
 

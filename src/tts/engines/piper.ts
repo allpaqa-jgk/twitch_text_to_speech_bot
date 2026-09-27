@@ -1,4 +1,4 @@
-import type { TTSEngine, PreparedAudio } from "../engine";
+import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
 import { config } from "../../config";
@@ -26,7 +26,7 @@ export class PiperEngine implements TTSEngine {
     return fs.existsSync(this.piperPath) && fs.existsSync(this.modelPath);
   }
 
-  public async prepare(text: string): Promise<PreparedAudio> {
+  public async prepare(text: string, options?: SpeechOptions): Promise<PreparedAudio> {
     if (!text || !text.trim()) {
       return { play: async () => {} };
     }
@@ -43,6 +43,11 @@ export class PiperEngine implements TTSEngine {
     const masterVol = config.MASTER_VOLUME ?? 1.0;
     const piperVol = Math.min(1.0, Math.max(0.0, 0.8 * masterVol)).toFixed(2);
 
+    const effectiveLengthScale = Math.min(
+      2.0,
+      Math.max(0.5, 1.0 / (options?.speedScale ?? 1.0))
+    );
+
     const proc = Bun.spawn(
       [
         this.piperPath,
@@ -54,6 +59,8 @@ export class PiperEngine implements TTSEngine {
         piperVol,
         "--noise-scale",
         "0.333",
+        "--length-scale",
+        String(effectiveLengthScale),
       ],
       {
         stdin: "pipe",
@@ -83,8 +90,8 @@ export class PiperEngine implements TTSEngine {
     };
   }
 
-  public async say(text: string): Promise<void> {
-    const audio = await this.prepare(text);
+  public async say(text: string, options?: SpeechOptions): Promise<void> {
+    const audio = await this.prepare(text, options);
     await audio.play();
   }
 }

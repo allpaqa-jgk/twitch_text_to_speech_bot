@@ -1,4 +1,4 @@
-import type { TTSEngine, PreparedAudio } from "../engine";
+import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { config } from "../../config";
 import { playWavBuffer } from "../audioPlayer";
 import fs from "fs";
@@ -188,14 +188,15 @@ export class CoeiroinkEngine implements TTSEngine {
     text: string,
     prosodyDetail: CoeiroinkProsodyDetail[],
     speakerUuid: string,
-    styleId: number
+    styleId: number,
+    speedScale: number = this.speedScale
   ): Promise<ArrayBuffer> {
     const body = {
       speakerUuid,
       styleId,
       text,
       prosodyDetail,
-      speedScale: this.speedScale,
+      speedScale,
       volumeScale: this.volumeScale,
       pitchScale: 0.0,
       intonationScale: 1.0,
@@ -222,7 +223,7 @@ export class CoeiroinkEngine implements TTSEngine {
     return await res.arrayBuffer();
   }
 
-  public async prepare(text: string): Promise<PreparedAudio> {
+  public async prepare(text: string, options?: SpeechOptions): Promise<PreparedAudio> {
     if (!text || !text.trim()) {
       return { play: async () => {} };
     }
@@ -230,11 +231,16 @@ export class CoeiroinkEngine implements TTSEngine {
     await this.syncDictionary();
     const speakerUuid = await this.getSpeakerUuid(this.styleId);
     const prosodyDetail = await this.fetchEstimateProsody(text);
+    const effectiveSpeed = Math.min(
+      2.0,
+      Math.max(0.5, this.speedScale * (options?.speedScale ?? 1.0))
+    );
     const wavBuffer = await this.fetchSynthesis(
       text,
       prosodyDetail,
       speakerUuid,
-      this.styleId
+      this.styleId,
+      effectiveSpeed
     );
 
     return {
@@ -242,8 +248,8 @@ export class CoeiroinkEngine implements TTSEngine {
     };
   }
 
-  public async say(text: string): Promise<void> {
-    const audio = await this.prepare(text);
+  public async say(text: string, options?: SpeechOptions): Promise<void> {
+    const audio = await this.prepare(text, options);
     await audio.play();
   }
 }

@@ -1,4 +1,4 @@
-import type { TTSEngine, PreparedAudio } from "../engine";
+import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
 import { config } from "../../config";
@@ -124,7 +124,7 @@ export class KokoroEngine implements TTSEngine {
     return this.readyPromise;
   }
 
-  public async prepare(text: string): Promise<PreparedAudio> {
+  public async prepare(text: string, options?: SpeechOptions): Promise<PreparedAudio> {
     if (!text || !text.trim()) {
       return { play: async () => {} };
     }
@@ -143,11 +143,16 @@ export class KokoroEngine implements TTSEngine {
     const masterVol = config.MASTER_VOLUME ?? 1.0;
     const effectiveVolume = Math.min(1.0, Math.max(0.0, masterVol));
 
+    const effectiveSpeed = Math.min(
+      2.0,
+      Math.max(0.5, this.speed * (options?.speedScale ?? 1.0))
+    );
+
     const payload = JSON.stringify({
       text,
       outputPath,
       voice: this.voice,
-      speed: this.speed,
+      speed: effectiveSpeed,
       lang: this.lang,
       volume: effectiveVolume,
     });
@@ -180,8 +185,8 @@ export class KokoroEngine implements TTSEngine {
     };
   }
 
-  public async say(text: string): Promise<void> {
-    const audio = await this.prepare(text);
+  public async say(text: string, options?: SpeechOptions): Promise<void> {
+    const audio = await this.prepare(text, options);
     await audio.play();
   }
 

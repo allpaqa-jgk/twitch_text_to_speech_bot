@@ -1,9 +1,12 @@
-import type { TTSEngine, PreparedAudio } from "./engine";
+import type { TTSEngine, PreparedAudio, SpeechOptions } from "./engine";
 import { stopAudio } from "./audioPlayer";
+import { config } from "../config";
 
 export interface QueueItem {
   id: string;
   text: string;
+  enqueuedAt: number;
+  speedScale?: number;
   engine?: TTSEngine;
   resolve: () => void;
   reject: (err: any) => void;
@@ -78,29 +81,94 @@ export class TTSQueue {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  public calculateSpeedScale(text: string): number {
+    if (!config.AUTO_ACCELERATE) {
+      return 1.0;
+    }
+
+    // 文字数加速 (speedByLength)
+    let speedByLength = 1.0;
+    const len = text.length;
+    if (len <= 30) {
+      speedByLength = 1.0;
+    } else if (len <= 60) {
+      speedByLength = 1.15;
+    } else if (len <= 90) {
+      speedByLength = 1.30;
+    } else if (len <= 120) {
+      speedByLength = 1.45;
+    } else {
+      speedByLength = 1.60;
+    }
+
+    // キュー混雑加速 (speedByQueue)
+    // 自分自身（text）を含めた待機キュー全体の負荷を判定
+    const queueTotalChars = this.queue.reduce((acc, item) => acc + item.text.length, 0) + text.length;
+    const queueCount = this.queue.length + 1;
+
+    let speedByQueue = 1.0;
+    if (queueTotalChars >= 120 || queueCount >= 5) {
+      speedByQueue = 1.50;
+    } else if (queueTotalChars >= 60 || queueCount >= 3) {
+      speedByQueue = 1.25;
+    }
+
+    // 合成とクランプ
+    const maxSpeed = config.MAX_ACCELERATION_SPEED ?? 1.6;
+    return Math.min(Math.max(speedByLength, speedByQueue), maxSpeed);
+  }
+
+  private dropExpiredItems(): void {
+    const ttl = config.COMMENT_TTL_SECONDS ?? 30;
+    if (ttl <= 0) {
+      return;
+    }
+    const ttlMs = ttl * 1000;
+    const now = Date.now();
+    while (this.queue.length > 0) {
+      if (now - this.queue[0].enqueuedAt > ttlMs) {
+        const expired = this.queue.shift();
+        if (expired) {
+          expired.resolve();
+          console.log(
+            `[TTSQueue] ⏳ コメントが古い（${Math.round((now - expired.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${expired.text}"`
+          );
+        }
+      } else {
+        break;
+      }
+    }
+  }
+
   /**
    * Triggers prefetch for queue[0] ONLY while audio is playing on the speaker
    * and no other synthesis is currently active.
    */
   private triggerPrefetch(): void {
+    this.dropExpiredItems();
     if (!this.isPlayingAudio || this.isSynthesizing || this.isCleared) {
       return;
     }
     const nextItem = this.queue[0];
     if (nextItem && !nextItem.preparedPromise) {
+      if (nextItem.speedScale === undefined) {
+        nextItem.speedScale = this.calculateSpeedScale(nextItem.text);
+      }
       const engine = nextItem.engine || this.defaultEngine;
       if (engine.prepare) {
         this.isSynthesizing = true;
-        const promise = engine.prepare(nextItem.text).finally(() => {
-          this.isSynthesizing = false;
-        });
+        const promise = engine
+          .prepare(nextItem.text, { speedScale: nextItem.speedScale })
+          .finally(() => {
+            this.isSynthesizing = false;
+          });
         promise.catch(() => {});
         nextItem.preparedPromise = promise;
       }
     }
   }
 
-  public enqueue(text: string, engine?: TTSEngine): Promise<void> {
+  public enqueue(text: string, engine?: TTSEngine, enqueuedAt?: number): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.resolve();
@@ -117,6 +185,8 @@ export class TTSQueue {
       const item: QueueItem = {
         id: Math.random().toString(36).slice(2),
         text: trimmed,
+        enqueuedAt: enqueuedAt ?? Date.now(),
+        speedScale: this.calculateSpeedScale(trimmed),
         engine,
         resolve,
         reject,
@@ -128,7 +198,13 @@ export class TTSQueue {
   }
 
   private async processNext(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
+    if (this.isProcessing) {
+      return;
+    }
+
+    this.dropExpiredItems();
+
+    if (this.queue.length === 0) {
       return;
     }
 
@@ -164,6 +240,9 @@ export class TTSQueue {
 
       // 2. Real-time synthesis fallback with retry for transient errors
       if (!audio) {
+        if (current.speedScale === undefined) {
+          current.speedScale = this.calculateSpeedScale(current.text);
+        }
         const maxRetries = 2; // Initial attempt + 2 retries
         const backoffs = [200, 400];
         let lastError: any = null;
@@ -174,10 +253,10 @@ export class TTSQueue {
           try {
             this.isSynthesizing = true;
             if (engine.prepare) {
-              audio = await engine.prepare(current.text);
+              audio = await engine.prepare(current.text, { speedScale: current.speedScale });
             } else {
               audio = {
-                play: () => engine.say(current.text),
+                play: () => engine.say(current.text, { speedScale: current.speedScale }),
               };
             }
             break; // Synthesis succeeded
@@ -211,6 +290,16 @@ export class TTSQueue {
 
       // 3. Play audio on speaker and trigger prefetch for next queue item
       if (audio) {
+        const ttl = config.COMMENT_TTL_SECONDS ?? 30;
+        const now = Date.now();
+        if (ttl > 0 && now - current.enqueuedAt > ttl * 1000) {
+          console.log(
+            `[TTSQueue] ⏳ 合成・待機中にコメントの期限が切れたため再生をスキップしました: "${current.text}"`
+          );
+          current.resolve();
+          return;
+        }
+
         this.isPlayingAudio = true;
         this.triggerPrefetch();
         try {

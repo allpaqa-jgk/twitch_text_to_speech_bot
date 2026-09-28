@@ -74,6 +74,7 @@ export class HttpServer {
         },
       });
       console.log(`* [HTTP] HTTP 読み上げサーバー: http://127.0.0.1:${this.port}/say (わんコメ / CastCraft / Webhook連携用)`);
+      console.log(`🌐 [Web] 管理コンソール: http://localhost:${this.port} (対話コンソールで「web」と入力するとブラウザで開きます)`);
     } catch (err: any) {
       console.error(`❌ [HTTP] HTTP 読み上げサーバー (ポート ${this.port}) の起動に失敗しました:`, err);
     }

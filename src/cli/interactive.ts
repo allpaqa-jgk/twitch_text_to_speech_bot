@@ -8,6 +8,7 @@ import { detectLanguage } from "../twitch/languageDetector";
 import { printAvailableSpeakers } from "../tts/speakers";
 import { enqueueDemo } from "../tts/demo";
 import { startTwitchOAuthFlow } from "../twitch/auth";
+import { openBrowser } from "../utils/browser";
 import { config } from "../config";
 
 export function startInteractiveConsole(
@@ -48,6 +49,17 @@ export function startInteractiveConsole(
       case "h":
         printHelp();
         break;
+
+      case "web":
+      case "open":
+      case "gui":
+      case "w": {
+        const port = httpServer ? httpServer.getMainPort() : config.HTTP_SERVER_PORT;
+        const url = `http://localhost:${port}`;
+        console.log(`🌐 ブラウザで Web コンソールを開きます: ${url}`);
+        openBrowser(url);
+        break;
+      }
 
       case "speakers":
       case "voices":
@@ -204,6 +216,7 @@ function printHelp(): void {
   console.log("📖 【対話型コンソール コマンド一覧】");
   console.log("======================================================================");
   console.log("  ? / help            : このヘルプを表示します");
+  console.log("  web / open / gui    : ブラウザで Web 管理コンソールを開きます (http://localhost:3939)");
   console.log("  speakers / list     : インストール済みボイス・スタイルID一覧を表示します");
   console.log("  say / s <テキスト>  : 入力したテキストをテスト発声します");
   console.log("  demo / lang         : 主要言語（日・英・中・韓・露・西等）の読み上げデモを実行します");

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { paths } from "../paths";
+import { openBrowser } from "../utils/browser";
 
 export const TWITCH_CLIENT_ID = "7dk45kh2j51i6rk3wcen6ctu7g8cqi";
 export const TWITCH_REDIRECT_URI = "http://localhost:3000";
@@ -11,25 +12,6 @@ export interface TwitchAuthResult {
   token: string;
   login: string;
   displayName: string;
-}
-
-function openBrowser(url: string) {
-  const plat = process.platform;
-  let cmd: string[];
-  if (plat === "darwin") {
-    cmd = ["open", url];
-  } else if (plat === "win32") {
-    // Windows: cmd /c start treats '&' as command separator and strips query parameters.
-    // rundll32 url.dll,FileProtocolHandler passes the entire URL directly to default browser.
-    cmd = ["rundll32", "url.dll,FileProtocolHandler", url];
-  } else {
-    cmd = ["xdg-open", url];
-  }
-  try {
-    Bun.spawn(cmd, { stdout: "ignore", stderr: "ignore" });
-  } catch {
-    // ignore browser open errors
-  }
 }
 
 const AUTH_HTML = `<!DOCTYPE html>

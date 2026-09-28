@@ -23,21 +23,37 @@ class MockEngine implements TTSEngine {
   }
 }
 
+class MockBot {
+  public connected = false;
+  isConnected(): boolean {
+    return this.connected;
+  }
+  async connect(): Promise<void> {
+    this.connected = true;
+  }
+  async disconnect(): Promise<void> {
+    this.connected = false;
+  }
+}
+
 describe("HttpServer & commentProcessor", () => {
   const TEST_PORT = 3949;
   const TEST_BOUYOMI_PORT = 50089;
   let mockEngine: MockEngine;
   let queue: TTSQueue;
   let transformer: KatakanaTransformer;
+  let mockBot: MockBot;
   let server: HttpServer;
 
   beforeAll(() => {
     mockEngine = new MockEngine("HttpMockEngine");
     queue = new TTSQueue(mockEngine);
     transformer = new KatakanaTransformer();
+    mockBot = new MockBot();
     server = new HttpServer({
       queue,
       transformer,
+      bot: mockBot as any,
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
       enableBouyomiCompat: true,
@@ -273,6 +289,266 @@ describe("HttpServer & commentProcessor", () => {
       } finally {
         config.ENABLE_TTS = origEnable;
       }
+    });
+  });
+
+  describe("Web Management Console & Realtime Katakana Lab API", () => {
+    it("should serve Web Console HTML at GET / with 200 OK and expected elements", async () => {
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT}/`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      const html = await res.text();
+      expect(html).toContain("<title>Twitch TTS Bot - Web Console & Katakana Lab</title>");
+      expect(html).toContain('id="status-badges"');
+      expect(html).toContain('id="quick-actions"');
+      expect(html).toContain('id="say-form"');
+      expect(html).toContain('id="lab-textarea"');
+      expect(html).toContain('id="lab-table"');
+      expect(html).toContain('id="dict-table"');
+    });
+
+    it("should return comprehensive status at GET /api/status", async () => {
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/status`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.status).toBe("ok");
+      expect(typeof data.queuePending).toBe("number");
+      expect(data.engine).toBe(config.TTS_ENGINE);
+      expect(data.port).toBe(TEST_PORT);
+      expect(data.bouyomiPort).toBe(TEST_BOUYOMI_PORT);
+      expect(data.bouyomiRunning).toBe(true);
+      expect(typeof data.twitchConnected).toBe("boolean");
+      expect(data.twitchConnected).toBe(false);
+    });
+
+    it("should clear TTSQueue on POST /api/clear", async () => {
+      queue.enqueue("Clear test item 1");
+      queue.enqueue("Clear test item 2");
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/clear`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+      expect(data.message).toBe("Queue cleared");
+      expect(queue.pendingCount).toBe(0);
+    });
+
+    it("should toggle Twitch connection on POST /api/twitch/toggle", async () => {
+      expect(mockBot.isConnected()).toBe(false);
+      const resToggle1 = await fetch(`http://127.0.0.1:${TEST_PORT}/api/twitch/toggle`, {
+        method: "POST",
+      });
+      expect(resToggle1.status).toBe(200);
+      const dataToggle1 = (await resToggle1.json()) as any;
+      expect(dataToggle1.success).toBe(true);
+      expect(dataToggle1.connected).toBe(true);
+      expect(mockBot.isConnected()).toBe(true);
+
+      const resToggle2 = await fetch(`http://127.0.0.1:${TEST_PORT}/api/twitch/toggle`, {
+        method: "POST",
+      });
+      expect(resToggle2.status).toBe(200);
+      const dataToggle2 = (await resToggle2.json()) as any;
+      expect(dataToggle2.success).toBe(true);
+      expect(dataToggle2.connected).toBe(false);
+      expect(mockBot.isConnected()).toBe(false);
+    });
+
+    it("should enqueue multilingual demo on POST /api/demo", async () => {
+      mockEngine.spokenTexts = [];
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/demo`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+      expect(mockEngine.spokenTexts.length).toBeGreaterThan(0);
+    });
+
+    describe("POST /api/preview", () => {
+      it("should convert English, Korean, Chinese, and gaming slang to Katakana", async () => {
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lines: [
+              "Hello guys!",
+              "안녕하세요",
+              "你好！",
+              "gg",
+              "草生えたｗｗｗ",
+            ],
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(Array.isArray(data.results)).toBe(true);
+        expect(data.results.length).toBe(5);
+
+        // English
+        expect(data.results[0].line).toBe(1);
+        expect(data.results[0].original).toBe("Hello guys!");
+        expect(data.results[0].lang).toBe("eng");
+        expect(data.results[0].transformed).toContain("ハロー");
+
+        // Korean
+        expect(data.results[1].line).toBe(2);
+        expect(data.results[1].original).toBe("안녕하세요");
+        expect(data.results[1].lang).toBe("kor");
+        expect(data.results[1].transformed).toBe("アンニョンハセヨ");
+
+        // Chinese
+        expect(data.results[2].line).toBe(3);
+        expect(data.results[2].original).toBe("你好！");
+        expect(data.results[2].lang).toBe("zho");
+        expect(data.results[2].transformed).toContain("ニーハオ");
+
+        // Gaming Slang (gg)
+        expect(data.results[3].line).toBe(4);
+        expect(data.results[3].original).toBe("gg");
+        expect(data.results[3].lang).toBe("eng");
+        expect(data.results[3].transformed).toBe("ジージー");
+
+        // Japanese
+        expect(data.results[4].line).toBe(5);
+        expect(data.results[4].lang).toBe("jpn");
+      });
+
+      it("should parse newline-separated text string", async () => {
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: "Hello\nWorld\ngg",
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.results.length).toBe(3);
+      });
+
+      it("should limit input to at most 20 lines when 25 lines are sent", async () => {
+        const lines25 = Array.from({ length: 25 }, (_, i) => `Line comment ${i + 1}`);
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lines: lines25 }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.results.length).toBe(20);
+        expect(data.results[0].line).toBe(1);
+        expect(data.results[19].line).toBe(20);
+      });
+
+      it("should clamp a line exceeding 200 chars down to 200 chars", async () => {
+        const longLine = "a".repeat(300);
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: longLine }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.results.length).toBe(1);
+        expect(data.results[0].original.length).toBe(200);
+      });
+    });
+
+    describe("Dictionary CRUD endpoints (/api/dictionary)", () => {
+      const testKey = "webConsoleTestKey_" + Date.now();
+      const testRead = "ウェブテスト読み";
+
+      it("should return dictionary list via GET /api/dictionary", async () => {
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=message`);
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.type).toBe("message");
+        expect(Array.isArray(data.items)).toBe(true);
+
+        const resUser = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=username`);
+        expect(resUser.status).toBe(200);
+        const dataUser = (await resUser.json()) as any;
+        expect(dataUser.type).toBe("username");
+        expect(Array.isArray(dataUser.items)).toBe(true);
+      });
+
+      it("should register or update a word via POST /api/dictionary", async () => {
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "message",
+            keyword: testKey,
+            read: testRead,
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.success).toBe(true);
+        expect(data.keyword).toBe(testKey);
+        expect(data.read).toBe(testRead);
+
+        // Verify it exists in GET
+        const listRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=message`);
+        const listData = (await listRes.json()) as any;
+        const found = listData.items.find((item: any) => item.keyword === testKey);
+        expect(found).toBeDefined();
+        expect(found.read).toBe(testRead);
+      });
+
+      it("should reject invalid inputs in POST /api/dictionary", async () => {
+        // Missing keyword
+        const resEmpty = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "message", keyword: "", read: "test" }),
+        });
+        expect(resEmpty.status).toBe(400);
+
+        // Keyword too long (>100 chars)
+        const resLongKey = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "message", keyword: "k".repeat(101), read: "test" }),
+        });
+        expect(resLongKey.status).toBe(400);
+
+        // Read too long (>200 chars)
+        const resLongRead = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "message", keyword: "validKey", read: "r".repeat(201) }),
+        });
+        expect(resLongRead.status).toBe(400);
+      });
+
+      it("should delete a word via DELETE /api/dictionary", async () => {
+        const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "message",
+            keyword: testKey,
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const data = (await res.json()) as any;
+        expect(data.success).toBe(true);
+
+        // Verify it was deleted
+        const listRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=message`);
+        const listData = (await listRes.json()) as any;
+        const found = listData.items.find((item: any) => item.keyword === testKey);
+        expect(found).toBeUndefined();
+      });
     });
   });
 });

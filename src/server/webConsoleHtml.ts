@@ -1,0 +1,963 @@
+/**
+ * Web Management Console & Realtime Katakana Lab HTML Generator
+ * Fully self-contained dark-mode single-page application without external CDN dependencies.
+ */
+export function renderWebConsoleHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twitch TTS Bot - Web Console & Katakana Lab</title>
+  <style>
+    :root {
+      --bg-dark: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border-color: #30363d;
+      --border-focus: #58a6ff;
+      --text-main: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --text-muted: #8b949e;
+      --primary: #9146ff;
+      --primary-hover: #772ce8;
+      --success: #238636;
+      --success-hover: #2ea043;
+      --danger: #da3633;
+      --danger-hover: #f85149;
+      --warning: #d29922;
+      --info: #58a6ff;
+      --radius: 8px;
+      --transition: all 0.2s ease-in-out;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      font-size: 1.75rem;
+      background: linear-gradient(135deg, var(--primary), #a970ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+
+    .badge-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .dot.live {
+      background: #3fb950;
+      box-shadow: 0 0 8px #238636;
+    }
+    .dot.offline {
+      background: var(--danger);
+    }
+
+    nav.tab-nav {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 1.5rem;
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 0.85rem 1.2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+
+    .tab-btn:hover {
+      color: var(--text-bright);
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards & Grids */
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .status-item {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .status-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Buttons */
+    .btn {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-bright);
+      padding: 0.6rem 1.1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: var(--transition);
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background-color: #30363d;
+      border-color: #8b949e;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .btn-success {
+      background-color: var(--success);
+      border-color: var(--success);
+      color: #fff;
+    }
+    .btn-success:hover {
+      background-color: var(--success-hover);
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover {
+      background-color: var(--danger-hover);
+    }
+
+    .btn-sm {
+      padding: 0.35rem 0.7rem;
+      font-size: 0.8rem;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    /* Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    input[type="text"], textarea, select {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-bright);
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: var(--transition);
+      width: 100%;
+    }
+
+    input[type="text"]:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    /* Lab Split Layout */
+    .lab-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .lab-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .counter-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .badge-warn {
+      color: var(--warning);
+      background: rgba(210, 153, 34, 0.15);
+      border: 1px solid rgba(210, 153, 34, 0.4);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Tables */
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      background-color: var(--bg-card);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background-color: var(--bg-input);
+      color: var(--text-bright);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .lang-badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .lang-jpn { background: #1f6feb; color: #fff; }
+    .lang-eng { background: #238636; color: #fff; }
+    .lang-kor { background: #8957e5; color: #fff; }
+    .lang-zho { background: #d29922; color: #000; }
+    .lang-rus { background: #f85149; color: #fff; }
+    .lang-spa { background: #da3633; color: #fff; }
+    .lang-other { background: #484f58; color: #fff; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 0.85rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      color: var(--text-bright);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: var(--transition);
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .toast.success { border-color: var(--success); }
+    .toast.error { border-color: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="brand-icon">🎙️</span>
+      <div>
+        <h1>Twitch TTS Bot Web Console</h1>
+      </div>
+    </div>
+    <div id="status-badges" class="badge-indicator">
+      <span id="dot-twitch" class="dot"></span>
+      <span id="label-twitch">Twitch: 確認中...</span>
+    </div>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-home">🏠 ホーム・操作</button>
+    <button class="tab-btn" data-tab="tab-lab">🧪 リアルタイム変換ラボ</button>
+    <button class="tab-btn" data-tab="tab-dict">📖 辞書・教育管理</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: Home & Controls -->
+    <section id="tab-home" class="tab-content active">
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="status-label">Twitch 接続状態</span>
+          <div class="status-value" id="val-twitch">--</div>
+        </div>
+        <div class="status-item">
+          <span class="status-label">TTS 音声エンジン</span>
+          <div class="status-value" id="val-engine">--</div>
+        </div>
+        <div class="status-item">
+          <span class="status-label">待機中キュー</span>
+          <div class="status-value" id="val-queue">0 件</div>
+        </div>
+        <div class="status-item">
+          <span class="status-label">HTTP / 棒読みポート</span>
+          <div class="status-value" id="val-ports">--</div>
+        </div>
+      </div>
+
+      <div class="card" id="quick-actions">
+        <h2 class="card-title">⚡ クイックアクション</h2>
+        <div class="btn-group">
+          <button class="btn btn-danger" id="btn-clear-queue">🧹 キュー全消去</button>
+          <button class="btn btn-primary" id="btn-run-demo">🌐 多言語デモ再生</button>
+          <button class="btn" id="btn-toggle-twitch">📡 Twitch接続切替</button>
+          <button class="btn" id="btn-refresh-status">🔄 ステータス更新</button>
+        </div>
+      </div>
+
+      <div class="card" id="say-form-card">
+        <h2 class="card-title">💬 テスト発声 (POST /say)</h2>
+        <form id="say-form">
+          <div style="display: grid; grid-template-columns: 200px 1fr auto; gap: 0.75rem; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="say-user">ユーザー名</label>
+              <input type="text" id="say-user" value="Streamer" required maxlength="50">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="say-text">発声テキスト</label>
+              <input type="text" id="say-text" placeholder="読み上げたいテキストを入力..." required maxlength="300">
+            </div>
+            <button type="submit" class="btn btn-success" style="height: 42px;">🚀 送信</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 2: Realtime Katakana Lab -->
+    <section id="tab-lab" class="tab-content">
+      <div class="card">
+        <h2 class="card-title">🧪 リアルタイム多行カタカナ変換ラボ</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          多言語（英語、韓国語、中国語、ロシア語、スペイン語等）のコメントを入力すると、50msのデバウンスで瞬時にカタカナ発音へ変換・検証できます（最大20行、各行200文字制限）。
+        </p>
+
+        <div class="lab-layout">
+          <!-- Left: Input Area -->
+          <div>
+            <div class="counter-bar">
+              <span id="lab-line-counter">行数: 0 / 20 行</span>
+              <span id="lab-char-warning" class="badge-warn" style="display: none;">⚠️ 200文字超過行あり</span>
+            </div>
+            <textarea id="lab-textarea" placeholder="Hello guys! Nice stream, you play so well!&#10;¡Hola amigo! Buen stream, muchas gracias por jugar.&#10;안녕하세요! 방송 너무 재미있어요 화이ティング!&#10;你好！玩得很好，加油！&#10;Привет! Отличный стрим, удачи в игре!&#10;草生えたｗｗｗ&#10;神回乙"></textarea>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+              <button class="btn btn-sm" id="btn-lab-sample">📋 例文をセット</button>
+              <button class="btn btn-sm btn-danger" id="btn-lab-clear">🗑️ 入力クリア</button>
+            </div>
+          </div>
+
+          <!-- Right: Realtime Result Table -->
+          <div>
+            <div class="table-container">
+              <table id="lab-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;">#</th>
+                    <th style="width: 80px;">言語</th>
+                    <th>原文</th>
+                    <th>カタカナ変換結果</th>
+                    <th style="width: 70px;">発声</th>
+                  </tr>
+                </thead>
+                <tbody id="lab-table-body">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted);">テキストを入力するとリアルタイムに結果が表示されます</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Dictionary Management -->
+    <section id="tab-dict" class="tab-content">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <h2 class="card-title" style="margin-bottom: 0;">📖 教育・置換辞書管理</h2>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-primary dict-type-btn" data-type="message">💬 コメント置換 (messageConvertList)</button>
+            <button class="btn btn-sm dict-type-btn" data-type="username">👤 ユーザー名置換 (usernameConvertList)</button>
+          </div>
+        </div>
+
+        <!-- Add Form -->
+        <form id="dict-add-form" style="background: var(--bg-input); padding: 1rem; border-radius: var(--radius); margin-bottom: 1rem; border: 1px solid var(--border-color);">
+          <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="dict-keyword">キーワード (置換対象・最大100文字)</label>
+              <input type="text" id="dict-keyword" placeholder="例: lol, w, 初見" required maxlength="100">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="dict-read">読み方 (置換後・最大200文字)</label>
+              <input type="text" id="dict-read" placeholder="例: わら, しょけん" required maxlength="200">
+            </div>
+            <button type="submit" class="btn btn-success" style="height: 42px;">➕ 登録 / 更新</button>
+          </div>
+        </form>
+
+        <!-- Search & Table -->
+        <div style="margin-bottom: 0.75rem;">
+          <input type="text" id="dict-search" placeholder="🔍 辞書内を検索...">
+        </div>
+
+        <div class="table-container">
+          <table id="dict-table">
+            <thead>
+              <tr>
+                <th style="width: 40%;">キーワード (原文)</th>
+                <th style="width: 45%;">読み方 (置換後)</th>
+                <th style="width: 15%; text-align: center;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="dict-table-body">
+              <tr>
+                <td colspan="3" style="text-align: center; color: var(--text-muted);">読み込み中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast">お知らせ</div>
+
+  <script>
+    // State
+    let currentDictType = "message";
+    let dictItems = [];
+    let debounceTimer = null;
+
+    // Toast Notification
+    function showToast(msg, type = "info") {
+      const toast = document.getElementById("toast");
+      toast.textContent = msg;
+      toast.className = "toast show " + type;
+      setTimeout(() => {
+        toast.className = "toast";
+      }, 3000);
+    }
+
+    // Tabs
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabContents = document.querySelectorAll(".tab-content");
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        tabButtons.forEach(b => b.classList.remove("active"));
+        tabContents.forEach(c => c.classList.remove("active"));
+        btn.classList.add("active");
+        const targetId = btn.getAttribute("data-tab");
+        document.getElementById(targetId)?.classList.add("active");
+
+        if (targetId === "tab-dict") {
+          loadDictionary();
+        }
+      });
+    });
+
+    // 1. Status Polling
+    async function updateStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (!res.ok) throw new Error("Status failed");
+        const data = await res.json();
+
+        // Twitch
+        const dotTwitch = document.getElementById("dot-twitch");
+        const labelTwitch = document.getElementById("label-twitch");
+        const valTwitch = document.getElementById("val-twitch");
+
+        if (data.twitchConnected) {
+          dotTwitch.className = "dot live";
+          labelTwitch.textContent = "Twitch: 接続中 (" + (data.twitchChannel || "") + ")";
+          valTwitch.innerHTML = '<span style="color: #3fb950;">● 接続中</span> <span style="font-size: 0.85rem; color: var(--text-muted);">#' + (data.twitchChannel || "") + '</span>';
+        } else {
+          dotTwitch.className = "dot offline";
+          labelTwitch.textContent = "Twitch: 未接続";
+          valTwitch.innerHTML = '<span style="color: var(--danger);">○ 未接続</span>';
+        }
+
+        // Engine
+        document.getElementById("val-engine").textContent = data.engine || "COEIROINK";
+
+        // Queue
+        document.getElementById("val-queue").textContent = (data.queuePending || 0) + " 件";
+
+        // Ports
+        document.getElementById("val-ports").textContent = "HTTP:" + data.port + " / 棒:" + data.bouyomiPort;
+      } catch (err) {
+        console.error("Failed to fetch status:", err);
+      }
+    }
+
+    setInterval(updateStatus, 5000);
+    updateStatus();
+
+    // Quick Actions
+    document.getElementById("btn-refresh-status")?.addEventListener("click", () => {
+      updateStatus();
+      showToast("ステータスを更新しました", "info");
+    });
+
+    document.getElementById("btn-clear-queue")?.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/clear", { method: "POST" });
+        if (res.ok) {
+          showToast("🧹 キューをクリアしました", "success");
+          updateStatus();
+        }
+      } catch (e) {
+        showToast("エラーが発生しました", "error");
+      }
+    });
+
+    document.getElementById("btn-run-demo")?.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/demo", { method: "POST" });
+        if (res.ok) {
+          showToast("🌐 多言語デモをキューに追加しました", "success");
+          updateStatus();
+        }
+      } catch (e) {
+        showToast("エラーが発生しました", "error");
+      }
+    });
+
+    document.getElementById("btn-toggle-twitch")?.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/twitch/toggle", { method: "POST" });
+        const data = await res.json();
+        showToast(data.connected ? "📡 Twitchに接続しました" : "📡 Twitchから切断しました", "info");
+        updateStatus();
+      } catch (e) {
+        showToast("切替に失敗しました", "error");
+      }
+    });
+
+    // Say Form
+    document.getElementById("say-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const user = document.getElementById("say-user").value.trim();
+      const text = document.getElementById("say-text").value.trim();
+      if (!text) return;
+
+      try {
+        const res = await fetch("/say", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: user, text: text })
+        });
+        if (res.ok) {
+          showToast("🚀 送信しました: " + text, "success");
+          document.getElementById("say-text").value = "";
+          updateStatus();
+        } else {
+          showToast("送信エラー", "error");
+        }
+      } catch (err) {
+        showToast("ネットワークエラー", "error");
+      }
+    });
+
+    // 2. Realtime Katakana Lab
+    const labTextarea = document.getElementById("lab-textarea");
+    const labTableBody = document.getElementById("lab-table-body");
+    const labLineCounter = document.getElementById("lab-line-counter");
+    const labCharWarning = document.getElementById("lab-char-warning");
+
+    async function triggerLabPreview() {
+      const text = labTextarea.value;
+      const rawLines = text.split(/\\r?\\n/);
+      const lineCount = rawLines.length;
+
+      labLineCounter.textContent = "行数: " + lineCount + " / 20 行" + (lineCount > 20 ? " (先頭20行のみ処理)" : "");
+      if (lineCount > 20) {
+        labLineCounter.style.color = "var(--warning)";
+      } else {
+        labLineCounter.style.color = "var(--text-muted)";
+      }
+
+      const hasLongLine = rawLines.some(l => l.length > 200);
+      labCharWarning.style.display = hasLongLine ? "inline-block" : "none";
+
+      if (!text.trim()) {
+        labTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">テキストを入力するとリアルタイムに結果が表示されます</td></tr>';
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text })
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderLabResults(data.results || []);
+      } catch (err) {
+        console.error("Preview error:", err);
+      }
+    }
+
+    function renderLabResults(results) {
+      if (!results || results.length === 0) {
+        labTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">変換結果がありません</td></tr>';
+        return;
+      }
+
+      labTableBody.innerHTML = results.map(r => {
+        const langClass = "lang-" + (r.lang || "other");
+        const safeOriginal = escapeHtml(r.original || "");
+        const safeTransformed = escapeHtml(r.transformed || "");
+        const originalEscapedJson = JSON.stringify(r.original || "");
+
+        return \`<tr>
+          <td style="color: var(--text-muted); font-size: 0.8rem;">\${r.line}</td>
+          <td><span class="lang-badge \${langClass}">\${r.lang || "unk"}</span></td>
+          <td style="word-break: break-all;">\${safeOriginal}</td>
+          <td style="word-break: break-all; font-weight: 600; color: var(--text-bright);">\${safeTransformed}</td>
+          <td>
+            <button class="btn btn-sm btn-primary btn-speak-line" onclick='speakLine(\${originalEscapedJson})'>🗣️</button>
+          </td>
+        </tr>\`;
+      }).join("");
+    }
+
+    window.speakLine = async function(text) {
+      if (!text || !text.trim()) return;
+      try {
+        await fetch("/say", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "Lab", text: text })
+        });
+        showToast("🗣️ 発声キューに追加しました", "success");
+        updateStatus();
+      } catch (e) {
+        showToast("発声リクエストに失敗しました", "error");
+      }
+    };
+
+    labTextarea?.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(triggerLabPreview, 50);
+    });
+
+    document.getElementById("btn-lab-clear")?.addEventListener("click", () => {
+      labTextarea.value = "";
+      triggerLabPreview();
+    });
+
+    document.getElementById("btn-lab-sample")?.addEventListener("click", () => {
+      labTextarea.value = [
+        "Hello guys! Nice stream, you play so well!",
+        "¡Hola amigo! Buen stream, muchas gracias por jugar.",
+        "안녕하세요! 방송 너무 재미있어요 화이팅!",
+        "你好！玩得很好，加油！",
+        "大家安安！實況主太強了，謝謝乾爹！",
+        "Привет! Отличный стрим, удачи в игре!",
+        "草生えたｗｗｗ",
+        "神回乙"
+      ].join("\\n");
+      triggerLabPreview();
+    });
+
+    // Run preview once on load
+    triggerLabPreview();
+
+    // 3. Dictionary & Learning
+    const dictTypeBtns = document.querySelectorAll(".dict-type-btn");
+    dictTypeBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        dictTypeBtns.forEach(b => {
+          b.classList.remove("btn-primary");
+        });
+        btn.classList.add("btn-primary");
+        currentDictType = btn.getAttribute("data-type") || "message";
+        loadDictionary();
+      });
+    });
+
+    async function loadDictionary() {
+      const tbody = document.getElementById("dict-table-body");
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">読み込み中...</td></tr>';
+      try {
+        const res = await fetch("/api/dictionary?type=" + encodeURIComponent(currentDictType));
+        if (!res.ok) throw new Error("Failed to load dictionary");
+        const data = await res.json();
+        dictItems = data.items || [];
+        renderDictionaryTable();
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--danger);">辞書の読み込みに失敗しました</td></tr>';
+      }
+    }
+
+    function renderDictionaryTable() {
+      const search = (document.getElementById("dict-search")?.value || "").toLowerCase().trim();
+      const tbody = document.getElementById("dict-table-body");
+
+      const filtered = dictItems.filter(item =>
+        item.keyword.toLowerCase().includes(search) ||
+        item.read.toLowerCase().includes(search)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">該当する登録単語はありません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const safeKey = escapeHtml(item.keyword);
+        const safeRead = escapeHtml(item.read);
+        const keyJson = JSON.stringify(item.keyword);
+
+        return \`<tr>
+          <td style="font-family: monospace; color: var(--text-bright);">\${safeKey}</td>
+          <td style="color: var(--text-main);">\${safeRead}</td>
+          <td style="text-align: center;">
+            <button class="btn btn-sm btn-danger" onclick='deleteDictWord(\${keyJson})'>🗑️ 削除</button>
+          </td>
+        </tr>\`;
+      }).join("");
+    }
+
+    document.getElementById("dict-search")?.addEventListener("input", () => {
+      renderDictionaryTable();
+    });
+
+    document.getElementById("dict-add-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const keyword = document.getElementById("dict-keyword").value.trim();
+      const read = document.getElementById("dict-read").value.trim();
+      if (!keyword || !read) return;
+
+      try {
+        const res = await fetch("/api/dictionary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: currentDictType, keyword, read })
+        });
+        if (res.ok) {
+          showToast("➕ 辞書に登録しました: " + keyword + " ➔ " + read, "success");
+          document.getElementById("dict-keyword").value = "";
+          document.getElementById("dict-read").value = "";
+          loadDictionary();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          showToast(errData.error || "登録エラー", "error");
+        }
+      } catch (e) {
+        showToast("登録リクエストに失敗しました", "error");
+      }
+    });
+
+    window.deleteDictWord = async function(keyword) {
+      if (!confirm("「" + keyword + "」を辞書から削除しますか？")) return;
+      try {
+        const res = await fetch("/api/dictionary", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: currentDictType, keyword })
+        });
+        if (res.ok) {
+          showToast("🗑️ 削除しました: " + keyword, "info");
+          loadDictionary();
+        } else {
+          showToast("削除エラー", "error");
+        }
+      } catch (e) {
+        showToast("通信エラー", "error");
+      }
+    };
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+  </script>
+</body>
+</html>`;
+}

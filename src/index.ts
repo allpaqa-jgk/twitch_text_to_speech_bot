@@ -160,19 +160,20 @@ if (config.STARTING_MESSAGE) {
 const katakanaTransformer = new KatakanaTransformer();
 console.log(`[Init] Foreign language mode: ${config.FOREIGN_LANGUAGE_MODE}`);
 
-// 6. Start HTTP Server (for OneComme, CastCraft, Webhooks)
+// 6. Twitch handling
+const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
+
+// 7. Start HTTP Server (for Web Management Console, OneComme, CastCraft, Webhooks)
 let httpServer: HttpServer | null = null;
 if (config.HTTP_SERVER_ENABLED) {
   httpServer = new HttpServer({
     queue,
     transformer: katakanaTransformer,
     englishEngine,
+    bot,
   });
   httpServer.start();
 }
-
-// 7. Twitch handling
-const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
 
 if (!config.ENABLE_TWITCH) {
   console.log("ℹ️  [Twitch] ENABLE_TWITCH=false のため直接接続をスキップしました（HTTP読み上げモードで待機中）");

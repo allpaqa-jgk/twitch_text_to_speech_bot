@@ -73,12 +73,12 @@ export async function enqueueDemo(
     if (step.announce) {
       console.log(`📢 【${step.announce}】 ${step.text}`);
       console.log(`   └> 変換: ${step.converted}`);
-      queue.enqueue(`${step.announce}。`);
+      queue.enqueue(`${step.announce}。`, { bypassAcceleration: true, bypassTtl: true });
     } else {
       console.log(`📢 ${step.text}`);
       console.log(`   └> 変換: ${step.converted}`);
     }
-    queue.enqueue(step.converted);
+    queue.enqueue(step.converted, { bypassAcceleration: true, bypassTtl: true });
   }
   console.log("======================================================================");
   console.log("💡 中断したい場合は「clear」と入力してください。\n");

@@ -2,11 +2,20 @@ import type { TTSEngine, PreparedAudio, SpeechOptions } from "./engine";
 import { stopAudio } from "./audioPlayer";
 import { config } from "../config";
 
+export interface EnqueueOptions {
+  engine?: TTSEngine;
+  enqueuedAt?: number;
+  bypassAcceleration?: boolean; // 加速を行わず 1.0 倍速で固定
+  bypassTtl?: boolean;          // 30秒期限切れによるスキップ対象外にする
+}
+
 export interface QueueItem {
   id: string;
   text: string;
   enqueuedAt: number;
   speedScale?: number;
+  bypassAcceleration?: boolean;
+  bypassTtl?: boolean;
   engine?: TTSEngine;
   resolve: () => void;
   reject: (err: any) => void;
@@ -120,24 +129,23 @@ export class TTSQueue {
 
   private dropExpiredItems(): void {
     const ttl = config.COMMENT_TTL_SECONDS ?? 30;
-    if (ttl <= 0) {
-      return;
-    }
+    if (ttl <= 0) return;
     const ttlMs = ttl * 1000;
     const now = Date.now();
-    while (this.queue.length > 0) {
-      if (now - this.queue[0].enqueuedAt > ttlMs) {
-        const expired = this.queue.shift();
-        if (expired) {
-          expired.resolve();
-          console.log(
-            `[TTSQueue] ⏳ コメントが古い（${Math.round((now - expired.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${expired.text}"`
-          );
-        }
-      } else {
-        break;
+
+    this.queue = this.queue.filter((item) => {
+      if (item.bypassTtl) {
+        return true;
       }
-    }
+      if (now - item.enqueuedAt > ttlMs) {
+        item.resolve();
+        console.log(
+          `[TTSQueue] ⏳ コメントが古い（${Math.round((now - item.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${item.text}"`
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   /**
@@ -152,7 +160,7 @@ export class TTSQueue {
     const nextItem = this.queue[0];
     if (nextItem && !nextItem.preparedPromise) {
       if (nextItem.speedScale === undefined) {
-        nextItem.speedScale = this.calculateSpeedScale(nextItem.text);
+        nextItem.speedScale = nextItem.bypassAcceleration ? 1.0 : this.calculateSpeedScale(nextItem.text);
       }
       const engine = nextItem.engine || this.defaultEngine;
       if (engine.prepare) {
@@ -168,7 +176,11 @@ export class TTSQueue {
     }
   }
 
-  public enqueue(text: string, engine?: TTSEngine, enqueuedAt?: number): Promise<void> {
+  public enqueue(
+    text: string,
+    engineOrOptions?: TTSEngine | EnqueueOptions,
+    enqueuedAt?: number
+  ): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.resolve();
@@ -181,13 +193,29 @@ export class TTSQueue {
       console.warn(`[TTSQueue] Queue overflow. Dropped oldest speech: "${dropped?.text}"`);
     }
 
+    let options: EnqueueOptions = {};
+    if (engineOrOptions) {
+      if (typeof (engineOrOptions as any).say === "function") {
+        options = { engine: engineOrOptions as TTSEngine, enqueuedAt };
+      } else {
+        options = { ...(engineOrOptions as EnqueueOptions) };
+        if (enqueuedAt !== undefined && options.enqueuedAt === undefined) {
+          options.enqueuedAt = enqueuedAt;
+        }
+      }
+    } else if (enqueuedAt !== undefined) {
+      options = { enqueuedAt };
+    }
+
     return new Promise<void>((resolve, reject) => {
       const item: QueueItem = {
         id: Math.random().toString(36).slice(2),
         text: trimmed,
-        enqueuedAt: enqueuedAt ?? Date.now(),
-        speedScale: this.calculateSpeedScale(trimmed),
-        engine,
+        enqueuedAt: options.enqueuedAt ?? Date.now(),
+        bypassAcceleration: options.bypassAcceleration,
+        bypassTtl: options.bypassTtl,
+        speedScale: options.bypassAcceleration ? 1.0 : this.calculateSpeedScale(trimmed),
+        engine: options.engine,
         resolve,
         reject,
       };
@@ -241,7 +269,7 @@ export class TTSQueue {
       // 2. Real-time synthesis fallback with retry for transient errors
       if (!audio) {
         if (current.speedScale === undefined) {
-          current.speedScale = this.calculateSpeedScale(current.text);
+          current.speedScale = current.bypassAcceleration ? 1.0 : this.calculateSpeedScale(current.text);
         }
         const maxRetries = 2; // Initial attempt + 2 retries
         const backoffs = [200, 400];
@@ -292,7 +320,7 @@ export class TTSQueue {
       if (audio) {
         const ttl = config.COMMENT_TTL_SECONDS ?? 30;
         const now = Date.now();
-        if (ttl > 0 && now - current.enqueuedAt > ttl * 1000) {
+        if (!current.bypassTtl && ttl > 0 && now - current.enqueuedAt > ttl * 1000) {
           console.log(
             `[TTSQueue] ⏳ 合成・待機中にコメントの期限が切れたため再生をスキップしました: "${current.text}"`
           );

@@ -34,7 +34,7 @@ export class CoeiroinkEngine implements TTSEngine {
   private speedScale: number;
   private volumeScale: number;
   private outputSamplingRate: number;
-  private pauseLength: number;
+  private pauseLength?: number;
 
   private speakerUuidCache: Map<number, string> = new Map();
   private lastDictionaryMtime: number | null = null;
@@ -48,7 +48,7 @@ export class CoeiroinkEngine implements TTSEngine {
     const effectiveVolume = (config.COEIROINK_VOLUME_SCALE ?? 1.0) * (config.MASTER_VOLUME ?? 1.0);
     this.volumeScale = Math.min(1.0, Math.max(0.0, Math.round(effectiveVolume * 1000) / 1000));
     this.outputSamplingRate = config.COEIROINK_OUTPUT_SAMPLING_RATE ?? 44100;
-    this.pauseLength = config.COEIROINK_PAUSE_LENGTH ?? 0.04;
+    this.pauseLength = config.COEIROINK_PAUSE_LENGTH ?? undefined;
   }
 
   private get baseUrl(): string {
@@ -191,7 +191,7 @@ export class CoeiroinkEngine implements TTSEngine {
     styleId: number,
     speedScale: number = this.speedScale
   ): Promise<ArrayBuffer> {
-    const body = {
+    const body: Record<string, unknown> = {
       speakerUuid,
       styleId,
       text,
@@ -202,9 +202,11 @@ export class CoeiroinkEngine implements TTSEngine {
       intonationScale: 1.0,
       prePhonemeLength: 0.1,
       postPhonemeLength: 0.1,
-      pauseLength: this.pauseLength,
       outputSamplingRate: this.outputSamplingRate,
     };
+    if (this.pauseLength !== undefined && this.pauseLength !== null) {
+      body.pauseLength = this.pauseLength;
+    }
 
     const res = await fetch(`${this.baseUrl}/v1/synthesis`, {
       method: "POST",

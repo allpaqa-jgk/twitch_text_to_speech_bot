@@ -641,6 +641,24 @@ describe("TTSQueue", () => {
         (config as any).AUTO_ACCELERATE = origAuto;
       }
     });
+
+    it("should keep speedScale === 1.0 when bypassAcceleration is true even with long text and queue congestion", async () => {
+      const mock = new MockEngine(20);
+      const queue = new TTSQueue(mock);
+      const longText = "あ".repeat(120);
+
+      // Enqueue 6 long items with bypassAcceleration: true
+      const promises = [];
+      for (let i = 0; i < 6; i++) {
+        promises.push(queue.enqueue(longText, { bypassAcceleration: true }));
+      }
+      await Promise.all(promises);
+
+      expect(mock.recordedOptions.length).toBe(6);
+      for (const opt of mock.recordedOptions) {
+        expect(opt?.speedScale).toBe(1.0);
+      }
+    });
   });
 
   describe("Comment TTL (Time to Live) Skip", () => {
@@ -859,6 +877,135 @@ describe("TTSQueue", () => {
         console.log = origLog;
       }
     });
+
+    it("6. should not skip items with bypassTtl: true even when enqueued 40+ seconds ago", async () => {
+      const engine = new TTLTrackingEngine(20);
+      const queue = new TTSQueue(engine);
+
+      const origNow = Date.now;
+      let currentTime = 1000000;
+      Date.now = () => currentTime;
+
+      try {
+        const p1 = queue.enqueue("Active 1");
+        await new Promise((r) => setTimeout(r, 5));
+
+        const p2 = queue.enqueue("Protected demo item", {
+          bypassTtl: true,
+          enqueuedAt: currentTime - 40000,
+        });
+
+        await Promise.all([p1, p2]);
+
+        expect(engine.spokenTexts).toEqual(["Active 1", "Protected demo item"]);
+      } finally {
+        Date.now = origNow;
+      }
+    });
+
+    it("7. should drop stale normal items while preserving bypassTtl: true items in mixed queue", async () => {
+      const engine = new TTLTrackingEngine(20);
+      const queue = new TTSQueue(engine);
+
+      const origNow = Date.now;
+      let currentTime = 1000000;
+      Date.now = () => currentTime;
+
+      try {
+        const p1 = queue.enqueue("Active item");
+        await new Promise((r) => setTimeout(r, 5));
+
+        const p2 = queue.enqueue("Stale normal item 1", undefined, currentTime - 40000);
+        const p3 = queue.enqueue("Protected item 1", {
+          bypassTtl: true,
+          enqueuedAt: currentTime - 50000,
+        });
+        const p4 = queue.enqueue("Stale normal item 2", undefined, currentTime - 35000);
+        const p5 = queue.enqueue("Fresh normal item");
+
+        await Promise.all([p1, p2, p3, p4, p5]);
+
+        expect(engine.spokenTexts).toEqual([
+          "Active item",
+          "Protected item 1",
+          "Fresh normal item",
+        ]);
+        expect(engine.spokenTexts).not.toContain("Stale normal item 1");
+        expect(engine.spokenTexts).not.toContain("Stale normal item 2");
+      } finally {
+        Date.now = origNow;
+      }
+    });
+  });
+
+  describe("COEIROINK Pause Length Default / Custom", () => {
+    it("should omit pauseLength in synthesis body when config.COEIROINK_PAUSE_LENGTH is undefined", async () => {
+      const origFetch = globalThis.fetch;
+      const origPause = config.COEIROINK_PAUSE_LENGTH;
+      let sentBody: any = null;
+
+      try {
+        (config as any).COEIROINK_PAUSE_LENGTH = undefined;
+        globalThis.fetch = (async (url: any, init: any) => {
+          const urlStr = String(url);
+          if (urlStr.includes("/estimate_prosody")) {
+            return new Response(JSON.stringify({ detail: [] }));
+          }
+          if (urlStr.includes("/style_id_to_speaker_meta")) {
+            return new Response(JSON.stringify({ speakerUuid: "dummy" }));
+          }
+          if (urlStr.includes("/synthesis")) {
+            sentBody = JSON.parse(init.body);
+            return new Response(new ArrayBuffer(10));
+          }
+          return new Response();
+        }) as any;
+
+        const coeiroink = new CoeiroinkEngine();
+        await coeiroink.prepare("自然なポーズテスト");
+
+        expect(sentBody).not.toBeNull();
+        expect(sentBody.pauseLength).toBeUndefined();
+        expect("pauseLength" in sentBody).toBe(false);
+      } finally {
+        globalThis.fetch = origFetch;
+        (config as any).COEIROINK_PAUSE_LENGTH = origPause;
+      }
+    });
+
+    it("should include pauseLength in synthesis body when explicitly configured", async () => {
+      const origFetch = globalThis.fetch;
+      const origPause = config.COEIROINK_PAUSE_LENGTH;
+      let sentBody: any = null;
+
+      try {
+        (config as any).COEIROINK_PAUSE_LENGTH = 0.04;
+        globalThis.fetch = (async (url: any, init: any) => {
+          const urlStr = String(url);
+          if (urlStr.includes("/estimate_prosody")) {
+            return new Response(JSON.stringify({ detail: [] }));
+          }
+          if (urlStr.includes("/style_id_to_speaker_meta")) {
+            return new Response(JSON.stringify({ speakerUuid: "dummy" }));
+          }
+          if (urlStr.includes("/synthesis")) {
+            sentBody = JSON.parse(init.body);
+            return new Response(new ArrayBuffer(10));
+          }
+          return new Response();
+        }) as any;
+
+        const coeiroink = new CoeiroinkEngine();
+        await coeiroink.prepare("カスタムポーズテスト");
+
+        expect(sentBody).not.toBeNull();
+        expect(sentBody.pauseLength).toBe(0.04);
+      } finally {
+        globalThis.fetch = origFetch;
+        (config as any).COEIROINK_PAUSE_LENGTH = origPause;
+      }
+    });
   });
 });
+
 

@@ -300,11 +300,23 @@ export class HttpServer {
     // GET /api/dictionary
     if (req.method === "GET" && url.pathname === "/api/dictionary") {
       const typeParam = url.searchParams.get("type");
-      const listType: ListType = typeParam === "username" ? "usernameConvertList" : "messageConvertList";
+      let listType: ListType;
+      let responseType = "message";
+      if (typeParam === "username") {
+        listType = "usernameConvertList";
+        responseType = "username";
+      } else if (typeParam === "ignore") {
+        listType = "messageIgnoreList";
+        responseType = "ignore";
+      } else {
+        listType = "messageConvertList";
+        responseType = "message";
+      }
+
       const list = csvList.readList(listType);
       return new Response(
         JSON.stringify({
-          type: typeParam === "username" ? "username" : "message",
+          type: responseType,
           items: list.map(([keyword, read]) => ({
             keyword: keyword ?? "",
             read: read ?? "",
@@ -343,9 +355,20 @@ export class HttpServer {
       const read = (body?.read ?? "").toString().trim();
       const typeParam = body?.type;
 
-      if (!keyword || !read) {
+      let listType: ListType;
+      if (typeParam === "username") {
+        listType = "usernameConvertList";
+      } else if (typeParam === "ignore") {
+        listType = "messageIgnoreList";
+      } else {
+        listType = "messageConvertList";
+      }
+
+      const isIgnore = listType === "messageIgnoreList";
+
+      if (!keyword || (!isIgnore && !read)) {
         return new Response(
-          JSON.stringify({ error: "keyword and read are required" }),
+          JSON.stringify({ error: isIgnore ? "keyword is required" : "keyword and read are required" }),
           {
             status: 400,
             headers: {
@@ -369,7 +392,7 @@ export class HttpServer {
         );
       }
 
-      if (read.length > 200) {
+      if (!isIgnore && read.length > 200) {
         return new Response(
           JSON.stringify({ error: "Read text too long (max 200 chars)" }),
           {
@@ -382,19 +405,18 @@ export class HttpServer {
         );
       }
 
-      const listType: ListType = typeParam === "username" ? "usernameConvertList" : "messageConvertList";
-      const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const storedKey = isIgnore ? keyword : keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const list = csvList.readList(listType);
-      const index = list.findIndex((row) => row[0] === safeKeyword || row[0] === keyword);
+      const index = list.findIndex((row) => row[0] === storedKey || row[0] === keyword);
       if (index >= 0) {
-        list[index] = [safeKeyword, read];
+        list[index] = [storedKey, isIgnore ? "" : read];
       } else {
-        list.push([safeKeyword, read]);
+        list.push([storedKey, isIgnore ? "" : read]);
       }
       csvList.writeList(listType, list);
 
       return new Response(
-        JSON.stringify({ success: true, keyword, read }),
+        JSON.stringify({ success: true, keyword, read: isIgnore ? "" : read }),
         {
           status: 200,
           headers: {
@@ -436,10 +458,19 @@ export class HttpServer {
         );
       }
 
-      const listType: ListType = typeParam === "username" ? "usernameConvertList" : "messageConvertList";
-      const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      let listType: ListType;
+      if (typeParam === "username") {
+        listType = "usernameConvertList";
+      } else if (typeParam === "ignore") {
+        listType = "messageIgnoreList";
+      } else {
+        listType = "messageConvertList";
+      }
+
+      const isIgnore = listType === "messageIgnoreList";
+      const storedKey = isIgnore ? keyword : keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const list = csvList.readList(listType);
-      const index = list.findIndex((row) => row[0] === safeKeyword || row[0] === keyword);
+      const index = list.findIndex((row) => row[0] === storedKey || row[0] === keyword);
       if (index >= 0) {
         list.splice(index, 1);
         csvList.writeList(listType, list);

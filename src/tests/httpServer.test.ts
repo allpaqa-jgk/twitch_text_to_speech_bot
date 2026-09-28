@@ -476,6 +476,12 @@ describe("HttpServer & commentProcessor", () => {
         const dataUser = (await resUser.json()) as any;
         expect(dataUser.type).toBe("username");
         expect(Array.isArray(dataUser.items)).toBe(true);
+
+        const resIgnore = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=ignore`);
+        expect(resIgnore.status).toBe(200);
+        const dataIgnore = (await resIgnore.json()) as any;
+        expect(dataIgnore.type).toBe("ignore");
+        expect(Array.isArray(dataIgnore.items)).toBe(true);
       });
 
       it("should register or update a word via POST /api/dictionary", async () => {
@@ -501,6 +507,51 @@ describe("HttpServer & commentProcessor", () => {
         const found = listData.items.find((item: any) => item.keyword === testKey);
         expect(found).toBeDefined();
         expect(found.read).toBe(testRead);
+      });
+
+      it("should support ignore list CRUD without read requirement", async () => {
+        const ignorePattern = "^!testcmd_" + Date.now();
+        // 1. Add ignore pattern (read is not required)
+        const addRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "ignore",
+            keyword: ignorePattern,
+          }),
+        });
+        expect(addRes.status).toBe(200);
+        const addData = (await addRes.json()) as any;
+        expect(addData.success).toBe(true);
+        expect(addData.keyword).toBe(ignorePattern);
+        expect(addData.read).toBe("");
+
+        // 2. Verify exists in GET
+        const listRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=ignore`);
+        expect(listRes.status).toBe(200);
+        const listData = (await listRes.json()) as any;
+        expect(listData.type).toBe("ignore");
+        const found = listData.items.find((item: any) => item.keyword === ignorePattern);
+        expect(found).toBeDefined();
+
+        // 3. Delete ignore pattern
+        const delRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "ignore",
+            keyword: ignorePattern,
+          }),
+        });
+        expect(delRes.status).toBe(200);
+        const delData = (await delRes.json()) as any;
+        expect(delData.success).toBe(true);
+
+        // 4. Verify deleted
+        const listResAfter = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=ignore`);
+        const listDataAfter = (await listResAfter.json()) as any;
+        const foundAfter = listDataAfter.items.find((item: any) => item.keyword === ignorePattern);
+        expect(foundAfter).toBeUndefined();
       });
 
       it("should reject invalid inputs in POST /api/dictionary", async () => {

@@ -118,4 +118,33 @@ describe("TwitchTTSBot integration tests", () => {
       config.ENABLE_TTS = originalEnableTts;
     }
   });
+
+  it("should speak cheer messages containing bits normally in KATAKANA mode", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const transformer = new KatakanaTransformer();
+    const bot = new TwitchTTSBot(queue, undefined, transformer);
+
+    const originalMode = config.FOREIGN_LANGUAGE_MODE;
+    const originalEnableTts = config.ENABLE_TTS;
+    config.ENABLE_TTS = true;
+    config.FOREIGN_LANGUAGE_MODE = "KATAKANA";
+
+    try {
+      await bot.handleIncomingMessage(
+        "#test",
+        { username: "cheer_user", bits: "100" as any },
+        "Cheer100 ナイスプレイ！"
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(defaultEngine.spokenTexts.length).toBe(1);
+      expect(defaultEngine.spokenTexts[0]).toContain("チエアー100");
+      expect(defaultEngine.spokenTexts[0]).toContain("ナイスプレイ");
+    } finally {
+      config.FOREIGN_LANGUAGE_MODE = originalMode;
+      config.ENABLE_TTS = originalEnableTts;
+    }
+  });
 });
+

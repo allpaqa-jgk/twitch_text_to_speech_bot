@@ -95,6 +95,10 @@ export class TwitchTTSBot {
       this.handleIncomingMessage(target, context, msg, self);
     });
 
+    this.client.on("cheer", (target, context, msg) => {
+      this.handleIncomingMessage(target, context, msg);
+    });
+
     this.client.on("connected", (addr, port) => {
       console.log(`* [TwitchBot] Connected to ${addr}:${port} on #${config.TW_CHANNEL_NAME}`);
     });

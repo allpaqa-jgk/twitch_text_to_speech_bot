@@ -139,7 +139,7 @@ describe("TwitchTTSBot integration tests", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(defaultEngine.spokenTexts.length).toBe(1);
-      expect(defaultEngine.spokenTexts[0]).toContain("チエアー100");
+      expect(defaultEngine.spokenTexts[0]).toContain("チアー100");
       expect(defaultEngine.spokenTexts[0]).toContain("ナイスプレイ");
     } finally {
       config.FOREIGN_LANGUAGE_MODE = originalMode;
@@ -371,6 +371,5 @@ describe("TwitchTTSBot integration tests", () => {
     expect((bot as any).isConnecting).toBe(false);
   });
 });
-
 
 

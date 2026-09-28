@@ -18,7 +18,6 @@ export interface QueueItem {
   bypassTtl?: boolean;
   engine?: TTSEngine;
   resolve: () => void;
-  reject: (err: any) => void;
   preparedPromise?: Promise<PreparedAudio>;
 }
 
@@ -176,11 +175,7 @@ export class TTSQueue {
     }
   }
 
-  public enqueue(
-    text: string,
-    engineOrOptions?: TTSEngine | EnqueueOptions,
-    enqueuedAt?: number
-  ): Promise<void> {
+  public enqueue(text: string, options: EnqueueOptions = {}): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.resolve();
@@ -193,21 +188,7 @@ export class TTSQueue {
       console.warn(`[TTSQueue] Queue overflow. Dropped oldest speech: "${dropped?.text}"`);
     }
 
-    let options: EnqueueOptions = {};
-    if (engineOrOptions) {
-      if (typeof (engineOrOptions as any).say === "function") {
-        options = { engine: engineOrOptions as TTSEngine, enqueuedAt };
-      } else {
-        options = { ...(engineOrOptions as EnqueueOptions) };
-        if (enqueuedAt !== undefined && options.enqueuedAt === undefined) {
-          options.enqueuedAt = enqueuedAt;
-        }
-      }
-    } else if (enqueuedAt !== undefined) {
-      options = { enqueuedAt };
-    }
-
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       const item: QueueItem = {
         id: Math.random().toString(36).slice(2),
         text: trimmed,
@@ -217,7 +198,6 @@ export class TTSQueue {
         speedScale: options.bypassAcceleration ? 1.0 : this.calculateSpeedScale(trimmed),
         engine: options.engine,
         resolve,
-        reject,
       };
       this.queue.push(item);
       this.triggerPrefetch();

@@ -123,7 +123,7 @@ export async function processComment(
   }
 
   // 10. Fire-and-forget enqueue (non-blocking!)
-  ctx.ttsQueue.enqueue(speechText, engineToUse).catch((err) => {
+  ctx.ttsQueue.enqueue(speechText, { engine: engineToUse }).catch((err) => {
     console.error("[TTSQueue] Playback error:", err);
   });
 

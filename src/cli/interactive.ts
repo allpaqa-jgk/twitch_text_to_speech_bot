@@ -95,7 +95,7 @@ export function startInteractiveConsole(
           }
 
           console.log(`🗣️ テスト発声中: "${textToSay}"`);
-          queue.enqueue(textToSay, engineToUse);
+          queue.enqueue(textToSay, { engine: engineToUse });
         }
         break;
 

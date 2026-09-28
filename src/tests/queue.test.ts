@@ -48,6 +48,19 @@ describe("TTSQueue", () => {
     expect(mock.spokenTexts).toEqual(["Message 1", "Message 2", "Message 3"]);
   });
 
+
+
+  it("should use the engine specified in enqueue options", async () => {
+    const defaultEngine = new MockEngine();
+    const selectedEngine = new MockEngine();
+    const queue = new TTSQueue(defaultEngine);
+
+    await queue.enqueue("Selected engine", { engine: selectedEngine });
+
+    expect(defaultEngine.spokenTexts).toEqual([]);
+    expect(selectedEngine.spokenTexts).toEqual(["Selected engine"]);
+  });
+
   it("should continue processing next items even if one fails", async () => {
     let callCount = 0;
     const flakyEngine: TTSEngine = {
@@ -711,7 +724,9 @@ describe("TTSQueue", () => {
         const p1 = queue.enqueue("Item 1 (Active)");
         await new Promise((r) => setTimeout(r, 5));
 
-        const p2 = queue.enqueue("Item 2 (Stale comment)", undefined, currentTime - 35000);
+        const p2 = queue.enqueue("Item 2 (Stale comment)", {
+          enqueuedAt: currentTime - 35000,
+        });
         const p3 = queue.enqueue("Item 3 (Fresh comment)");
 
         await Promise.all([p1, p2, p3]);
@@ -810,8 +825,12 @@ describe("TTSQueue", () => {
         const p1 = queue.enqueue("Active 1");
         await new Promise((r) => setTimeout(r, 5));
 
-        const p2 = queue.enqueue("Expired 1", undefined, currentTime - 40000);
-        const p3 = queue.enqueue("Expired 2", undefined, currentTime - 35000);
+        const p2 = queue.enqueue("Expired 1", {
+          enqueuedAt: currentTime - 40000,
+        });
+        const p3 = queue.enqueue("Expired 2", {
+          enqueuedAt: currentTime - 35000,
+        });
         const p4 = queue.enqueue("Fresh comment");
 
         await Promise.all([p1, p2, p3, p4]);
@@ -915,12 +934,16 @@ describe("TTSQueue", () => {
         const p1 = queue.enqueue("Active item");
         await new Promise((r) => setTimeout(r, 5));
 
-        const p2 = queue.enqueue("Stale normal item 1", undefined, currentTime - 40000);
+        const p2 = queue.enqueue("Stale normal item 1", {
+          enqueuedAt: currentTime - 40000,
+        });
         const p3 = queue.enqueue("Protected item 1", {
           bypassTtl: true,
           enqueuedAt: currentTime - 50000,
         });
-        const p4 = queue.enqueue("Stale normal item 2", undefined, currentTime - 35000);
+        const p4 = queue.enqueue("Stale normal item 2", {
+          enqueuedAt: currentTime - 35000,
+        });
         const p5 = queue.enqueue("Fresh normal item");
 
         await Promise.all([p1, p2, p3, p4, p5]);
@@ -1007,5 +1030,3 @@ describe("TTSQueue", () => {
     });
   });
 });
-
-

@@ -146,5 +146,126 @@ describe("TwitchTTSBot integration tests", () => {
       config.ENABLE_TTS = originalEnableTts;
     }
   });
+
+  it("should deduplicate messages with the same messageId", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    const originalEnableTts = config.ENABLE_TTS;
+    config.ENABLE_TTS = true;
+
+    try {
+      const context = { id: "msg-123", username: "user1" };
+      await bot.handleIncomingMessage("#test", context, "メッセージ1");
+      await bot.handleIncomingMessage("#test", context, "メッセージ1（再送）");
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(defaultEngine.spokenTexts.length).toBe(1);
+      expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
+    } finally {
+      config.ENABLE_TTS = originalEnableTts;
+    }
+  });
+
+  it("should process messages with different messageIds", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    const originalEnableTts = config.ENABLE_TTS;
+    config.ENABLE_TTS = true;
+
+    try {
+      await bot.handleIncomingMessage("#test", { id: "msg-1", username: "user1" }, "メッセージ1");
+      await bot.handleIncomingMessage("#test", { id: "msg-2", username: "user2" }, "メッセージ2");
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(defaultEngine.spokenTexts.length).toBe(2);
+      expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
+      expect(defaultEngine.spokenTexts[1]).toBe("メッセージ2");
+    } finally {
+      config.ENABLE_TTS = originalEnableTts;
+    }
+  });
+
+  it("should maintain ring buffer at max 100 messageIds and evict oldest to prevent memory leak", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    const originalEnableTts = config.ENABLE_TTS;
+    config.ENABLE_TTS = true;
+
+    try {
+      for (let i = 0; i < 105; i++) {
+        await bot.handleIncomingMessage(
+          "#test",
+          { id: `msg-${i}`, username: `user${i}` },
+          `テスト${i}`
+        );
+      }
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect((bot as any).recentMessageIds.size).toBe(100);
+      expect((bot as any).messageIdQueue.length).toBe(100);
+      expect((bot as any).recentMessageIds.has("msg-0")).toBe(false);
+      expect((bot as any).recentMessageIds.has("msg-4")).toBe(false);
+      expect((bot as any).recentMessageIds.has("msg-5")).toBe(true);
+      expect((bot as any).recentMessageIds.has("msg-104")).toBe(true);
+
+      const currentCount = defaultEngine.spokenTexts.length;
+      await bot.handleIncomingMessage(
+        "#test",
+        { id: "msg-0", username: "user0" },
+        "再送テスト0"
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      expect(defaultEngine.spokenTexts.length).toBe(currentCount + 1);
+    } finally {
+      config.ENABLE_TTS = originalEnableTts;
+    }
+  });
+
+  it("should guard against duplicate connect calls while connecting or when connected", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    let connectCallCount = 0;
+    let finishConnect: () => void = () => {};
+
+    const mockClient = {
+      readyState: () => "CLOSED",
+      connect: () => {
+        connectCallCount++;
+        return new Promise<[string, number]>((resolve) => {
+          finishConnect = () => resolve(["irc.chat.twitch.tv", 6697]);
+        });
+      },
+      disconnect: async () => {},
+    };
+
+    (bot as any).client = mockClient;
+
+    const firstConnectPromise = bot.connect();
+    expect((bot as any).isConnecting).toBe(true);
+
+    const secondConnectPromise = bot.connect();
+
+    mockClient.readyState = () => "CONNECTING";
+    const thirdConnectPromise = bot.connect();
+
+    finishConnect();
+    await Promise.all([firstConnectPromise, secondConnectPromise, thirdConnectPromise]);
+
+    expect(connectCallCount).toBe(1);
+    expect((bot as any).isConnecting).toBe(false);
+
+    mockClient.readyState = () => "OPEN";
+    await bot.connect();
+    expect(connectCallCount).toBe(1);
+  });
 });
+
 

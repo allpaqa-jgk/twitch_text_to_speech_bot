@@ -18,6 +18,9 @@ export class TwitchTTSBot {
   private transformer?: TextTransformer;
   private isManuallyDisconnected = false;
   private reconnectTimer: any = null;
+  private isConnecting = false;
+  private recentMessageIds: Set<string> = new Set();
+  private messageIdQueue: string[] = [];
 
   constructor(
     ttsQueue: TTSQueue,
@@ -47,6 +50,7 @@ export class TwitchTTSBot {
 
   public async disconnect(): Promise<void> {
     this.isManuallyDisconnected = true;
+    this.isConnecting = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -61,16 +65,30 @@ export class TwitchTTSBot {
   }
 
   public async connect(): Promise<void> {
+    if (this.isConnecting) {
+      return;
+    }
+    if (this.client) {
+      const state = this.client.readyState();
+      if (state === "OPEN" || state === "CONNECTING") {
+        return;
+      }
+    }
     this.isManuallyDisconnected = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (!this.client) {
-      await this.start();
-      return;
+    this.isConnecting = true;
+    try {
+      if (!this.client) {
+        await this.start();
+        return;
+      }
+      await this.client.connect();
+    } finally {
+      this.isConnecting = false;
     }
-    await this.client.connect();
   }
 
   public async start(): Promise<void> {
@@ -82,6 +100,10 @@ export class TwitchTTSBot {
     }
 
     const opts: tmi.Options = {
+      connection: {
+        reconnect: false,
+        secure: true,
+      },
       identity: {
         username: config.BOT_USERNAME,
         password: config.TW_OAUTH_TOKEN,
@@ -104,6 +126,11 @@ export class TwitchTTSBot {
     });
 
     this.client.on("disconnected", (reason) => {
+      this.isConnecting = false;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       if (this.isManuallyDisconnected) {
         return;
       }
@@ -115,7 +142,7 @@ export class TwitchTTSBot {
       console.warn(`* [TwitchBot] Disconnected: ${reason}. Reconnecting in 5s...`);
       this.reconnectTimer = setTimeout(() => {
         if (!this.isManuallyDisconnected) {
-          this.client?.connect().catch((err) => console.error("[TwitchBot] Reconnect error:", err));
+          this.connect().catch((err) => console.error("[TwitchBot] Reconnect error:", err));
         }
       }, 5000);
     });
@@ -133,6 +160,21 @@ export class TwitchTTSBot {
 
     const trimmedMsg = rawMsg.trim();
     if (!trimmedMsg) return;
+
+    const messageId = context.id;
+    if (messageId) {
+      if (this.recentMessageIds.has(messageId)) {
+        return;
+      }
+      this.recentMessageIds.add(messageId);
+      this.messageIdQueue.push(messageId);
+      if (this.messageIdQueue.length > 100) {
+        const oldest = this.messageIdQueue.shift();
+        if (oldest) {
+          this.recentMessageIds.delete(oldest);
+        }
+      }
+    }
 
     if (config.COMMENT_REMEMVER_AVAILABLE) {
       if (

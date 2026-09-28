@@ -249,6 +249,7 @@ describe("TwitchTTSBot integration tests", () => {
     (bot as any).client = mockClient;
 
     const firstConnectPromise = bot.connect();
+    await Promise.resolve();
     expect((bot as any).isConnecting).toBe(true);
 
     const secondConnectPromise = bot.connect();
@@ -266,6 +267,110 @@ describe("TwitchTTSBot integration tests", () => {
     await bot.connect();
     expect(connectCallCount).toBe(1);
   });
+
+  it("should serialize concurrent connect and disconnect calls without races", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    let connectCallCount = 0;
+    let disconnectCallCount = 0;
+    let activeConnections = 0;
+    let maxConcurrentConnections = 0;
+
+    let currentState: "CLOSED" | "CONNECTING" | "OPEN" | "CLOSING" = "CLOSED";
+
+    const mockClient = {
+      readyState: () => currentState,
+      connect: async () => {
+        connectCallCount++;
+        activeConnections++;
+        if (activeConnections > maxConcurrentConnections) {
+          maxConcurrentConnections = activeConnections;
+        }
+        currentState = "CONNECTING";
+        await new Promise((r) => setTimeout(r, 20));
+        currentState = "OPEN";
+        return ["irc.chat.twitch.tv", 6697] as [string, number];
+      },
+      disconnect: async () => {
+        disconnectCallCount++;
+        currentState = "CLOSING";
+        await new Promise((r) => setTimeout(r, 10));
+        activeConnections = Math.max(0, activeConnections - 1);
+        currentState = "CLOSED";
+      },
+    };
+
+    (bot as any).client = mockClient;
+
+    // Concurrent connect, disconnect, connect barrage
+    await Promise.all([
+      bot.connect(),
+      bot.disconnect(),
+      bot.connect(),
+    ]);
+
+    // maxConcurrentConnections must NEVER exceed 1
+    expect(maxConcurrentConnections).toBe(1);
+    expect(bot.isConnected()).toBe(true);
+    expect((bot as any).isConnecting).toBe(false);
+    expect(connectCallCount).toBe(2);
+    expect(disconnectCallCount).toBe(1);
+
+    // Another barrage: disconnect, connect, disconnect
+    await Promise.all([
+      bot.disconnect(),
+      bot.connect(),
+      bot.disconnect(),
+    ]);
+
+    expect(maxConcurrentConnections).toBe(1);
+    expect(bot.isConnected()).toBe(false);
+    expect((bot as any).isConnecting).toBe(false);
+  });
+
+  it("should cleanly disconnect when disconnect is called while connect is in flight", async () => {
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const queue = new TTSQueue(defaultEngine);
+    const bot = new TwitchTTSBot(queue);
+
+    let currentState: "CLOSED" | "CONNECTING" | "OPEN" = "CLOSED";
+    let finishConnect: () => void = () => {};
+
+    const mockClient = {
+      readyState: () => currentState,
+      connect: () => {
+        currentState = "CONNECTING";
+        return new Promise<[string, number]>((resolve) => {
+          finishConnect = () => {
+            currentState = "OPEN";
+            resolve(["irc.chat.twitch.tv", 6697]);
+          };
+        });
+      },
+      disconnect: async () => {
+        currentState = "CLOSED";
+      },
+    };
+
+    (bot as any).client = mockClient;
+
+    const connectPromise = bot.connect();
+    await Promise.resolve();
+    expect((bot as any).isConnecting).toBe(true);
+
+    // Disconnect called while connect is pending
+    const disconnectPromise = bot.disconnect();
+
+    // Resolving connect should allow disconnect to execute next in sequence
+    finishConnect();
+    await Promise.all([connectPromise, disconnectPromise]);
+
+    expect(bot.isConnected()).toBe(false);
+    expect((bot as any).isConnecting).toBe(false);
+  });
 });
+
 
 

@@ -318,4 +318,48 @@ describe("RestartService", () => {
     expect(elapsed).toBeLessThan(1000);
     expect(calls).toEqual(["stopHttpServers", "disconnectTwitch", "clearQueue", "exit"]);
   });
+
+  it("strips the compiled-binary virtual bunfs entry point from argv so it is not re-passed as a CLI argument", () => {
+    const service = new RestartService({
+      execPath: "/opt/twitch-tts-bot/twitch-tts-bot",
+      // Bun --compile injects a virtual entry path at argv[1]; only the real user args should survive.
+      argv: ["/$bunfs/root/twitch-tts-bot", "--speakers"],
+      cwd: "/opt/twitch-tts-bot",
+      platform: "linux",
+      existsSync: () => true,
+    });
+
+    const info = service.getLaunchInfo();
+    expect(info.mode).toBe("compiled-binary");
+    expect(info.args).toEqual(["--speakers"]);
+  });
+
+  it("calls recoverAfterFailedRestart to bring services back up when spawning the successor fails", async () => {
+    const { calls, hooks } = createHookTracker();
+    let recovered = false;
+
+    const service = new RestartService({
+      execPath: "/usr/local/bin/bun",
+      argv: ["/app/src/index.ts"],
+      cwd: "/app",
+      platform: "darwin",
+      existsSync: () => true,
+      spawn: () => {
+        throw new Error("ENOENT: spawn failed");
+      },
+      exit: () => {},
+    });
+
+    const result = await service.performRestart({
+      ...hooks,
+      recoverAfterFailedRestart: () => {
+        recovered = true;
+        calls.push("recover");
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(recovered).toBe(true);
+    expect(calls).toEqual(["stopHttpServers", "disconnectTwitch", "clearQueue", "recover"]);
+  });
 });

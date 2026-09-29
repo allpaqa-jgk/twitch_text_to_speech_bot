@@ -8,6 +8,11 @@ export interface RestartHooks {
   stopHttpServers: () => void | Promise<void>;
   disconnectTwitch: () => void | Promise<void>;
   clearQueue: () => void | Promise<void>;
+  /**
+   * 後継プロセスの起動に失敗した場合にのみ呼び出される復旧フック。
+   * 既に停止済みの HTTP サーバー等を再起動し、現在のプロセスを引き続き使える状態に戻すために使う。
+   */
+  recoverAfterFailedRestart?: () => void | Promise<void>;
 }
 
 export type LaunchMode = "compiled-binary" | "bun-script";
@@ -81,7 +86,11 @@ export class RestartService {
 
   constructor(options: RestartServiceOptions = {}) {
     this.execPath = options.execPath ?? process.execPath;
-    this.argv = options.argv ?? process.argv.slice(1);
+    const rawArgv = options.argv ?? process.argv.slice(1);
+    // Bun のコンパイル済みバイナリでは argv[1] に仮想パス（/$bunfs/root/...）が入るが、
+    // これは後継プロセス起動時に実引数として渡すべきではないため除外する。
+    // 除外しないと再起動のたびに argv に蓄積し、後継プロセスに不正な引数が渡ってしまう。
+    this.argv = rawArgv.filter((arg) => !arg.startsWith("/$bunfs/"));
     this.cwd = options.cwd ?? process.cwd();
     this.env = options.env ?? process.env;
     this.platform = options.platform ?? process.platform;
@@ -213,6 +222,14 @@ export class RestartService {
       console.error(
         `💡 【対処法】アプリを手動で再起動してください。実行ファイル: ${info.command} / 引数: ${info.args.join(" ")} / 作業ディレクトリ: ${info.cwd}`
       );
+      if (hooks.recoverAfterFailedRestart) {
+        try {
+          await hooks.recoverAfterFailedRestart();
+          console.log("♻️ [Restart] 後継プロセスの起動に失敗したため、現在のプロセスで HTTP サーバー等を復旧しました。");
+        } catch (recoverErr) {
+          console.error("❌ [Restart] 復旧処理中にエラーが発生しました:", recoverErr);
+        }
+      }
       return { success: false, error: this.lastError };
     }
 

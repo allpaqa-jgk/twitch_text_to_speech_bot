@@ -51,7 +51,9 @@ export class HttpServer {
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
   private restartDelayMs: number;
-  private restartRequestedAt: number | null = null;
+  // 再起動・終了リクエストの多重実行を防ぐためのロック。一度どちらかが受理されると
+  // 後続の再起動・終了リクエストは新しいプロセス起動まで拒否される。
+  private lifecycleActionInProgress: "restart" | "shutdown" | null = null;
 
   constructor(options: HttpServerOptions) {
     this.queue = options.queue;
@@ -330,7 +332,7 @@ export class HttpServer {
           bouyomiRunning: this.isBouyomiRunning(),
           twitchConnected: this.twitchControlService.isConnected(),
           twitchChannel: config.TW_CHANNEL_NAME || null,
-          restartPending: this.restartRequestedAt !== null,
+          restartPending: this.lifecycleActionInProgress !== null,
           restartSupported: this.restartService.getLaunchInfo().supported,
           restartError: this.restartService.getLastError(),
         }),
@@ -356,6 +358,10 @@ export class HttpServer {
         });
       }
 
+      if (this.lifecycleActionInProgress !== null) {
+        return this.lifecycleConflictResponse();
+      }
+
       const launchInfo = this.restartService.getLaunchInfo();
       if (!launchInfo.supported) {
         return new Response(
@@ -374,6 +380,7 @@ export class HttpServer {
       }
 
       // HTTP応答をクライアントに届けてから、非同期に停止・再起動処理を開始する。
+      this.lifecycleActionInProgress = "restart";
       this.scheduleRestart();
 
       return new Response(
@@ -405,6 +412,11 @@ export class HttpServer {
       }
 
       // HTTP応答をクライアントに届けてから、非同期に停止・終了処理を開始する。
+      if (this.lifecycleActionInProgress !== null) {
+        return this.lifecycleConflictResponse();
+      }
+
+      this.lifecycleActionInProgress = "shutdown";
       this.scheduleShutdown();
 
       return new Response(
@@ -745,7 +757,6 @@ export class HttpServer {
    * 同じ実行ファイル・引数・作業ディレクトリで後継プロセスを起動する。
    */
   private scheduleRestart(): void {
-    this.restartRequestedAt = Date.now();
     console.log("♻️ [Restart] Web 管理コンソールからの再起動要求を受け付けました。HTTP/棒読みちゃんサーバーを停止し、Twitchを切断してキューを停止します...");
     console.log("\x1b[31m⚠️ [Restart] 後継プロセス起動後、手動でアプリを起動し直すまで対話型コンソール（ターミナルでのコマンド入力）は利用できません。CUIから終了したい場合は、事前に Web 管理コンソールの「⏹ アプリを終了」ボタンをご利用ください。読み上げ内容は引き続きターミナルに出力されます。\x1b[0m");
     setTimeout(() => {
@@ -754,12 +765,15 @@ export class HttpServer {
           stopHttpServers: () => this.stop(),
           disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
           clearQueue: () => this.speechInteractionService.clearQueue(),
+          recoverAfterFailedRestart: () => this.start(),
         })
         .then((result) => {
           if (!result.success) {
             console.error(
               `❌ [Restart] 再起動に失敗しました: ${result.error ?? "unknown error"}`
             );
+            // 後継プロセスは起動しなかったため、このプロセスで再度の再起動・終了要求を受け付けられるようにする。
+            this.lifecycleActionInProgress = null;
           }
         });
     }, this.restartDelayMs);
@@ -778,6 +792,22 @@ export class HttpServer {
         clearQueue: () => this.speechInteractionService.clearQueue(),
       });
     }, this.restartDelayMs);
+  }
+
+  private lifecycleConflictResponse(): Response {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "再起動または終了処理が既に進行中です。しばらくお待ちください。",
+      }),
+      {
+        status: 409,
+        headers: {
+          "Content-Type": "application/json",
+          ...CORS_HEADERS,
+        },
+      }
+    );
   }
 
   private isSameOriginRequest(req: Request): boolean {

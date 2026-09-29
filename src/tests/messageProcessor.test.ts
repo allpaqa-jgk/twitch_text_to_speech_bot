@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   formatUsername,
+  resolveUsername,
   formatMessage,
   isIgnoredMessage,
   simplifyUsername,
@@ -38,6 +39,13 @@ describe("messageProcessor", () => {
 
     it("should keep raw username if useSimpleName=false", () => {
       expect(formatUsername("charlie_999", list, false)).toBe("charlie_999");
+    });
+
+    it("should mark an explicitly empty username reading as TTS suppression", () => {
+      expect(resolveUsername("silent_viewer", [["silent_viewer", ""]], true)).toEqual({
+        displayName: "silent",
+        suppressSpeech: true,
+      });
     });
   });
 

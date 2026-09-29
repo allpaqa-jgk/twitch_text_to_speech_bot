@@ -37,18 +37,18 @@ export class DictionaryService {
     const type = this.normalizeKind(kindInput);
     const keyword = (keywordInput ?? "").toString().trim();
     const read = (readInput ?? "").toString().trim();
-    const isIgnore = type === "ignore";
+    const requiresRead = type === "message";
 
-    if (!keyword || (!isIgnore && !read)) {
+    if (!keyword || (requiresRead && !read)) {
       return {
         success: false,
-        error: isIgnore ? "keyword is required" : "keyword and read are required",
+        error: requiresRead ? "keyword and read are required" : "keyword is required",
       };
     }
     if (keyword.length > 100) {
       return { success: false, error: "Keyword too long (max 100 chars)" };
     }
-    if (!isIgnore && read.length > 200) {
+    if (type !== "ignore" && read.length > 200) {
       return { success: false, error: "Read text too long (max 200 chars)" };
     }
 
@@ -57,7 +57,7 @@ export class DictionaryService {
     const index = rows.findIndex(
       (row) => row[0] === storedKey || row[0] === keyword
     );
-    const storedRead = isIgnore ? "" : read;
+    const storedRead = type === "ignore" ? "" : read;
     if (index >= 0) {
       rows[index] = [storedKey, storedRead];
     } else {

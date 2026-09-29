@@ -11,6 +11,7 @@ import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 import { TwitchControlService } from "../application/twitchControlService";
 import { SpeechInteractionService } from "../application/speechInteractionService";
 import { ConfigSettingsService } from "../application/configSettingsService";
+import { csvList } from "../storage/csvList";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -343,6 +344,27 @@ describe("HttpServer & commentProcessor", () => {
         config.ENABLE_TTS = origEnable;
       }
     });
+
+    it("should suppress TTS for usernames mapped to an empty reading", async () => {
+      const usernameKey = `silent_user_${Date.now()}`;
+      const existing = csvList.readList("usernameConvertList");
+      csvList.writeList("usernameConvertList", [...existing, [usernameKey, ""]]);
+
+      try {
+        const res = await processComment(
+          { rawUsername: usernameKey, rawText: "読み上げを止めたいコメント" },
+          { ttsQueue: queue, transformer }
+        );
+        expect(res.ignored).toBe(false);
+        expect(res.spoken).toBe(false);
+        expect(res.displayName).toBe("silent");
+      } finally {
+        csvList.writeList(
+          "usernameConvertList",
+          existing.filter((row) => row[0] !== usernameKey)
+        );
+      }
+    });
   });
 
   describe("Web Management Console & Realtime Katakana Lab API", () => {
@@ -360,6 +382,8 @@ describe("HttpServer & commentProcessor", () => {
       expect(html).toContain('id="dict-table"');
       expect(html).toContain('id="settings-form"');
       expect(html).toContain('data-tab="tab-settings"');
+      expect(html).toContain("readRequired: false");
+      expect(html).toContain("readInput.required = Boolean(conf.readRequired)");
       expect(html).toContain("settings-override-default");
       expect(html).toContain('id="btn-reset-all-settings"');
     });
@@ -776,6 +800,40 @@ describe("HttpServer & commentProcessor", () => {
         const listDataAfter = (await listResAfter.json()) as any;
         const foundAfter = listDataAfter.items.find((item: any) => item.keyword === ignorePattern);
         expect(foundAfter).toBeUndefined();
+      });
+
+      it("should allow an empty username read via POST /api/dictionary", async () => {
+        const usernameKey = "silentUser_" + Date.now();
+        const addRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "username",
+            keyword: usernameKey,
+            read: "",
+          }),
+        });
+        expect(addRes.status).toBe(200);
+        const addData = (await addRes.json()) as any;
+        expect(addData.success).toBe(true);
+        expect(addData.keyword).toBe(usernameKey);
+        expect(addData.read).toBe("");
+
+        const listRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary?type=username`);
+        const listData = (await listRes.json()) as any;
+        const found = listData.items.find((item: any) => item.keyword === usernameKey);
+        expect(found).toBeDefined();
+        expect(found.read).toBe("");
+
+        const delRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/dictionary`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "username",
+            keyword: usernameKey,
+          }),
+        });
+        expect(delRes.status).toBe(200);
       });
 
       it("should reject invalid inputs in POST /api/dictionary", async () => {

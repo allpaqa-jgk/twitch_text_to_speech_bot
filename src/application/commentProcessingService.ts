@@ -1,7 +1,7 @@
 import { config } from "../config";
 import { csvList } from "../storage/csvList";
 import {
-  formatUsername,
+  resolveUsername,
   formatMessage,
   isIgnoredMessage,
   escapeTtsErrorString,
@@ -57,7 +57,8 @@ export async function processComment(
   const ignoreList = csvList.readList("messageIgnoreList");
 
   // 2. Format username
-  const displayName = formatUsername(rawUsername, usernameList, config.USE_SIMPLE_NAME);
+  const username = resolveUsername(rawUsername, usernameList, config.USE_SIMPLE_NAME);
+  const displayName = username.displayName;
 
   // 3. Check Ignore list
   if (isIgnoredMessage(rawText, ignoreList)) {
@@ -72,6 +73,16 @@ export async function processComment(
 
   // 4. Message substitution
   const modifiedContent = formatMessage(rawText, messageList);
+
+  if (username.suppressSpeech) {
+    return {
+      displayName,
+      rawText,
+      modifiedContent,
+      ignored: false,
+      spoken: false,
+    };
+  }
 
   // 5. If TTS is globally disabled
   if (!config.ENABLE_TTS) {

@@ -52,6 +52,22 @@ describe("DictionaryService", () => {
     expect(repository.read("username")).toEqual([["viewer\\.name", "viewer"]]);
   });
 
+  it("allows an empty read only for username entries", () => {
+    const repository = new MemoryDictionaryRepository();
+    const service = new DictionaryService(repository);
+
+    expect(service.upsert("username", "silent.viewer", "")).toEqual({
+      success: true,
+      keyword: "silent.viewer",
+      read: "",
+    });
+    expect(repository.read("username")).toEqual([["silent\\.viewer", ""]]);
+    expect(service.upsert("message", "silent.viewer", "")).toEqual({
+      success: false,
+      error: "keyword and read are required",
+    });
+  });
+
   it("preserves ignore patterns without regex escaping and permits an empty read", () => {
     const repository = new MemoryDictionaryRepository();
     const service = new DictionaryService(repository);
@@ -72,6 +88,10 @@ describe("DictionaryService", () => {
       error: "keyword and read are required",
     });
     expect(service.upsert("ignore", "", "")).toEqual({
+      success: false,
+      error: "keyword is required",
+    });
+    expect(service.upsert("username", "", "")).toEqual({
       success: false,
       error: "keyword is required",
     });

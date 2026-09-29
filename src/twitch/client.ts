@@ -1,6 +1,6 @@
 import tmi from "tmi.js";
 import { config } from "../config";
-import { escapeMassMention } from "./messageProcessor";
+import { escapeMassMention } from "../text/messageProcessor";
 import {
   handleRememberCommand,
   handleForgetCommand,

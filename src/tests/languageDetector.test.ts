@@ -1,7 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { detectLanguage } from "../twitch/languageDetector";
+import { detectLanguage } from "../text/languageDetector";
+import { detectLanguage as detectLanguageFromTwitchPath } from "../twitch/languageDetector";
 
 describe("detectLanguage", () => {
+  it("keeps the previous Twitch module path as a compatibility export", () => {
+    expect(detectLanguageFromTwitchPath).toBe(detectLanguage);
+  });
+
   it("should accurately detect Japanese", () => {
     expect(detectLanguage("こんにちは世界")).toBe("jpn");
     expect(detectLanguage("今日の配信最高だった！")).toBe("jpn");

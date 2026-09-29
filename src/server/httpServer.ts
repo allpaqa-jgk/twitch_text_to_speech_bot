@@ -4,18 +4,18 @@ import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
 import { processComment } from "../tts/commentProcessor";
-import type { TwitchTTSBot } from "../twitch/client";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
 import { enqueueDemo } from "../tts/demo";
 import { detectLanguage } from "../text/languageDetector";
 import type { DictionaryService } from "../application/dictionaryService";
+import type { TwitchControlService } from "../application/twitchControlService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
   transformer?: TextTransformer;
   englishEngine?: TTSEngine;
-  bot?: TwitchTTSBot | null;
   dictionaryService: DictionaryService;
+  twitchControlService: TwitchControlService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
@@ -33,8 +33,8 @@ export class HttpServer {
   private queue: TTSQueue;
   private transformer?: TextTransformer;
   private englishEngine?: TTSEngine;
-  private bot: TwitchTTSBot | null = null;
   private dictionaryService: DictionaryService;
+  private twitchControlService: TwitchControlService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
@@ -43,8 +43,8 @@ export class HttpServer {
     this.queue = options.queue;
     this.transformer = options.transformer;
     this.englishEngine = options.englishEngine;
-    this.bot = options.bot ?? null;
     this.dictionaryService = options.dictionaryService;
+    this.twitchControlService = options.twitchControlService;
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
@@ -175,7 +175,7 @@ export class HttpServer {
           port: this.port,
           bouyomiPort: this.bouyomiPort,
           bouyomiRunning: this.isBouyomiRunning(),
-          twitchConnected: this.bot ? this.bot.isConnected() : false,
+          twitchConnected: this.twitchControlService.isConnected(),
           twitchChannel: config.TW_CHANNEL_NAME || null,
         }),
         {
@@ -220,17 +220,11 @@ export class HttpServer {
 
     // POST /api/twitch/toggle
     if (req.method === "POST" && url.pathname === "/api/twitch/toggle") {
-      if (this.bot) {
-        if (this.bot.isConnected()) {
-          await this.bot.disconnect();
-        } else {
-          await this.bot.connect();
-        }
-      }
+      const connected = await this.twitchControlService.toggle();
       return new Response(
         JSON.stringify({
           success: true,
-          connected: this.bot ? this.bot.isConnected() : false,
+          connected,
         }),
         {
           status: 200,

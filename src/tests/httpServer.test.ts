@@ -7,6 +7,7 @@ import { KatakanaTransformer } from "../tts/transformers/katakana";
 import { config } from "../config";
 import { DictionaryService } from "../application/dictionaryService";
 import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
+import { TwitchControlService } from "../application/twitchControlService";
 
 class MockEngine implements TTSEngine {
   public name: string;
@@ -55,8 +56,8 @@ describe("HttpServer & commentProcessor", () => {
     server = new HttpServer({
       queue,
       transformer,
-      bot: mockBot as any,
       dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+      twitchControlService: new TwitchControlService(mockBot),
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
       enableBouyomiCompat: true,

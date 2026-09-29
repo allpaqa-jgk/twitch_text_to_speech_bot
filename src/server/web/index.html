@@ -657,8 +657,10 @@
             <button type="submit" class="btn btn-primary" id="btn-save-settings">💾 設定を保存</button>
             <button type="button" class="btn" id="btn-reload-settings">🔄 再読み込み</button>
             <button type="button" class="btn btn-danger" id="btn-reset-all-settings" style="display: none;">🗑️ Web 設定をすべて解除</button>
+            <button type="button" class="btn btn-danger" id="btn-restart-app">♻️ アプリを再起動</button>
           </div>
         </form>
+        <p id="restart-unsupported-note" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.75rem; display: none;"></p>
       </div>
     </section>
   </main>
@@ -773,6 +775,25 @@
 
         // Ports
         document.getElementById("val-ports").textContent = "HTTP:" + data.port + " / 棒:" + data.bouyomiPort;
+
+        // Restart support / last relaunch failure
+        const restartBtn = document.getElementById("btn-restart-app");
+        const restartNote = document.getElementById("restart-unsupported-note");
+        if (restartBtn) {
+          restartBtn.disabled = data.restartSupported === false;
+        }
+        if (restartNote) {
+          if (data.restartSupported === false) {
+            restartNote.style.display = "block";
+            restartNote.textContent = "⚠️ この起動方法では自動再起動に対応していません。手動でアプリを再起動してください。";
+          } else if (data.restartError) {
+            restartNote.style.display = "block";
+            restartNote.textContent = "⚠️ 前回の再起動に失敗しました: " + data.restartError + "（手動での再起動をお願いします）";
+          } else {
+            restartNote.style.display = "none";
+            restartNote.textContent = "";
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch status:", err);
       }
@@ -960,6 +981,25 @@
         showToast("保存済みの Web 設定をすべて解除しました。", "success");
       } catch (err) {
         error.textContent = err instanceof Error ? err.message : "Web 設定を解除できませんでした";
+      }
+    });
+
+    document.getElementById("btn-restart-app")?.addEventListener("click", async () => {
+      if (!confirm("アプリを再起動しますか？現在の読み上げキューと配信接続は一旦停止し、同じ設定で自動的に再起動します。")) return;
+      const btn = document.getElementById("btn-restart-app");
+      const error = document.getElementById("settings-error");
+      error.textContent = "";
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/restart", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "再起動を開始できませんでした");
+        showToast("♻️ 再起動を受け付けました。数秒後にアプリが再起動します…", "info");
+        setTimeout(updateStatus, 4000);
+      } catch (err) {
+        btn.disabled = false;
+        error.textContent = err instanceof Error ? err.message : "再起動を開始できませんでした";
+        showToast("再起動に失敗しました", "error");
       }
     });
 

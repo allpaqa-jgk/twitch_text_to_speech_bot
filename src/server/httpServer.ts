@@ -12,6 +12,7 @@ import {
   ConfigSettingsService,
   SettingsValidationError,
 } from "../application/configSettingsService";
+import { RestartService } from "../application/restartService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
@@ -21,9 +22,12 @@ export interface HttpServerOptions {
   twitchControlService: TwitchControlService;
   speechInteractionService: SpeechInteractionService;
   configSettingsService?: ConfigSettingsService;
+  restartService?: RestartService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
+  /** 再起動要求から後継プロセス起動までの遅延（ミリ秒）。HTTP応答をクライアントに届けるための猶予。テスト用にも調整可能。 */
+  restartDelayMs?: number;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -42,9 +46,12 @@ export class HttpServer {
   private twitchControlService: TwitchControlService;
   private speechInteractionService: SpeechInteractionService;
   private configSettingsService: ConfigSettingsService;
+  private restartService: RestartService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
+  private restartDelayMs: number;
+  private restartRequestedAt: number | null = null;
 
   constructor(options: HttpServerOptions) {
     this.queue = options.queue;
@@ -54,9 +61,11 @@ export class HttpServer {
     this.twitchControlService = options.twitchControlService;
     this.speechInteractionService = options.speechInteractionService;
     this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService();
+    this.restartService = options.restartService ?? new RestartService();
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
+    this.restartDelayMs = options.restartDelayMs ?? 150;
   }
 
   public isRunning(): boolean {
@@ -304,6 +313,57 @@ export class HttpServer {
           bouyomiRunning: this.isBouyomiRunning(),
           twitchConnected: this.twitchControlService.isConnected(),
           twitchChannel: config.TW_CHANNEL_NAME || null,
+          restartPending: this.restartRequestedAt !== null,
+          restartSupported: this.restartService.getLaunchInfo().supported,
+          restartError: this.restartService.getLastError(),
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        }
+      );
+    }
+
+    // POST /api/restart
+    if (req.method === "POST" && url.pathname === "/api/restart") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin restart requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+
+      const launchInfo = this.restartService.getLaunchInfo();
+      if (!launchInfo.supported) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: launchInfo.reason || "この起動方法では再起動をサポートしていません。",
+          }),
+          {
+            status: 409,
+            headers: {
+              "Content-Type": "application/json",
+              ...CORS_HEADERS,
+            },
+          }
+        );
+      }
+
+      // HTTP応答をクライアントに届けてから、非同期に停止・再起動処理を開始する。
+      this.scheduleRestart();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "再起動を受け付けました。数秒後にアプリが再起動します。",
+          mode: launchInfo.mode,
         }),
         {
           status: 200,
@@ -631,6 +691,29 @@ export class HttpServer {
         },
       }
     );
+  }
+
+  /**
+   * HTTP応答が送信された後に、HTTP/棒読みサーバーの停止・Twitch切断・キュー停止を行い、
+   * 同じ実行ファイル・引数・作業ディレクトリで後継プロセスを起動する。
+   */
+  private scheduleRestart(): void {
+    this.restartRequestedAt = Date.now();
+    setTimeout(() => {
+      void this.restartService
+        .performRestart({
+          stopHttpServers: () => this.stop(),
+          disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
+          clearQueue: () => this.speechInteractionService.clearQueue(),
+        })
+        .then((result) => {
+          if (!result.success) {
+            console.error(
+              `❌ [Restart] 再起動に失敗しました: ${result.error ?? "unknown error"}`
+            );
+          }
+        });
+    }, this.restartDelayMs);
   }
 
   private isSameOriginRequest(req: Request): boolean {

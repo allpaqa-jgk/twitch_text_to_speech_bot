@@ -1,6 +1,6 @@
 {
   "name": "twitch-tts-v2",
-  "version": "2.5.2",
+  "version": "2.6.0",
   "module": "index.ts",
   "type": "module",
   "private": true,

@@ -6,7 +6,7 @@ import {
   handleForgetCommand,
 } from "./commands/remember";
 import { sendToDiscord } from "../discord/webhook";
-import { processComment } from "../tts/commentProcessor";
+import { processComment } from "../application/commentProcessingService";
 import type { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";

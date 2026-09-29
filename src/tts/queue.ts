@@ -1,6 +1,6 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "./engine";
-import { stopAudio } from "./audioPlayer";
-import { config } from "../config";
+import { AudioPlaybackController, type PlaybackController } from "./playbackController";
+import { TTSQueuePolicy } from "./queuePolicy";
 
 export interface EnqueueOptions {
   engine?: TTSEngine;
@@ -45,10 +45,19 @@ export class TTSQueue {
   private currentRunningEngine?: TTSEngine;
   private defaultEngine: TTSEngine;
   private maxQueueSize: number;
+  private playback: PlaybackController;
+  private policy: TTSQueuePolicy;
 
-  constructor(defaultEngine: TTSEngine, maxQueueSize = 50) {
+  constructor(
+    defaultEngine: TTSEngine,
+    maxQueueSize = 50,
+    playback: PlaybackController = new AudioPlaybackController(),
+    policy: TTSQueuePolicy = new TTSQueuePolicy()
+  ) {
     this.defaultEngine = defaultEngine;
     this.maxQueueSize = maxQueueSize;
+    this.playback = playback;
+    this.policy = policy;
   }
 
   public setDefaultEngine(engine: TTSEngine) {
@@ -63,40 +72,18 @@ export class TTSQueue {
     return this.queue.length;
   }
 
-  private isTransientConnectionOrTimeoutError(err: any): boolean {
-    if (!err) return false;
-    if (err.name === "TimeoutError" || err.name === "AbortError") return true;
-    if (
-      err.code === "ConnectionRefused" ||
-      err.code === "ECONNREFUSED" ||
-      err.code === "ETIMEDOUT" ||
-      err.code === "UND_ERR_CONNECT_TIMEOUT"
-    ) {
-      return true;
-    }
-    if (err.errno === 0) return true;
-    const str = String(err?.message || err);
-    return (
-      str.includes("ConnectionRefused") ||
-      str.includes("ECONNREFUSED") ||
-      str.includes("ETIMEDOUT") ||
-      str.includes("Unable to connect") ||
-      str.includes("fetch failed") ||
-      str.includes("timeout") ||
-      str.includes("aborted") ||
-      str.includes("The operation was aborted") ||
-      str.includes("The operation timed out")
-    );
-  }
-
-  private logError(engine: TTSEngine, text: string, err: any): void {
-    const errStr = String(err?.message || err);
-    if (this.isTransientConnectionOrTimeoutError(err)) {
+  private logError(engine: TTSEngine, text: string, err: unknown): void {
+    const message =
+      err && typeof err === "object" && "message" in err
+        ? (err as { message?: unknown }).message
+        : undefined;
+    const errStr = String(message || err);
+    if (this.policy.isTransientConnectionOrTimeoutError(err)) {
       console.warn(
         `⚠️  [TTSQueue] 音声エンジン (${engine.name}) に接続できませんでした: "${text}" (理由: ${errStr})。アプリが起動しているか確認してください。`
       );
     } else {
-      console.error(`[TTSQueue] Error speaking "${text}":`, err?.message || err);
+      console.error(`[TTSQueue] Error speaking "${text}":`, message || err);
     }
   }
 
@@ -105,53 +92,14 @@ export class TTSQueue {
   }
 
   public calculateSpeedScale(text: string): number {
-    if (!config.AUTO_ACCELERATE) {
-      return 1.0;
-    }
-
-    // 文字数加速 (speedByLength)
-    let speedByLength = 1.0;
-    const len = text.length;
-    if (len <= 30) {
-      speedByLength = 1.0;
-    } else if (len <= 60) {
-      speedByLength = 1.15;
-    } else if (len <= 90) {
-      speedByLength = 1.30;
-    } else if (len <= 120) {
-      speedByLength = 1.45;
-    } else {
-      speedByLength = 1.60;
-    }
-
-    // キュー混雑加速 (speedByQueue)
-    // 自分自身（text）を含めた待機キュー全体の負荷を判定
-    const queueTotalChars = this.queue.reduce((acc, item) => acc + item.text.length, 0) + text.length;
-    const queueCount = this.queue.length + 1;
-
-    let speedByQueue = 1.0;
-    if (queueTotalChars >= 120 || queueCount >= 5) {
-      speedByQueue = 1.50;
-    } else if (queueTotalChars >= 60 || queueCount >= 3) {
-      speedByQueue = 1.25;
-    }
-
-    // 合成とクランプ
-    const maxSpeed = config.MAX_ACCELERATION_SPEED ?? 1.6;
-    return Math.min(Math.max(speedByLength, speedByQueue), maxSpeed);
+    return this.policy.calculateSpeedScale(text, this.queue);
   }
 
   private dropExpiredItems(): void {
-    const ttl = config.COMMENT_TTL_SECONDS ?? 30;
-    if (ttl <= 0) return;
-    const ttlMs = ttl * 1000;
     const now = Date.now();
 
     this.queue = this.queue.filter((item) => {
-      if (item.bypassTtl) {
-        return true;
-      }
-      if (now - item.enqueuedAt > ttlMs) {
+      if (this.policy.isExpired(item, now)) {
         item.resolve();
         console.log(
           `[TTSQueue] ⏳ コメントが古い（${Math.round((now - item.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${item.text}"`
@@ -309,8 +257,8 @@ export class TTSQueue {
         if (current.speedScale === undefined) {
           current.speedScale = current.bypassAcceleration ? 1.0 : this.calculateSpeedScale(current.text);
         }
-        const maxRetries = 2; // Initial attempt + 2 retries
-        const backoffs = [200, 400];
+        const retryDelays = this.policy.retryDelays;
+        const maxRetries = retryDelays.length;
         let lastError: any = null;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -330,9 +278,9 @@ export class TTSQueue {
             lastError = err;
             if (this.isCleared) break;
 
-            const isTransient = this.isTransientConnectionOrTimeoutError(err);
+            const isTransient = this.policy.isTransientConnectionOrTimeoutError(err);
             if (isTransient && attempt < maxRetries) {
-              const delay = backoffs[attempt] || 400;
+              const delay = retryDelays[attempt] ?? retryDelays.at(-1) ?? 0;
               await this.sleep(delay);
               continue;
             }
@@ -356,9 +304,8 @@ export class TTSQueue {
 
       // 3. Play audio on speaker and trigger prefetch for next queue item
       if (audio) {
-        const ttl = config.COMMENT_TTL_SECONDS ?? 30;
         const now = Date.now();
-        if (!current.bypassTtl && ttl > 0 && now - current.enqueuedAt > ttl * 1000) {
+        if (this.policy.isExpired(current, now)) {
           console.log(
             `[TTSQueue] ⏳ 合成・待機中にコメントの期限が切れたため再生をスキップしました: "${current.text}"`
           );
@@ -369,7 +316,7 @@ export class TTSQueue {
         this.isPlayingAudio = true;
         this.triggerPrefetch();
         try {
-          await audio.play();
+          await this.playback.play(audio);
         } catch (playErr: any) {
           if (!this.isCleared) {
             this.logError(engine, current.text, playErr);
@@ -406,14 +353,6 @@ export class TTSQueue {
       item?.resolve();
     }
 
-    // 2. Terminate currently playing audio process immediately
-    stopAudio();
-    if (this.currentRunningEngine?.stop) {
-      try {
-        this.currentRunningEngine.stop();
-      } catch {
-        // ignore
-      }
-    }
+    this.playback.cancel(this.currentRunningEngine);
   }
 }

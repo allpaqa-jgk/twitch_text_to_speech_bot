@@ -30,6 +30,8 @@ export const DEMO_ITEMS: DemoItem[] = [
   { announce: "フランス語を話します", text: "Bonjour mon ami! C'est un super stream, merci beaucoup." },
   { announce: "ロシア語を話します", text: "Привет! Отличный стрим, удачи в игре!" },
   { announce: "インドネシア語を話します", text: "Halo teman-teman! Semangat terus, mainnya jago banget." },
+  { announce: "ベトナム語を話します", text: "Xin chào mọi người! Bạn chơi hay lắm, cảm ơn nhé!" },
+  { announce: "タイ語を話します", text: "สวัสดีครับ! เก่งมาก ขอให้สนุกนะ!" },
   { announce: "ドイツ語を話します", text: "Guten Tag! Toller Stream, viel Glück beim Spiel!" },
   { announce: "韓国語を話します", text: "안녕하세요! 방송 너무 재미있어요 화이팅!" },
   { announce: "中国語を話します", text: "你好！玩得很好，加油！" },

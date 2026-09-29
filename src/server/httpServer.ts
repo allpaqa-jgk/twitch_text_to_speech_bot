@@ -97,7 +97,22 @@ export class HttpServer {
       console.log(`* [HTTP] HTTP 読み上げサーバー: http://127.0.0.1:${this.port}/say (わんコメ / CastCraft / Webhook連携用)`);
       console.log(`🌐 [Web] 管理コンソール: http://localhost:${this.port} (対話コンソールで「web」と入力するとブラウザで開きます)`);
     } catch (err: any) {
-      console.error(`❌ [HTTP] HTTP 読み上げサーバー (ポート ${this.port}) の起動に失敗しました:`, err);
+      if (
+        err?.code === "EADDRINUSE" ||
+        String(err?.message || err).includes("EADDRINUSE") ||
+        String(err?.message || err).includes("address already in use")
+      ) {
+        console.error(
+          `❌ [HTTP] ポート ${this.port} は既に他のアプリ（起動中の本アプリの別プロセス等）で使用されているため、HTTP 読み上げサーバー / Web 管理コンソールを起動できませんでした。`
+        );
+        console.error(
+          `💡 【対処法】ポート ${this.port} を使用している他のプロセスを終了するか、config/default.js の HTTP_SERVER_PORT を別の値に変更してから再起動してください。`
+        );
+      } else {
+        console.error(
+          `❌ [HTTP] HTTP 読み上げサーバー (ポート ${this.port}) の起動に失敗しました: ${err?.message || err}`
+        );
+      }
     }
 
     // 2. Start BouyomiChan compatibility server (default: 50080)
@@ -121,7 +136,9 @@ export class HttpServer {
             "⚠️  [HTTP] ポート 50080 は既に別のアプリ（棒読みちゃん等）で使用されています。わんコメ側でポート 3939 (/say) を設定するか、棒読みちゃんを停止してください。"
           );
         } else {
-          console.warn("⚠️  [HTTP] 棒読みちゃん互換サーバーの起動に失敗しました:", err);
+          console.warn(
+            `⚠️  [HTTP] 棒読みちゃん互換サーバーの起動に失敗しました: ${err?.message || err}`
+          );
         }
       }
     }
@@ -364,6 +381,36 @@ export class HttpServer {
           success: true,
           message: "再起動を受け付けました。数秒後にアプリが再起動します。",
           mode: launchInfo.mode,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        }
+      );
+    }
+
+    // POST /api/shutdown
+    if (req.method === "POST" && url.pathname === "/api/shutdown") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin shutdown requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+
+      // HTTP応答をクライアントに届けてから、非同期に停止・終了処理を開始する。
+      this.scheduleShutdown();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "終了を受け付けました。数秒後にアプリが終了します。",
         }),
         {
           status: 200,
@@ -699,6 +746,8 @@ export class HttpServer {
    */
   private scheduleRestart(): void {
     this.restartRequestedAt = Date.now();
+    console.log("♻️ [Restart] Web 管理コンソールからの再起動要求を受け付けました。HTTP/棒読みちゃんサーバーを停止し、Twitchを切断してキューを停止します...");
+    console.log("\x1b[31m⚠️ [Restart] 後継プロセス起動後、手動でアプリを起動し直すまで対話型コンソール（ターミナルでのコマンド入力）は利用できません。CUIから終了したい場合は、事前に Web 管理コンソールの「⏹ アプリを終了」ボタンをご利用ください。読み上げ内容は引き続きターミナルに出力されます。\x1b[0m");
     setTimeout(() => {
       void this.restartService
         .performRestart({
@@ -713,6 +762,21 @@ export class HttpServer {
             );
           }
         });
+    }, this.restartDelayMs);
+  }
+
+  /**
+   * HTTP応答が送信された後に、HTTP/棒読みサーバーの停止・Twitch切断・キュー停止を行い、
+   * 後継プロセスを起動せずにアプリを終了する。
+   */
+  private scheduleShutdown(): void {
+    console.log("⏹ [Shutdown] Web 管理コンソールからの終了要求を受け付けました。HTTP/棒読みちゃんサーバーを停止し、Twitchを切断してキューを停止します...");
+    setTimeout(() => {
+      void this.restartService.performShutdown({
+        stopHttpServers: () => this.stop(),
+        disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
+        clearQueue: () => this.speechInteractionService.clearQueue(),
+      });
     }, this.restartDelayMs);
   }
 

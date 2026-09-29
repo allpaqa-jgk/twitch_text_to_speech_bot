@@ -998,4 +998,94 @@ describe("HttpServer & commentProcessor", () => {
       expect(restartQueue.pendingCount).toBe(0);
     });
   });
+
+  describe("Shutdown endpoint (/api/shutdown)", () => {
+    const SHUTDOWN_TEST_PORT = 3952;
+    const SHUTDOWN_BOUYOMI_PORT = 50092;
+
+    function buildShutdownServer() {
+      const calls: string[] = [];
+      let exitCode: number | null = null;
+      const shutdownEngine = new MockEngine("ShutdownMockEngine");
+      const shutdownQueue = new TTSQueue(shutdownEngine);
+      const shutdownBot = new MockBot();
+      const restartService = new RestartService({
+        execPath: "/usr/local/bin/bun",
+        argv: ["/app/src/index.ts"],
+        cwd: "/app",
+        platform: "darwin",
+        existsSync: () => true,
+        spawn: () => {
+          calls.push("spawn");
+          return { unref: () => calls.push("unref") };
+        },
+        exit: (code) => {
+          calls.push("exit");
+          exitCode = code;
+        },
+      });
+
+      const shutdownServer = new HttpServer({
+        queue: shutdownQueue,
+        transformer,
+        dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+        twitchControlService: new TwitchControlService(shutdownBot),
+        speechInteractionService: new SpeechInteractionService(shutdownQueue, transformer),
+        configSettingsService: new ConfigSettingsService(
+          path.join(settingsDirectory, "web-settings-shutdown.json"),
+          settingsConfig,
+          settingsConfig
+        ),
+        restartService,
+        port: SHUTDOWN_TEST_PORT,
+        bouyomiPort: SHUTDOWN_BOUYOMI_PORT,
+        enableBouyomiCompat: false,
+        restartDelayMs: 20,
+      });
+
+      return { shutdownServer, shutdownBot, shutdownQueue, calls, getExitCode: () => exitCode };
+    }
+
+    it("rejects cross-origin shutdown requests without touching services", async () => {
+      const { shutdownServer, calls } = buildShutdownServer();
+      shutdownServer.start();
+      try {
+        const res = await fetch(`http://127.0.0.1:${SHUTDOWN_TEST_PORT}/api/shutdown`, {
+          method: "POST",
+          headers: { Origin: "http://evil.example.com" },
+        });
+        expect(res.status).toBe(403);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toEqual([]);
+      } finally {
+        shutdownServer.stop();
+      }
+    });
+
+    it("responds before shutdown, then stops the HTTP server, disconnects Twitch, clears the queue, and exits without spawning a successor", async () => {
+      const { shutdownServer, shutdownBot, shutdownQueue, calls, getExitCode } = buildShutdownServer();
+      shutdownServer.start();
+      await shutdownBot.connect();
+      shutdownQueue.enqueue("pending item that should be cleared");
+
+      const res = await fetch(`http://127.0.0.1:${SHUTDOWN_TEST_PORT}/api/shutdown`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+
+      // The HTTP response above must have been delivered while the server was still listening.
+      expect(shutdownServer.isRunning()).toBe(true);
+
+      // Wait past restartDelayMs for the scheduled shutdown sequence to run.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(calls).toEqual(["exit"]);
+      expect(getExitCode()).toBe(0);
+      expect(shutdownServer.isRunning()).toBe(false);
+      expect(shutdownBot.isConnected()).toBe(false);
+      expect(shutdownQueue.pendingCount).toBe(0);
+    });
+  });
 });

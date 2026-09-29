@@ -56,6 +56,8 @@ export interface RestartServiceOptions {
   spawn?: SpawnFn;
   exit?: (code: number) => void;
   existsSync?: (path: string) => boolean;
+  /** 停止フック1件あたりの最大待ち時間（ミリ秒）。超過しても後続処理・終了は続行する。既定 3000ms。 */
+  hookTimeoutMs?: number;
 }
 
 const SUPPORTED_PLATFORMS: NodeJS.Platform[] = ["darwin", "win32", "linux"];
@@ -74,6 +76,7 @@ export class RestartService {
   private readonly spawnFn: SpawnFn;
   private readonly exitFn: (code: number) => void;
   private readonly existsSyncFn: (path: string) => boolean;
+  private readonly hookTimeoutMs: number;
   private lastError: string | null = null;
 
   constructor(options: RestartServiceOptions = {}) {
@@ -85,6 +88,38 @@ export class RestartService {
     this.spawnFn = options.spawn ?? defaultSpawn;
     this.exitFn = options.exit ?? ((code: number) => process.exit(code));
     this.existsSyncFn = options.existsSync ?? ((p: string) => fs.existsSync(p));
+    this.hookTimeoutMs = options.hookTimeoutMs ?? 3000;
+  }
+
+  /**
+   * 停止フックを実行し、エラーは握りつぶして続行する。フックが hookTimeoutMs 以内に完了しない場合は
+   * 警告を出したうえで待たずに次の処理へ進む（フック自体はバックグラウンドで完了を待たず走り続ける）。
+   * Twitch切断など外部I/Oを伴うフックが応答しないケースでも、再起動・終了処理全体が固まらないようにするための保険。
+   */
+  private async runHook(label: string, fn: () => void | Promise<void>): Promise<void> {
+    let settled = false;
+    const hookPromise = (async () => {
+      try {
+        await fn();
+      } catch (err) {
+        console.error(`[Restart] ${label} 中にエラーが発生しました:`, err);
+      } finally {
+        settled = true;
+      }
+    })();
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        if (!settled) {
+          console.error(
+            `⚠️ [Restart] ${label} が ${this.hookTimeoutMs}ms 以内に完了しなかったため、完了を待たずに後続処理へ進みます。`
+          );
+        }
+        resolve();
+      }, this.hookTimeoutMs);
+    });
+
+    await Promise.race([hookPromise, timeoutPromise]);
   }
 
   /**
@@ -156,25 +191,13 @@ export class RestartService {
     }
 
     // 1. HTTP/棒読みサーバーを停止し、ポートを解放する
-    try {
-      await hooks.stopHttpServers();
-    } catch (err) {
-      console.error("[Restart] HTTP サーバーの停止中にエラーが発生しました:", err);
-    }
+    await this.runHook("HTTP サーバーの停止", hooks.stopHttpServers);
 
     // 2. Twitch 接続を切断する
-    try {
-      await hooks.disconnectTwitch();
-    } catch (err) {
-      console.error("[Restart] Twitch 切断中にエラーが発生しました:", err);
-    }
+    await this.runHook("Twitch 切断", hooks.disconnectTwitch);
 
     // 3. 再生中の音声とキューを停止・破棄する
-    try {
-      await hooks.clearQueue();
-    } catch (err) {
-      console.error("[Restart] キューの停止中にエラーが発生しました:", err);
-    }
+    await this.runHook("キューの停止", hooks.clearQueue);
 
     // 4. 同じ実行ファイル・引数・作業ディレクトリで後継プロセスを起動する
     try {
@@ -196,5 +219,24 @@ export class RestartService {
     this.lastError = null;
     this.exitFn(0);
     return { success: true };
+  }
+
+  /**
+   * 停止フックを順番に実行してリソースを解放した後、後継プロセスを起動せずに現在のプロセスを終了する。
+   * 再起動後は対話型コンソールが使えなくなるため、Web 管理画面から安全にアプリを終了させる手段として使う。
+   */
+  public async performShutdown(hooks: RestartHooks): Promise<void> {
+    // 1. HTTP/棒読みサーバーを停止し、ポートを解放する
+    await this.runHook("HTTP サーバーの停止", hooks.stopHttpServers);
+
+    // 2. Twitch 接続を切断する
+    await this.runHook("Twitch 切断", hooks.disconnectTwitch);
+
+    // 3. 再生中の音声とキューを停止・破棄する
+    await this.runHook("キューの停止", hooks.clearQueue);
+
+    console.log("✅ [Shutdown] 停止処理が完了しました。このプロセスは終了します（後継プロセスは起動しません）。");
+    console.log("💡 [Shutdown] ターミナルの表示がそのまま変化しないように見えても、プロセスは既に終了しています。そのままウィンドウを閉じて問題ありません。");
+    this.exitFn(0);
   }
 }

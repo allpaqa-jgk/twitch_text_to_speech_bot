@@ -224,4 +224,98 @@ describe("RestartService", () => {
     ]);
     expect(exited).toBe(true);
   });
+
+  it("performShutdown stops services in order and exits without spawning a successor", async () => {
+    const { calls, hooks } = createHookTracker();
+    let spawned = false;
+    let exitCode: number | null = null;
+
+    const service = new RestartService({
+      execPath: "/usr/local/bin/bun",
+      argv: ["/app/src/index.ts"],
+      cwd: "/app",
+      platform: "darwin",
+      existsSync: () => true,
+      spawn: () => {
+        spawned = true;
+        return { unref: () => {} };
+      },
+      exit: (code) => {
+        calls.push("exit");
+        exitCode = code;
+      },
+    });
+
+    await service.performShutdown(hooks);
+
+    expect(calls).toEqual(["stopHttpServers", "disconnectTwitch", "clearQueue", "exit"]);
+    expect(spawned).toBe(false);
+    expect(exitCode).toBe(0);
+  });
+
+  it("performShutdown continues and still exits even if a shutdown hook throws", async () => {
+    const calls: string[] = [];
+
+    const service = new RestartService({
+      execPath: "/usr/local/bin/bun",
+      argv: ["/app/src/index.ts"],
+      cwd: "/app",
+      platform: "darwin",
+      existsSync: () => true,
+      exit: () => {
+        calls.push("exit");
+      },
+    });
+
+    await service.performShutdown({
+      stopHttpServers: () => {
+        calls.push("stopHttpServers");
+        throw new Error("stop failed");
+      },
+      disconnectTwitch: () => {
+        calls.push("disconnectTwitch");
+      },
+      clearQueue: () => {
+        calls.push("clearQueue");
+      },
+    });
+
+    expect(calls).toEqual(["stopHttpServers", "disconnectTwitch", "clearQueue", "exit"]);
+  });
+
+  it("does not block indefinitely when a hook (e.g. a hung Twitch disconnect) never resolves, and still exits after hookTimeoutMs", async () => {
+    const calls: string[] = [];
+
+    const service = new RestartService({
+      execPath: "/usr/local/bin/bun",
+      argv: ["/app/src/index.ts"],
+      cwd: "/app",
+      platform: "darwin",
+      existsSync: () => true,
+      hookTimeoutMs: 30,
+      exit: () => {
+        calls.push("exit");
+      },
+    });
+
+    const start = Date.now();
+    await service.performShutdown({
+      stopHttpServers: () => {
+        calls.push("stopHttpServers");
+      },
+      disconnectTwitch: () => {
+        calls.push("disconnectTwitch");
+        // Simulates a Twitch disconnect that never resolves (e.g. tmi.js hanging on a dead socket).
+        return new Promise<void>(() => {});
+      },
+      clearQueue: () => {
+        calls.push("clearQueue");
+      },
+    });
+    const elapsed = Date.now() - start;
+
+    // Should proceed past the hung hook after roughly hookTimeoutMs, not hang forever.
+    expect(elapsed).toBeLessThan(1000);
+    expect(calls).toEqual(["stopHttpServers", "disconnectTwitch", "clearQueue", "exit"]);
+  });
 });

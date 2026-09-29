@@ -5,10 +5,9 @@ import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
 import { processComment } from "../application/commentProcessingService";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
-import { enqueueDemo } from "../tts/demo";
-import { detectLanguage } from "../text/languageDetector";
 import type { DictionaryService } from "../application/dictionaryService";
 import type { TwitchControlService } from "../application/twitchControlService";
+import type { SpeechInteractionService } from "../application/speechInteractionService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
@@ -16,6 +15,7 @@ export interface HttpServerOptions {
   englishEngine?: TTSEngine;
   dictionaryService: DictionaryService;
   twitchControlService: TwitchControlService;
+  speechInteractionService: SpeechInteractionService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
@@ -35,6 +35,7 @@ export class HttpServer {
   private englishEngine?: TTSEngine;
   private dictionaryService: DictionaryService;
   private twitchControlService: TwitchControlService;
+  private speechInteractionService: SpeechInteractionService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
@@ -45,6 +46,7 @@ export class HttpServer {
     this.englishEngine = options.englishEngine;
     this.dictionaryService = options.dictionaryService;
     this.twitchControlService = options.twitchControlService;
+    this.speechInteractionService = options.speechInteractionService;
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
@@ -190,7 +192,7 @@ export class HttpServer {
 
     // POST /api/clear
     if (req.method === "POST" && url.pathname === "/api/clear") {
-      this.queue.clear();
+      this.speechInteractionService.clearQueue();
       return new Response(
         JSON.stringify({ success: true, message: "Queue cleared" }),
         {
@@ -205,7 +207,7 @@ export class HttpServer {
 
     // POST /api/demo
     if (req.method === "POST" && url.pathname === "/api/demo") {
-      await enqueueDemo(this.queue, this.transformer);
+      await this.speechInteractionService.enqueueDemo();
       return new Response(
         JSON.stringify({ success: true }),
         {
@@ -267,21 +269,7 @@ export class HttpServer {
       // Clamp: maximum 20 lines, each line maximum 200 characters
       const clampedLines = lines.slice(0, 20).map((l) => l.slice(0, 200));
 
-      const results = [];
-      for (let i = 0; i < clampedLines.length; i++) {
-        const original = clampedLines[i];
-        const trimmed = original.trim();
-        const lang = detectLanguage(trimmed);
-        const transformed = trimmed
-          ? (this.transformer ? await this.transformer.transform(trimmed) : trimmed)
-          : "";
-        results.push({
-          line: i + 1,
-          original,
-          transformed,
-          lang,
-        });
-      }
+      const results = await this.speechInteractionService.preview(clampedLines);
 
       return new Response(
         JSON.stringify({ results }),

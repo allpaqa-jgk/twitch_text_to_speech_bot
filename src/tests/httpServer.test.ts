@@ -9,6 +9,7 @@ import { config } from "../config";
 import { DictionaryService } from "../application/dictionaryService";
 import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 import { TwitchControlService } from "../application/twitchControlService";
+import { SpeechInteractionService } from "../application/speechInteractionService";
 
 class MockEngine implements TTSEngine {
   public name: string;
@@ -63,6 +64,7 @@ describe("HttpServer & commentProcessor", () => {
       transformer,
       dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
       twitchControlService: new TwitchControlService(mockBot),
+      speechInteractionService: new SpeechInteractionService(queue, transformer),
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
       enableBouyomiCompat: true,

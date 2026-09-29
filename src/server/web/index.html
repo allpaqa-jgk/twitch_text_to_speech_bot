@@ -679,6 +679,7 @@
         placeholder: "例: lol, w, 初見",
         readLabel: "読み方 (置換後・最大200文字)",
         readPlaceholder: "例: わら, しょけん",
+        readRequired: true,
         showRead: true,
         thKey: "キーワード (原文)",
         thRead: "読み方 (置換後)",
@@ -689,7 +690,8 @@
         label: "ユーザー名 (置換対象・最大100文字)",
         placeholder: "例: nightbot, streamlabs",
         readLabel: "読み方 (呼び名・最大200文字)",
-        readPlaceholder: "例: ナイトボット",
+        readPlaceholder: "例: ナイトボット（空欄で読み上げ停止）",
+        readRequired: false,
         showRead: true,
         thKey: "ユーザー名 (ID)",
         thRead: "読み方 (呼び名)",
@@ -701,6 +703,7 @@
         placeholder: "例: ^!.*, ^(http|https)://, ^Bye Bye .*$",
         readLabel: "",
         readPlaceholder: "",
+        readRequired: false,
         showRead: false,
         thKey: "無視パターン (正規表現・部分一致)",
         thRead: "",
@@ -1145,7 +1148,7 @@
       const readInput = document.getElementById("dict-read");
       if (conf.showRead) {
         readGroup.style.display = "flex";
-        readInput.required = true;
+        readInput.required = Boolean(conf.readRequired);
         document.getElementById("dict-read-label").textContent = conf.readLabel;
         readInput.placeholder = conf.readPlaceholder;
       } else {
@@ -1245,12 +1248,13 @@
 
     document.getElementById("dict-add-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const conf = dictConfig[currentDictType] || dictConfig.message;
       const keyword = document.getElementById("dict-keyword").value.trim();
       const readInput = document.getElementById("dict-read");
       const read = readInput ? readInput.value.trim() : "";
-      const isIgnore = currentDictType === "ignore";
+      const requiresRead = Boolean(conf.showRead && conf.readRequired);
 
-      if (!keyword || (!isIgnore && !read)) return;
+      if (!keyword || (requiresRead && !read)) return;
 
       try {
         const res = await fetch("/api/dictionary", {
@@ -1259,7 +1263,7 @@
           body: JSON.stringify({ type: currentDictType, keyword, read })
         });
         if (res.ok) {
-          showToast("➕ 登録しました: " + keyword + (!isIgnore ? " ➔ " + read : ""), "success");
+          showToast("➕ 登録しました: " + keyword + (conf.showRead && read ? " ➔ " + read : ""), "success");
           document.getElementById("dict-keyword").value = "";
           if (readInput) readInput.value = "";
           loadDictionary();

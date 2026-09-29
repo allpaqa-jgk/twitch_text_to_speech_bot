@@ -16,11 +16,26 @@ export function formatUsername(
   usernameConvertList: string[][],
   useSimpleName = true
 ): string {
+  return resolveUsername(rawUsername, usernameConvertList, useSimpleName).displayName;
+}
+
+export function resolveUsername(
+  rawUsername: string,
+  usernameConvertList: string[][],
+  useSimpleName = true
+): { displayName: string; suppressSpeech: boolean } {
   const custom = usernameConvertList.find((row) => row[0] === rawUsername);
-  if (custom && custom[1]) {
-    return custom[1];
+  if (custom) {
+    const read = custom[1] ?? "";
+    return {
+      displayName: read || (useSimpleName ? simplifyUsername(rawUsername) : rawUsername),
+      suppressSpeech: read.length === 0,
+    };
   }
-  return useSimpleName ? simplifyUsername(rawUsername) : rawUsername;
+  return {
+    displayName: useSimpleName ? simplifyUsername(rawUsername) : rawUsername,
+    suppressSpeech: false,
+  };
 }
 
 export function formatMessage(

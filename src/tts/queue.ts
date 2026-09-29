@@ -9,6 +9,21 @@ export interface EnqueueOptions {
   bypassTtl?: boolean;          // 30秒期限切れによるスキップ対象外にする
 }
 
+const ENQUEUE_OPTION_KEYS = new Set([
+  "engine",
+  "enqueuedAt",
+  "bypassAcceleration",
+  "bypassTtl",
+]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 export interface QueueItem {
   id: string;
   text: string;
@@ -176,6 +191,49 @@ export class TTSQueue {
   }
 
   public enqueue(text: string, options: EnqueueOptions = {}): Promise<void> {
+    if (arguments.length > 2) {
+      throw new TypeError(
+        "TTSQueue.enqueue accepts at most two arguments. Use enqueue(text, { enqueuedAt }) instead of the legacy third argument."
+      );
+    }
+    if (!isPlainObject(options)) {
+      throw new TypeError(
+        "TTSQueue.enqueue options must be a plain object. Use enqueue(text, { engine }) instead of passing an engine directly."
+      );
+    }
+    const optionKeys = Object.keys(options);
+    if (typeof (options as unknown as Record<string, unknown>).say === "function") {
+      throw new TypeError(
+        "TTSQueue.enqueue no longer accepts an engine as the second argument. Use enqueue(text, { engine }) instead."
+      );
+    }
+    if (optionKeys.some((key) => !ENQUEUE_OPTION_KEYS.has(key))) {
+      throw new TypeError("TTSQueue.enqueue options contain an unsupported property.");
+    }
+    if (
+      typeof options.engine !== "undefined" &&
+      (options.engine === null ||
+        typeof options.engine !== "object" ||
+        typeof options.engine.say !== "function")
+    ) {
+      throw new TypeError("TTSQueue.enqueue options.engine must implement TTSEngine.");
+    }
+    if (
+      typeof options.enqueuedAt !== "undefined" &&
+      !Number.isFinite(options.enqueuedAt)
+    ) {
+      throw new TypeError("TTSQueue.enqueue options.enqueuedAt must be a finite number.");
+    }
+    if (
+      typeof options.bypassAcceleration !== "undefined" &&
+      typeof options.bypassAcceleration !== "boolean"
+    ) {
+      throw new TypeError("TTSQueue.enqueue options.bypassAcceleration must be a boolean.");
+    }
+    if (typeof options.bypassTtl !== "undefined" && typeof options.bypassTtl !== "boolean") {
+      throw new TypeError("TTSQueue.enqueue options.bypassTtl must be a boolean.");
+    }
+
     const trimmed = text.trim();
     if (!trimmed) {
       return Promise.resolve();

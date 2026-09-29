@@ -61,6 +61,37 @@ describe("TTSQueue", () => {
     expect(selectedEngine.spokenTexts).toEqual(["Selected engine"]);
   });
 
+  it("should reject invalid enqueue options with a TypeError", () => {
+    const queue = new TTSQueue(new MockEngine());
+
+    for (const options of [null, [], "invalid", new MockEngine()]) {
+      expect(() => queue.enqueue("Invalid options", options as never)).toThrow(TypeError);
+    }
+    expect(() =>
+      queue.enqueue("Invalid engine", { engine: {} as TTSEngine })
+    ).toThrow("options.engine must implement TTSEngine");
+    expect(() =>
+      queue.enqueue("Null engine", { engine: null as unknown as TTSEngine })
+    ).toThrow("options.engine must implement TTSEngine");
+    expect(() =>
+      queue.enqueue("Invalid timestamp", { enqueuedAt: Number.NaN })
+    ).toThrow("options.enqueuedAt must be a finite number");
+    expect(() =>
+      queue.enqueue("Unsupported option", { engineName: "MockEngine" } as never)
+    ).toThrow("options contain an unsupported property");
+  });
+
+  it("should reject legacy enqueue argument forms with migration guidance", () => {
+    const queue = new TTSQueue(new MockEngine());
+
+    expect(() =>
+      Reflect.apply(queue.enqueue, queue, ["Legacy engine", new MockEngine()])
+    ).toThrow("Use enqueue(text, { engine })");
+    expect(() =>
+      Reflect.apply(queue.enqueue, queue, ["Legacy timestamp", undefined, Date.now()])
+    ).toThrow("Use enqueue(text, { enqueuedAt })");
+  });
+
   it("should continue processing next items even if one fails", async () => {
     let callCount = 0;
     const flakyEngine: TTSEngine = {

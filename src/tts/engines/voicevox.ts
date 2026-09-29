@@ -1,6 +1,15 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
-import { config } from "../../config";
 import { playWavBuffer } from "../audioPlayer";
+
+export interface VoicevoxEngineOptions {
+  host?: string;
+  port?: number;
+  speakerId?: number;
+  speedScale?: number;
+  volumeScale?: number;
+  masterVolume?: number;
+  outputSamplingRate?: number;
+}
 
 export class VoicevoxEngine implements TTSEngine {
   public readonly name = "VOICEVOX";
@@ -12,14 +21,14 @@ export class VoicevoxEngine implements TTSEngine {
   private volumeScale: number;
   private outputSamplingRate: number;
 
-  constructor() {
-    this.host = config.VOICEVOX_HOST;
-    this.port = config.VOICEVOX_PORT;
-    this.speakerId = config.VOICEVOX_SPEAKER_ID;
-    this.speedScale = config.VOICEVOX_SPEED_SCALE ?? 1.0;
-    const effectiveVolume = (config.VOICEVOX_VOLUME_SCALE ?? 1.0) * (config.MASTER_VOLUME ?? 1.0);
+  constructor(options: VoicevoxEngineOptions = {}) {
+    this.host = options.host ?? "127.0.0.1";
+    this.port = options.port ?? 50021;
+    this.speakerId = options.speakerId ?? 1;
+    this.speedScale = options.speedScale ?? 1;
+    const effectiveVolume = (options.volumeScale ?? 1) * (options.masterVolume ?? 1);
     this.volumeScale = Math.min(1.0, Math.max(0.0, Math.round(effectiveVolume * 1000) / 1000));
-    this.outputSamplingRate = config.VOICEVOX_OUTPUT_SAMPLING_RATE ?? 24000;
+    this.outputSamplingRate = options.outputSamplingRate ?? 24000;
   }
 
   private get baseUrl(): string {

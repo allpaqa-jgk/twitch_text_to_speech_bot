@@ -1,5 +1,4 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
-import { config } from "../../config";
 import { playWavBuffer } from "../audioPlayer";
 import fs from "fs";
 import path from "path";
@@ -24,6 +23,18 @@ interface CoeiroinkProsodyDetail {
   [key: string]: unknown;
 }
 
+export interface CoeiroinkEngineOptions {
+  host?: string;
+  port?: number;
+  styleId?: number;
+  speakerUuid?: string;
+  speedScale?: number;
+  volumeScale?: number;
+  masterVolume?: number;
+  outputSamplingRate?: number;
+  pauseLength?: number;
+}
+
 export class CoeiroinkEngine implements TTSEngine {
   public readonly name = "COEIROINK";
 
@@ -39,16 +50,16 @@ export class CoeiroinkEngine implements TTSEngine {
   private speakerUuidCache: Map<number, string> = new Map();
   private lastDictionaryMtime: number | null = null;
 
-  constructor() {
-    this.host = config.COEIROINK_HOST;
-    this.port = config.COEIROINK_PORT;
-    this.styleId = config.COEIROINK_STYLE_ID;
-    this.speakerUuidConfig = config.COEIROINK_SPEAKER_UUID;
-    this.speedScale = config.COEIROINK_SPEED_SCALE;
-    const effectiveVolume = (config.COEIROINK_VOLUME_SCALE ?? 1.0) * (config.MASTER_VOLUME ?? 1.0);
+  constructor(options: CoeiroinkEngineOptions = {}) {
+    this.host = options.host ?? "127.0.0.1";
+    this.port = options.port ?? 50032;
+    this.styleId = options.styleId ?? 0;
+    this.speakerUuidConfig = options.speakerUuid;
+    this.speedScale = options.speedScale ?? 1;
+    const effectiveVolume = (options.volumeScale ?? 1) * (options.masterVolume ?? 1);
     this.volumeScale = Math.min(1.0, Math.max(0.0, Math.round(effectiveVolume * 1000) / 1000));
-    this.outputSamplingRate = config.COEIROINK_OUTPUT_SAMPLING_RATE ?? 44100;
-    this.pauseLength = config.COEIROINK_PAUSE_LENGTH ?? undefined;
+    this.outputSamplingRate = options.outputSamplingRate ?? 44100;
+    this.pauseLength = options.pauseLength;
   }
 
   private get baseUrl(): string {

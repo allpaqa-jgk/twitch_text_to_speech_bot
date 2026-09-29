@@ -1,25 +1,29 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
-import { config } from "../../config";
 import path from "path";
 import fs from "fs";
+
+export interface PiperEngineOptions {
+  modelPath?: string;
+  piperPath?: string;
+  masterVolume?: number;
+}
 
 export class PiperEngine implements TTSEngine {
   public readonly name = "Piper";
 
   private piperPath: string;
   private modelPath: string;
+  private masterVolume: number;
 
-  constructor(
-    modelPath = path.join(
+  constructor(options: PiperEngineOptions = {}) {
+    this.modelPath = options.modelPath ?? path.join(
       paths.modelsDir(),
       "piper/ja_JP-hi_fi_captain-medium.onnx"
-    ),
-    piperPath = paths.piperBin()
-  ) {
-    this.modelPath = modelPath;
-    this.piperPath = piperPath;
+    );
+    this.piperPath = options.piperPath ?? paths.piperBin();
+    this.masterVolume = options.masterVolume ?? 1;
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -40,8 +44,7 @@ export class PiperEngine implements TTSEngine {
       `piper_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`
     );
 
-    const masterVol = config.MASTER_VOLUME ?? 1.0;
-    const piperVol = Math.min(1.0, Math.max(0.0, 0.8 * masterVol)).toFixed(2);
+    const piperVol = Math.min(1.0, Math.max(0.0, 0.8 * this.masterVolume)).toFixed(2);
 
     const effectiveLengthScale = Math.min(
       2.0,

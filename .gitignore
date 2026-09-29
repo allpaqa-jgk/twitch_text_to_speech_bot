@@ -81,5 +81,3 @@ dist
 !/models/**/.keep
 
 # Bun build temp files
-*.bun-build
-.*.bun-build

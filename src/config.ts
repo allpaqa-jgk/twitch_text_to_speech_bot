@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { paths } from "./paths";
+import { parseConfigSettings } from "./configSettings";
 
 export interface BotConfig {
   TTS_MODE: string;
@@ -47,6 +48,7 @@ export interface BotConfig {
   TW_CHANNEL_NAME: string;
   BOT_USERNAME: string;
   HTTP_SERVER_ENABLED: boolean;
+  HTTP_TALK_ENABLED: boolean;
   HTTP_SERVER_PORT: number;
   BOUYOMI_COMPAT_ENABLED: boolean;
   BOUYOMI_COMPAT_PORT: number;
@@ -227,6 +229,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
       { allowEmpty: true, emptyUsesFallback: true }
     ),
     HTTP_SERVER_ENABLED: readBoolean(raw, "HTTP_SERVER_ENABLED", true),
+    HTTP_TALK_ENABLED: readBoolean(raw, "HTTP_TALK_ENABLED", true),
     HTTP_SERVER_PORT: readNumber(raw, "HTTP_SERVER_PORT", 3939, { min: 1, max: 65535, integer: true }),
     BOUYOMI_COMPAT_ENABLED: readBoolean(raw, "BOUYOMI_COMPAT_ENABLED", true),
     BOUYOMI_COMPAT_PORT: readNumber(raw, "BOUYOMI_COMPAT_PORT", 50080, { min: 1, max: 65535, integer: true }),
@@ -240,6 +243,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
 const configDir = paths.configDir();
 const rootConfigPath = path.join(configDir, "default.js");
 const samplePath = path.join(configDir, "default.js.sample");
+const webSettingsPath = paths.webSettingsJson();
 let rawConfig: RawConfig = {};
 if (fs.existsSync(rootConfigPath)) {
   rawConfig = asConfigRecord(require(rootConfigPath), rootConfigPath);
@@ -255,4 +259,16 @@ if (fs.existsSync(rootConfigPath)) {
 }
 
 const authConfig = readAuthConfig(paths.authJson());
-export const config: BotConfig = parseConfig(rawConfig, authConfig);
+export const baseConfig: BotConfig = parseConfig(rawConfig, authConfig);
+let webSettings: Partial<BotConfig> = {};
+if (fs.existsSync(webSettingsPath)) {
+  let parsedSettings: unknown;
+  try {
+    parsedSettings = JSON.parse(fs.readFileSync(webSettingsPath, "utf-8"));
+  } catch (err) {
+    throw new Error(`[Config] Failed to parse "${webSettingsPath}": ${String(err)}`);
+  }
+  webSettings = parseConfigSettings(parsedSettings, webSettingsPath);
+  delete webSettings.HTTP_SERVER_ENABLED;
+}
+export const config: BotConfig = parseConfig({ ...baseConfig, ...webSettings }, authConfig);

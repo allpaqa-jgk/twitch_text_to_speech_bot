@@ -4,20 +4,20 @@ on:
   push:
     branches:
       - master
-      - "feature/**"
+    # PR updates are covered by pull_request; keep push CI for direct/default-branch pushes only.
   pull_request:
     branches:
       - master
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

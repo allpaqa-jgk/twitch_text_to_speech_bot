@@ -1,0 +1,20 @@
+# CODEOWNERS
+#
+# This file defines who is automatically requested for review when a pull
+# request changes matching files. See:
+# https://docs.github.com/articles/about-code-owners
+#
+# Order matters: the last matching pattern in this file takes precedence,
+# so more specific paths are listed below the default rule.
+
+# Default owner for everything in the repository.
+* @allpaqa-jgk
+
+# CI/CD workflows.
+/.github/workflows/ @allpaqa-jgk
+
+# Release process documentation.
+/docs/ @allpaqa-jgk
+
+# Release/build/auth scripts.
+/scripts/ @allpaqa-jgk

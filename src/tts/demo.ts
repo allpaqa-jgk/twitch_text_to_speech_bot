@@ -61,7 +61,7 @@ export async function prepareDemoSteps(
  * Enqueues the multilingual demo into the TTS queue for interactive console playback.
  */
 export async function enqueueDemo(
-  queue: TTSQueue,
+  queue: Pick<TTSQueue, "enqueue">,
   transformer?: TextTransformer
 ): Promise<void> {
   console.log("\n======================================================================");

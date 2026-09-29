@@ -995,11 +995,9 @@ describe("TTSQueue", () => {
   describe("COEIROINK Pause Length Default / Custom", () => {
     it("should omit pauseLength in synthesis body when config.COEIROINK_PAUSE_LENGTH is undefined", async () => {
       const origFetch = globalThis.fetch;
-      const origPause = config.COEIROINK_PAUSE_LENGTH;
       let sentBody: any = null;
 
       try {
-        (config as any).COEIROINK_PAUSE_LENGTH = undefined;
         globalThis.fetch = (async (url: any, init: any) => {
           const urlStr = String(url);
           if (urlStr.includes("/estimate_prosody")) {
@@ -1015,7 +1013,7 @@ describe("TTSQueue", () => {
           return new Response();
         }) as any;
 
-        const coeiroink = new CoeiroinkEngine();
+        const coeiroink = new CoeiroinkEngine({ pauseLength: undefined });
         await coeiroink.prepare("自然なポーズテスト");
 
         expect(sentBody).not.toBeNull();
@@ -1023,17 +1021,14 @@ describe("TTSQueue", () => {
         expect("pauseLength" in sentBody).toBe(false);
       } finally {
         globalThis.fetch = origFetch;
-        (config as any).COEIROINK_PAUSE_LENGTH = origPause;
       }
     });
 
     it("should include pauseLength in synthesis body when explicitly configured", async () => {
       const origFetch = globalThis.fetch;
-      const origPause = config.COEIROINK_PAUSE_LENGTH;
       let sentBody: any = null;
 
       try {
-        (config as any).COEIROINK_PAUSE_LENGTH = 0.04;
         globalThis.fetch = (async (url: any, init: any) => {
           const urlStr = String(url);
           if (urlStr.includes("/estimate_prosody")) {
@@ -1049,14 +1044,13 @@ describe("TTSQueue", () => {
           return new Response();
         }) as any;
 
-        const coeiroink = new CoeiroinkEngine();
+        const coeiroink = new CoeiroinkEngine({ pauseLength: 0.04 });
         await coeiroink.prepare("カスタムポーズテスト");
 
         expect(sentBody).not.toBeNull();
         expect(sentBody.pauseLength).toBe(0.04);
       } finally {
         globalThis.fetch = origFetch;
-        (config as any).COEIROINK_PAUSE_LENGTH = origPause;
       }
     });
   });

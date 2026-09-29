@@ -1,5 +1,4 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
-import { config } from "../../config";
 
 export class MacSayEngine implements TTSEngine {
   public readonly name = "MacSay";
@@ -8,7 +7,7 @@ export class MacSayEngine implements TTSEngine {
   private rate: number;
   private currentProc: any = null;
 
-  constructor(speaker = config.SPEAKER_JAPANESE, rate = config.RATE_JAPANESE) {
+  constructor(speaker = "Kyoko", rate = 200) {
     this.speaker = speaker;
     this.rate = rate;
   }

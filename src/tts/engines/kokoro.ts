@@ -1,7 +1,6 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../engine";
 import { playWavBuffer } from "../audioPlayer";
 import { paths } from "../../paths";
-import { config } from "../../config";
 import path from "path";
 import fs from "fs";
 
@@ -18,6 +17,7 @@ export class KokoroEngine implements TTSEngine {
   private voice: string;
   private speed: number;
   private lang: string;
+  private masterVolume: number;
 
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private isReady = false;
@@ -32,13 +32,15 @@ export class KokoroEngine implements TTSEngine {
     speed = 1.0,
     lang = "a",
     pythonPath = paths.pythonBin(),
-    scriptPath = path.join(paths.scriptsDir(), "kokoro_worker.py")
+    scriptPath = path.join(paths.scriptsDir(), "kokoro_worker.py"),
+    masterVolume = 1.0
   ) {
     this.voice = voice;
     this.speed = speed;
     this.lang = lang;
     this.pythonPath = pythonPath;
     this.scriptPath = scriptPath;
+    this.masterVolume = masterVolume;
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -140,8 +142,7 @@ export class KokoroEngine implements TTSEngine {
       `kokoro_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`
     );
 
-    const masterVol = config.MASTER_VOLUME ?? 1.0;
-    const effectiveVolume = Math.min(1.0, Math.max(0.0, masterVol));
+    const effectiveVolume = Math.min(1.0, Math.max(0.0, this.masterVolume));
 
     const effectiveSpeed = Math.min(
       2.0,

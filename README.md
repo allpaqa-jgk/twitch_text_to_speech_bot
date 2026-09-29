@@ -53,6 +53,8 @@ TTS_ENGINE: "COEIROINK",
 FOREIGN_LANGUAGE_MODE: "KATAKANA",
 ```
 
+起動時に設定値の型・選択肢・数値範囲を検証します。不正な値がある場合は、設定名と期待する値を含むエラーを表示して起動を中止します。選択した音声エンジンが利用できない場合は、利用可能なエンジンを順に探索してフォールバックします（macOS の `say` は macOS 上でのみ候補になります）。
+
 ### 3. 起動とTwitch連携
 フォルダ内の `twitch-tts-bot`（Windowsの場合は `twitch-tts-bot.exe`）を実行します。  
 

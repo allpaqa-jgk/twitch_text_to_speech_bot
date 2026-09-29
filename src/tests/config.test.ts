@@ -15,6 +15,25 @@ describe("parseConfig", () => {
     expect(config.BOT_USERNAME).toBe("bot");
   });
 
+  it("uses OAuth identity values when optional sample settings are empty", () => {
+    const config = parseConfig(
+      {
+        TW_OAUTH_TOKEN: "",
+        TW_CHANNEL_NAME: "",
+        BOT_USERNAME: "",
+      },
+      {
+        oauthToken: "oauth:token",
+        channelName: "channel",
+        username: "bot",
+      }
+    );
+
+    expect(config.TW_OAUTH_TOKEN).toBe("oauth:token");
+    expect(config.TW_CHANNEL_NAME).toBe("channel");
+    expect(config.BOT_USERNAME).toBe("bot");
+  });
+
   it("reports invalid enum values with the setting name and allowed values", () => {
     expect(() => parseConfig({ TTS_ENGINE: "UNKNOWN" })).toThrow(
       "TTS_ENGINE must be one of: COEIROINK, VOICEVOX, PIPER, KOKORO, Mac"

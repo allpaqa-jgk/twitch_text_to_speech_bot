@@ -69,13 +69,14 @@ function readString(
   raw: RawConfig,
   key: string,
   fallback: string,
-  options: { allowEmpty?: boolean } = {}
+  options: { allowEmpty?: boolean; emptyUsesFallback?: boolean } = {}
 ): string {
   const value = raw[key];
   if (value === undefined) return fallback;
   if (typeof value !== "string" || (!options.allowEmpty && value.trim() === "")) {
     throw new Error(`[Config] ${key} must be ${options.allowEmpty ? "a string" : "a non-empty string"}.`);
   }
+  if (value === "" && options.emptyUsesFallback) return fallback;
   return value;
 }
 
@@ -148,7 +149,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
     raw,
     "TW_CHANNEL_NAME",
     typeof auth.channelName === "string" ? auth.channelName : "",
-    { allowEmpty: true }
+    { allowEmpty: true, emptyUsesFallback: true }
   );
   const ttsEngineFallback = readBoolean(raw, "USE_VOICEVOX", false)
     ? "VOICEVOX"
@@ -215,7 +216,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
       raw,
       "TW_OAUTH_TOKEN",
       typeof auth.oauthToken === "string" ? auth.oauthToken : "",
-      { allowEmpty: true }
+      { allowEmpty: true, emptyUsesFallback: true }
     ),
     TW_CHANNEL_NAME: channelName,
     BOT_USERNAME: readString(
@@ -223,7 +224,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
       "BOT_USERNAME",
       (typeof auth.username === "string" && auth.username) ||
         (channelName ? `${channelName}_bot` : ""),
-      { allowEmpty: true }
+      { allowEmpty: true, emptyUsesFallback: true }
     ),
     HTTP_SERVER_ENABLED: readBoolean(raw, "HTTP_SERVER_ENABLED", true),
     HTTP_SERVER_PORT: readNumber(raw, "HTTP_SERVER_PORT", 3939, { min: 1, max: 65535, integer: true }),

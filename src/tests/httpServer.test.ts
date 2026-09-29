@@ -5,6 +5,8 @@ import { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import { KatakanaTransformer } from "../tts/transformers/katakana";
 import { config } from "../config";
+import { DictionaryService } from "../application/dictionaryService";
+import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 
 class MockEngine implements TTSEngine {
   public name: string;
@@ -54,6 +56,7 @@ describe("HttpServer & commentProcessor", () => {
       queue,
       transformer,
       bot: mockBot as any,
+      dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
       enableBouyomiCompat: true,

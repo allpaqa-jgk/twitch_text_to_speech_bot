@@ -8,13 +8,14 @@ import type { TwitchTTSBot } from "../twitch/client";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
 import { enqueueDemo } from "../tts/demo";
 import { detectLanguage } from "../text/languageDetector";
-import { csvList, type ListType } from "../storage/csvList";
+import type { DictionaryService } from "../application/dictionaryService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
   transformer?: TextTransformer;
   englishEngine?: TTSEngine;
   bot?: TwitchTTSBot | null;
+  dictionaryService: DictionaryService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
@@ -33,6 +34,7 @@ export class HttpServer {
   private transformer?: TextTransformer;
   private englishEngine?: TTSEngine;
   private bot: TwitchTTSBot | null = null;
+  private dictionaryService: DictionaryService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
@@ -42,6 +44,7 @@ export class HttpServer {
     this.transformer = options.transformer;
     this.englishEngine = options.englishEngine;
     this.bot = options.bot ?? null;
+    this.dictionaryService = options.dictionaryService;
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
@@ -300,37 +303,14 @@ export class HttpServer {
 
     // GET /api/dictionary
     if (req.method === "GET" && url.pathname === "/api/dictionary") {
-      const typeParam = url.searchParams.get("type");
-      let listType: ListType;
-      let responseType = "message";
-      if (typeParam === "username") {
-        listType = "usernameConvertList";
-        responseType = "username";
-      } else if (typeParam === "ignore") {
-        listType = "messageIgnoreList";
-        responseType = "ignore";
-      } else {
-        listType = "messageConvertList";
-        responseType = "message";
-      }
-
-      const list = csvList.readList(listType);
-      return new Response(
-        JSON.stringify({
-          type: responseType,
-          items: list.map(([keyword, read]) => ({
-            keyword: keyword ?? "",
-            read: read ?? "",
-          })),
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            ...CORS_HEADERS,
-          },
-        }
-      );
+      const result = this.dictionaryService.list(url.searchParams.get("type"));
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...CORS_HEADERS,
+        },
+      });
     }
 
     // POST /api/dictionary
@@ -352,72 +332,22 @@ export class HttpServer {
         );
       }
 
-      const keyword = (body?.keyword ?? "").toString().trim();
-      const read = (body?.read ?? "").toString().trim();
-      const typeParam = body?.type;
-
-      let listType: ListType;
-      if (typeParam === "username") {
-        listType = "usernameConvertList";
-      } else if (typeParam === "ignore") {
-        listType = "messageIgnoreList";
-      } else {
-        listType = "messageConvertList";
+      const result = this.dictionaryService.upsert(
+        body?.type,
+        body?.keyword,
+        body?.read
+      );
+      if (!result.success) {
+        return new Response(JSON.stringify({ error: result.error }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
       }
-
-      const isIgnore = listType === "messageIgnoreList";
-
-      if (!keyword || (!isIgnore && !read)) {
-        return new Response(
-          JSON.stringify({ error: isIgnore ? "keyword is required" : "keyword and read are required" }),
-          {
-            status: 400,
-            headers: {
-              "Content-Type": "application/json",
-              ...CORS_HEADERS,
-            },
-          }
-        );
-      }
-
-      if (keyword.length > 100) {
-        return new Response(
-          JSON.stringify({ error: "Keyword too long (max 100 chars)" }),
-          {
-            status: 400,
-            headers: {
-              "Content-Type": "application/json",
-              ...CORS_HEADERS,
-            },
-          }
-        );
-      }
-
-      if (!isIgnore && read.length > 200) {
-        return new Response(
-          JSON.stringify({ error: "Read text too long (max 200 chars)" }),
-          {
-            status: 400,
-            headers: {
-              "Content-Type": "application/json",
-              ...CORS_HEADERS,
-            },
-          }
-        );
-      }
-
-      const storedKey = isIgnore ? keyword : keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const list = csvList.readList(listType);
-      const index = list.findIndex((row) => row[0] === storedKey || row[0] === keyword);
-      if (index >= 0) {
-        list[index] = [storedKey, isIgnore ? "" : read];
-      } else {
-        list.push([storedKey, isIgnore ? "" : read]);
-      }
-      csvList.writeList(listType, list);
-
       return new Response(
-        JSON.stringify({ success: true, keyword, read: isIgnore ? "" : read }),
+        JSON.stringify(result),
         {
           status: 200,
           headers: {
@@ -430,23 +360,23 @@ export class HttpServer {
 
     // DELETE /api/dictionary
     if (req.method === "DELETE" && url.pathname === "/api/dictionary") {
-      let typeParam = url.searchParams.get("type");
-      let keyword = url.searchParams.get("keyword")?.trim();
+      let typeParam: unknown = url.searchParams.get("type");
+      let keyword: unknown = url.searchParams.get("keyword");
 
-      if (!keyword) {
+      if (typeof keyword !== "string" || !keyword.trim()) {
         try {
           const rawText = await req.text();
           if (rawText) {
             const body = JSON.parse(rawText);
             if (body?.type) typeParam = body.type;
-            if (body?.keyword) keyword = String(body.keyword).trim();
+            if (body?.keyword) keyword = body.keyword;
           }
         } catch {
           // ignore
         }
       }
 
-      if (!keyword) {
+      if (typeof keyword !== "string" || !keyword.trim()) {
         return new Response(
           JSON.stringify({ error: "keyword is required" }),
           {
@@ -459,23 +389,7 @@ export class HttpServer {
         );
       }
 
-      let listType: ListType;
-      if (typeParam === "username") {
-        listType = "usernameConvertList";
-      } else if (typeParam === "ignore") {
-        listType = "messageIgnoreList";
-      } else {
-        listType = "messageConvertList";
-      }
-
-      const isIgnore = listType === "messageIgnoreList";
-      const storedKey = isIgnore ? keyword : keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const list = csvList.readList(listType);
-      const index = list.findIndex((row) => row[0] === storedKey || row[0] === keyword);
-      if (index >= 0) {
-        list.splice(index, 1);
-        csvList.writeList(listType, list);
-      }
+      this.dictionaryService.remove(typeParam, keyword);
 
       return new Response(
         JSON.stringify({ success: true }),

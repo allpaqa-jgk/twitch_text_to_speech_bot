@@ -15,6 +15,7 @@ import { runDemoCli } from "./tts/demo";
 import { HttpServer } from "./server/httpServer";
 import { DictionaryService } from "./application/dictionaryService";
 import { CsvDictionaryRepository } from "./storage/csvDictionaryRepository";
+import { TwitchControlService } from "./application/twitchControlService";
 import pkg from "../package.json";
 
 const BOT_VERSION = pkg.version || "2.0.1";
@@ -165,6 +166,7 @@ console.log(`[Init] Foreign language mode: ${config.FOREIGN_LANGUAGE_MODE}`);
 // 6. Twitch handling
 const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
 const dictionaryService = new DictionaryService(new CsvDictionaryRepository());
+const twitchControlService = new TwitchControlService(bot);
 
 // 7. Start HTTP Server (for Web Management Console, OneComme, CastCraft, Webhooks)
 let httpServer: HttpServer | null = null;
@@ -173,8 +175,8 @@ if (config.HTTP_SERVER_ENABLED) {
     queue,
     transformer: katakanaTransformer,
     englishEngine,
-    bot,
     dictionaryService,
+    twitchControlService,
   });
   httpServer.start();
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { handleRememberCommand, handleForgetCommand } from "../twitch/commands/remember";
 import { csvList } from "../storage/csvList";
-import { formatMessage } from "../twitch/messageProcessor";
+import { formatMessage } from "../text/messageProcessor";
 import fs from "fs";
 import path from "path";
 import os from "os";

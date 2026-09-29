@@ -5,8 +5,8 @@ import {
   formatMessage,
   isIgnoredMessage,
   escapeTtsErrorString,
-} from "../twitch/messageProcessor";
-import { detectLanguage } from "../twitch/languageDetector";
+} from "../text/messageProcessor";
+import { detectLanguage } from "../text/languageDetector";
 import type { TTSQueue } from "./queue";
 import type { TTSEngine } from "./engine";
 import type { TextTransformer } from "./transformers/types";

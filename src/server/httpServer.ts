@@ -7,7 +7,7 @@ import { processComment } from "../tts/commentProcessor";
 import type { TwitchTTSBot } from "../twitch/client";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
 import { enqueueDemo } from "../tts/demo";
-import { detectLanguage } from "../twitch/languageDetector";
+import { detectLanguage } from "../text/languageDetector";
 import { csvList, type ListType } from "../storage/csvList";
 
 export interface HttpServerOptions {

@@ -5,9 +5,14 @@ import {
   isIgnoredMessage,
   simplifyUsername,
   isEnglishString,
-} from "../twitch/messageProcessor";
+} from "../text/messageProcessor";
+import { formatMessage as formatMessageFromTwitchPath } from "../twitch/messageProcessor";
 
 describe("messageProcessor", () => {
+  it("keeps the previous Twitch module path as a compatibility export", () => {
+    expect(formatMessageFromTwitchPath).toBe(formatMessage);
+  });
+
   describe("simplifyUsername", () => {
     it("should strip trailing digits and underscores", () => {
       expect(simplifyUsername("user_123")).toBe("user");

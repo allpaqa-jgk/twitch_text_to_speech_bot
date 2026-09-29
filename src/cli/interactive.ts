@@ -4,7 +4,7 @@ import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
 import type { TwitchTTSBot } from "../twitch/client";
 import type { HttpServer } from "../server/httpServer";
-import { detectLanguage } from "../twitch/languageDetector";
+import { detectLanguage } from "../text/languageDetector";
 import { printAvailableSpeakers } from "../tts/speakers";
 import { enqueueDemo } from "../tts/demo";
 import { startTwitchOAuthFlow } from "../twitch/auth";

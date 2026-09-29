@@ -8,6 +8,10 @@ import { renderWebConsoleHtml } from "./webConsoleHtml";
 import type { DictionaryService } from "../application/dictionaryService";
 import type { TwitchControlService } from "../application/twitchControlService";
 import type { SpeechInteractionService } from "../application/speechInteractionService";
+import {
+  ConfigSettingsService,
+  SettingsValidationError,
+} from "../application/configSettingsService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
@@ -16,6 +20,7 @@ export interface HttpServerOptions {
   dictionaryService: DictionaryService;
   twitchControlService: TwitchControlService;
   speechInteractionService: SpeechInteractionService;
+  configSettingsService?: ConfigSettingsService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
@@ -23,7 +28,7 @@ export interface HttpServerOptions {
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, GET, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -36,6 +41,7 @@ export class HttpServer {
   private dictionaryService: DictionaryService;
   private twitchControlService: TwitchControlService;
   private speechInteractionService: SpeechInteractionService;
+  private configSettingsService: ConfigSettingsService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
@@ -47,6 +53,7 @@ export class HttpServer {
     this.dictionaryService = options.dictionaryService;
     this.twitchControlService = options.twitchControlService;
     this.speechInteractionService = options.speechInteractionService;
+    this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService();
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
@@ -167,6 +174,124 @@ export class HttpServer {
       );
     }
 
+    if (req.method === "GET" && url.pathname === "/api/settings") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin settings requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+      try {
+        return new Response(JSON.stringify(this.configSettingsService.getSnapshot()), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return new Response(JSON.stringify({ error: message }), {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+    }
+
+    if (req.method === "PUT" && url.pathname === "/api/settings") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin settings requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+      let body: unknown;
+      try {
+        const rawBody = await req.text();
+        if (rawBody.length > 64 * 1024) {
+          return new Response(JSON.stringify({ error: "Settings payload too large." }), {
+            status: 413,
+            headers: {
+              "Content-Type": "application/json",
+              ...CORS_HEADERS,
+            },
+          });
+        }
+        body = JSON.parse(rawBody);
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+
+      try {
+        const snapshot = this.configSettingsService.update(body);
+        return new Response(JSON.stringify({ success: true, ...snapshot }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      } catch (error) {
+        const validationError = error instanceof SettingsValidationError;
+        const message = error instanceof Error ? error.message : String(error);
+        return new Response(JSON.stringify({ error: message }), {
+          status: validationError ? 400 : 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+    }
+
+    if (req.method === "DELETE" && url.pathname === "/api/settings") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin settings requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+      try {
+        const key = url.searchParams.get("key") ?? undefined;
+        const snapshot = this.configSettingsService.remove(key);
+        return new Response(JSON.stringify({ success: true, ...snapshot }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      } catch (error) {
+        const validationError = error instanceof SettingsValidationError;
+        const message = error instanceof Error ? error.message : String(error);
+        return new Response(JSON.stringify({ error: message }), {
+          status: validationError ? 400 : 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+    }
+
     // GET /api/status
     if (req.method === "GET" && url.pathname === "/api/status") {
       return new Response(
@@ -207,6 +332,15 @@ export class HttpServer {
 
     // POST /api/demo
     if (req.method === "POST" && url.pathname === "/api/demo") {
+      if (!config.HTTP_TALK_ENABLED) {
+        return new Response(JSON.stringify({ error: "HTTP speech endpoints are disabled." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
       await this.speechInteractionService.enqueueDemo();
       return new Response(
         JSON.stringify({ success: true }),
@@ -387,6 +521,15 @@ export class HttpServer {
 
     // POST /say
     if (req.method === "POST" && url.pathname === "/say") {
+      if (!config.HTTP_TALK_ENABLED) {
+        return new Response(JSON.stringify({ error: "HTTP speech endpoints are disabled." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
       const contentLength = req.headers.get("content-length");
       if (contentLength && parseInt(contentLength, 10) > 512 * 1024) {
         return new Response(
@@ -488,6 +631,19 @@ export class HttpServer {
         },
       }
     );
+  }
+
+  private isSameOriginRequest(req: Request): boolean {
+    const requestUrl = new URL(req.url);
+    if (
+      requestUrl.protocol !== "http:" ||
+      !["localhost", "127.0.0.1"].includes(requestUrl.hostname) ||
+      Number(requestUrl.port || 80) !== this.port
+    ) {
+      return false;
+    }
+    const origin = req.headers.get("origin");
+    return !origin || origin === requestUrl.origin;
   }
 
   private async handleBouyomiRequest(req: Request): Promise<Response> {

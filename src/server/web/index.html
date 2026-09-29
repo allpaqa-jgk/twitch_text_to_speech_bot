@@ -281,7 +281,7 @@
       color: var(--text-main);
     }
 
-    input[type="text"], textarea, select {
+    input[type="text"], input[type="number"], textarea, select {
       background-color: var(--bg-input);
       border: 1px solid var(--border-color);
       color: var(--text-bright);
@@ -293,10 +293,59 @@
       width: 100%;
     }
 
-    input[type="text"]:focus, textarea:focus, select:focus {
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
       outline: none;
       border-color: var(--border-focus);
       box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.75rem 1rem;
+    }
+
+    .settings-group-title {
+      color: var(--text-bright);
+      font-size: 0.95rem;
+      margin: 1.25rem 0 0.75rem;
+    }
+
+    .settings-group-title:first-child {
+      margin-top: 0;
+    }
+
+    .settings-checkbox {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .settings-checkbox input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+
+    .settings-field.overridden {
+      border-left: 3px solid var(--warning);
+      padding-left: 0.6rem;
+    }
+
+    .settings-override-note {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      color: var(--warning);
+      font-size: 0.78rem;
+      margin-top: 0.4rem;
+    }
+
+    .settings-override-default {
+      text-decoration: line-through;
+      opacity: 0.85;
     }
 
     textarea {
@@ -443,6 +492,7 @@
     <button class="tab-btn active" data-tab="tab-home">🏠 ホーム・操作</button>
     <button class="tab-btn" data-tab="tab-lab">🧪 リアルタイム変換ラボ</button>
     <button class="tab-btn" data-tab="tab-dict">📖 辞書・教育管理</button>
+    <button class="tab-btn" data-tab="tab-settings">⚙️ 設定</button>
   </nav>
 
   <main>
@@ -592,6 +642,25 @@
         </div>
       </div>
     </section>
+
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <h2 class="card-title">⚙️ アプリケーション設定</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          起動時に有効な設定を表示します。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。反映にはアプリの再起動が必要です。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
+        </p>
+        <div id="settings-restart-warning" class="badge-warn" role="status" style="display: none; margin-bottom: 1rem;"></div>
+        <div id="settings-error" role="alert" style="color: var(--danger); margin-bottom: 1rem;"></div>
+        <form id="settings-form">
+          <div id="settings-fields"></div>
+          <div class="btn-group" style="margin-top: 1.25rem;">
+            <button type="submit" class="btn btn-primary" id="btn-save-settings">💾 設定を保存</button>
+            <button type="button" class="btn" id="btn-reload-settings">🔄 再読み込み</button>
+            <button type="button" class="btn btn-danger" id="btn-reset-all-settings" style="display: none;">🗑️ Web 設定をすべて解除</button>
+          </div>
+        </form>
+      </div>
+    </section>
   </main>
 
   <div id="toast" class="toast">お知らせ</div>
@@ -601,6 +670,7 @@
     let currentDictType = "message";
     let dictItems = [];
     let debounceTimer = null;
+    let settingsDefinitions = [];
 
     // Subtab configuration
     const dictConfig = {
@@ -664,6 +734,9 @@
         if (targetId === "tab-dict") {
           loadDictionary();
         }
+        if (targetId === "tab-settings") {
+          loadSettings();
+        }
       });
     });
 
@@ -704,6 +777,188 @@
 
     setInterval(updateStatus, 5000);
     updateStatus();
+
+    async function loadSettings() {
+      const error = document.getElementById("settings-error");
+      error.textContent = "";
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "設定を読み込めませんでした");
+        renderSettings(data);
+      } catch (err) {
+        error.textContent = err instanceof Error ? err.message : "設定を読み込めませんでした";
+      }
+    }
+
+    function renderSettings(snapshot) {
+      settingsDefinitions = snapshot.settings || [];
+      const container = document.getElementById("settings-fields");
+      container.replaceChildren();
+      let activeGroup = "";
+      let groupFields = null;
+
+      for (const setting of settingsDefinitions) {
+        if (setting.group !== activeGroup) {
+          activeGroup = setting.group;
+          const heading = document.createElement("h3");
+          heading.className = "settings-group-title";
+          heading.textContent = activeGroup;
+          container.appendChild(heading);
+          groupFields = document.createElement("div");
+          groupFields.className = "settings-grid";
+          container.appendChild(groupFields);
+        }
+
+        const field = document.createElement("div");
+        field.className = "form-group";
+        if (setting.isOverridden) field.classList.add("settings-field", "overridden");
+        field.style.marginBottom = "0";
+        const inputId = "settings-" + setting.key;
+        const label = document.createElement("label");
+        label.htmlFor = inputId;
+        label.textContent = setting.label;
+        field.appendChild(label);
+
+        let input;
+        if (setting.type === "boolean") {
+          const checkboxWrap = document.createElement("div");
+          checkboxWrap.className = "settings-checkbox";
+          input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = Boolean(setting.value);
+          checkboxWrap.appendChild(input);
+          const state = document.createElement("span");
+          state.textContent = input.checked ? "有効" : "無効";
+          input.addEventListener("change", () => {
+            state.textContent = input.checked ? "有効" : "無効";
+          });
+          checkboxWrap.appendChild(state);
+          field.appendChild(checkboxWrap);
+        } else if (setting.type === "select") {
+          input = document.createElement("select");
+          for (const optionValue of setting.options || []) {
+            const option = document.createElement("option");
+            option.value = optionValue;
+            option.textContent = optionValue;
+            input.appendChild(option);
+          }
+          input.value = setting.value ?? "";
+          field.appendChild(input);
+        } else {
+          input = document.createElement("input");
+          input.type = setting.type === "number" ? "number" : "text";
+          input.value = setting.value ?? "";
+          if (setting.type === "number") {
+            if (setting.min !== undefined) input.min = setting.min;
+            if (setting.max !== undefined) input.max = setting.max;
+            if (setting.step !== undefined) input.step = setting.step;
+            if (setting.nullable && setting.value === null) {
+              input.placeholder = "未設定";
+            }
+          }
+          field.appendChild(input);
+        }
+        input.id = inputId;
+        input.dataset.settingKey = setting.key;
+        if (setting.isOverridden) {
+          const overrideNote = document.createElement("div");
+          overrideNote.className = "settings-override-note";
+          const defaultValue = document.createElement("span");
+          defaultValue.className = "settings-override-default";
+          defaultValue.textContent = "標準値: " + formatSettingValue(setting.defaultValue);
+          overrideNote.appendChild(defaultValue);
+
+          const resetButton = document.createElement("button");
+          resetButton.type = "button";
+          resetButton.className = "btn btn-sm";
+          resetButton.textContent = "この項目を解除";
+          resetButton.addEventListener("click", () => resetSetting(setting.key));
+          overrideNote.appendChild(resetButton);
+          field.appendChild(overrideNote);
+        }
+        groupFields.appendChild(field);
+      }
+
+      const hasOverrides = settingsDefinitions.some((setting) => setting.isOverridden);
+      document.getElementById("btn-reset-all-settings").style.display =
+        hasOverrides ? "inline-flex" : "none";
+      const warning = document.getElementById("settings-restart-warning");
+      warning.style.display = snapshot.restartRequired ? "inline-block" : "none";
+      warning.textContent = snapshot.restartRequired
+        ? "保存済みの変更があります。現在のプロセスには未反映です。反映にはアプリの再起動が必要です。"
+        : "表示中の設定は現在の起動設定です。";
+    }
+
+    function formatSettingValue(value) {
+      if (value === null || value === undefined || value === "") return "未設定";
+      if (typeof value === "boolean") return value ? "有効" : "無効";
+      return String(value);
+    }
+
+    async function resetSetting(key) {
+      const error = document.getElementById("settings-error");
+      error.textContent = "";
+      try {
+        const res = await fetch("/api/settings?key=" + encodeURIComponent(key), {
+          method: "DELETE"
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "設定を解除できませんでした");
+        renderSettings(data);
+        showToast("標準値に戻しました。保存済みの Web 設定から削除しました。", "success");
+      } catch (err) {
+        error.textContent = err instanceof Error ? err.message : "設定を解除できませんでした";
+      }
+    }
+
+    document.getElementById("settings-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const settings = {};
+      for (const definition of settingsDefinitions) {
+        const input = document.getElementById("settings-" + definition.key);
+        if (definition.type === "boolean") {
+          settings[definition.key] = input.checked;
+        } else if (definition.type === "number") {
+          settings[definition.key] =
+            input.value === "" && definition.nullable ? null : input.valueAsNumber;
+        } else {
+          settings[definition.key] = input.value;
+        }
+      }
+
+      const error = document.getElementById("settings-error");
+      error.textContent = "";
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(settings)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "設定を保存できませんでした");
+        renderSettings(data);
+        showToast("設定を保存しました。再起動後に反映されます。", "success");
+      } catch (err) {
+        error.textContent = err instanceof Error ? err.message : "設定を保存できませんでした";
+      }
+    });
+
+    document.getElementById("btn-reload-settings")?.addEventListener("click", loadSettings);
+    document.getElementById("btn-reset-all-settings")?.addEventListener("click", async () => {
+      if (!confirm("保存済みの Web 設定をすべて解除して標準値に戻しますか？")) return;
+      const error = document.getElementById("settings-error");
+      error.textContent = "";
+      try {
+        const res = await fetch("/api/settings", { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Web 設定を解除できませんでした");
+        renderSettings(data);
+        showToast("保存済みの Web 設定をすべて解除しました。", "success");
+      } catch (err) {
+        error.textContent = err instanceof Error ? err.message : "Web 設定を解除できませんでした";
+      }
+    });
 
     // Quick Actions
     document.getElementById("btn-refresh-status")?.addEventListener("click", () => {

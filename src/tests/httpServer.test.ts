@@ -5,11 +5,15 @@ import { processComment as processCommentFromTtsPath } from "../tts/commentProce
 import { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import { KatakanaTransformer } from "../tts/transformers/katakana";
-import { config } from "../config";
+import { config, parseConfig } from "../config";
 import { DictionaryService } from "../application/dictionaryService";
 import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 import { TwitchControlService } from "../application/twitchControlService";
 import { SpeechInteractionService } from "../application/speechInteractionService";
+import { ConfigSettingsService } from "../application/configSettingsService";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 class MockEngine implements TTSEngine {
   public name: string;
@@ -53,18 +57,32 @@ describe("HttpServer & commentProcessor", () => {
   let transformer: KatakanaTransformer;
   let mockBot: MockBot;
   let server: HttpServer;
+  let settingsDirectory: string;
+  let settingsConfig: typeof config;
 
   beforeAll(() => {
     mockEngine = new MockEngine("HttpMockEngine");
     queue = new TTSQueue(mockEngine);
     transformer = new KatakanaTransformer();
     mockBot = new MockBot();
+    settingsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "twitch-tts-web-settings-"));
+    settingsConfig = {
+      ...config,
+      TW_OAUTH_TOKEN: "oauth-secret-must-not-be-visible",
+      DISCORD_TOKEN: "discord-secret-must-not-be-visible",
+      DISCORD_WEBHOOK_URL: "https://discord.invalid/webhook-secret",
+    };
     server = new HttpServer({
       queue,
       transformer,
       dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
       twitchControlService: new TwitchControlService(mockBot),
       speechInteractionService: new SpeechInteractionService(queue, transformer),
+      configSettingsService: new ConfigSettingsService(
+        path.join(settingsDirectory, "web-settings.json"),
+        settingsConfig,
+        settingsConfig
+      ),
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
       enableBouyomiCompat: true,
@@ -74,6 +92,7 @@ describe("HttpServer & commentProcessor", () => {
 
   afterAll(() => {
     server.stop();
+    fs.rmSync(settingsDirectory, { recursive: true, force: true });
   });
 
   describe("HTTP Server endpoints", () => {
@@ -115,6 +134,29 @@ describe("HttpServer & commentProcessor", () => {
         body: JSON.stringify({ text: "   " }),
       });
       expect(res2.status).toBe(400);
+    });
+
+    it("should keep Web UI available while HTTP speech endpoints are disabled", async () => {
+      const original = config.HTTP_TALK_ENABLED;
+      config.HTTP_TALK_ENABLED = false;
+      try {
+        const home = await fetch(`http://127.0.0.1:${TEST_PORT}/`);
+        expect(home.status).toBe(200);
+
+        const say = await fetch(`http://127.0.0.1:${TEST_PORT}/say`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "HTTP speech must be disabled" }),
+        });
+        expect(say.status).toBe(403);
+
+        const demo = await fetch(`http://127.0.0.1:${TEST_PORT}/api/demo`, {
+          method: "POST",
+        });
+        expect(demo.status).toBe(403);
+      } finally {
+        config.HTTP_TALK_ENABLED = original;
+      }
     });
 
     it("should return 400 on invalid JSON in POST /say", async () => {
@@ -316,6 +358,177 @@ describe("HttpServer & commentProcessor", () => {
       expect(html).toContain('id="lab-textarea"');
       expect(html).toContain('id="lab-table"');
       expect(html).toContain('id="dict-table"');
+      expect(html).toContain('id="settings-form"');
+      expect(html).toContain('data-tab="tab-settings"');
+      expect(html).toContain("settings-override-default");
+      expect(html).toContain('id="btn-reset-all-settings"');
+    });
+
+    it("should expose safe settings, persist validated edits, and flag restart-required changes", async () => {
+      const crossOriginRead = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        headers: { Origin: "https://attacker.example" },
+      });
+      expect(crossOriginRead.status).toBe(403);
+      const crossOriginWrite = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: {
+          Origin: "https://attacker.example",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ENABLE_TTS: false }),
+      });
+      expect(crossOriginWrite.status).toBe(403);
+
+      const oversizedResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ STARTING_MESSAGE: "x".repeat(65 * 1024) }),
+      });
+      expect(oversizedResponse.status).toBe(413);
+
+      const getResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`);
+      expect(getResponse.status).toBe(200);
+      const initial = (await getResponse.json()) as any;
+      expect(initial.restartRequired).toBe(false);
+      expect(initial.settings.some((item: any) => item.key === "TTS_ENGINE")).toBe(true);
+      expect(initial.settings.some((item: any) => item.key === "HTTP_SERVER_ENABLED")).toBe(false);
+      expect(initial.settings.find((item: any) => item.key === "TTS_ENGINE").isOverridden).toBe(false);
+      expect(
+        initial.settings.some((item: any) =>
+          ["TW_OAUTH_TOKEN", "DISCORD_TOKEN", "DISCORD_WEBHOOK_URL", "DISCORD_CHANNEL_ID"].includes(item.key)
+        )
+      ).toBe(false);
+      expect(JSON.stringify(initial)).not.toContain("oauth-secret-must-not-be-visible");
+      expect(JSON.stringify(initial)).not.toContain("discord-secret-must-not-be-visible");
+      expect(JSON.stringify(initial)).not.toContain("webhook-secret");
+
+      const saveUnchangedResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          Object.fromEntries(initial.settings.map((setting: any) => [setting.key, setting.defaultValue]))
+        ),
+      });
+      expect(saveUnchangedResponse.status).toBe(200);
+      expect(fs.existsSync(path.join(settingsDirectory, "web-settings.json"))).toBe(false);
+
+      const saveResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_PORT: 4040, ENABLE_TTS: false }),
+      });
+      expect(saveResponse.status).toBe(200);
+      const saved = (await saveResponse.json()) as any;
+      expect(saved.success).toBe(true);
+      expect(saved.restartRequired).toBe(true);
+      expect(saved.settings.find((item: any) => item.key === "HTTP_SERVER_PORT").value).toBe(4040);
+      expect(saved.settings.find((item: any) => item.key === "HTTP_SERVER_PORT").isOverridden).toBe(true);
+
+      const saveDefaultResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_PORT: settingsConfig.HTTP_SERVER_PORT }),
+      });
+      expect(saveDefaultResponse.status).toBe(200);
+      const afterDefaultSave = JSON.parse(
+        fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
+      );
+      expect(afterDefaultSave.HTTP_SERVER_PORT).toBeUndefined();
+      expect(afterDefaultSave.ENABLE_TTS).toBe(false);
+
+      const saveOverrideAgainResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_PORT: 4040 }),
+      });
+      expect(saveOverrideAgainResponse.status).toBe(200);
+
+      const invalidResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_PORT: 70000 }),
+      });
+      expect(invalidResponse.status).toBe(400);
+      const invalid = (await invalidResponse.json()) as any;
+      expect(invalid.error).toContain("HTTP_SERVER_PORT");
+
+      const unauthorizedResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ TW_OAUTH_TOKEN: "attacker-value" }),
+      });
+      expect(unauthorizedResponse.status).toBe(400);
+      expect(fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8"))
+        .not.toContain("attacker-value");
+
+      const disableServerResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_ENABLED: false }),
+      });
+      expect(disableServerResponse.status).toBe(400);
+
+      const legacyService = new ConfigSettingsService(
+        path.join(settingsDirectory, "legacy-web-settings.json"),
+        settingsConfig,
+        settingsConfig
+      );
+      fs.writeFileSync(
+        path.join(settingsDirectory, "legacy-web-settings.json"),
+        JSON.stringify({ HTTP_SERVER_ENABLED: false })
+      );
+      expect(legacyService.getSnapshot().settings.some(
+        (item) => item.key === "HTTP_SERVER_ENABLED"
+      )).toBe(false);
+
+      const persisted = JSON.parse(
+        fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
+      );
+      expect(persisted.HTTP_SERVER_PORT).toBe(4040);
+      expect(persisted.ENABLE_TTS).toBe(false);
+      expect(Object.keys(persisted).sort()).toEqual(["ENABLE_TTS", "HTTP_SERVER_PORT"]);
+      expect(persisted.TW_OAUTH_TOKEN).toBeUndefined();
+      expect(fs.statSync(path.join(settingsDirectory, "web-settings.json")).mode & 0o777).toBe(0o600);
+
+      const resetPortResponse = await fetch(
+        `http://127.0.0.1:${TEST_PORT}/api/settings?key=HTTP_SERVER_PORT`,
+        { method: "DELETE" }
+      );
+      expect(resetPortResponse.status).toBe(200);
+      const resetPort = (await resetPortResponse.json()) as any;
+      expect(resetPort.settings.find((item: any) => item.key === "HTTP_SERVER_PORT").isOverridden).toBe(false);
+      expect(Object.keys(JSON.parse(
+        fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
+      ))).toEqual(["ENABLE_TTS"]);
+
+      const unknownResetResponse = await fetch(
+        `http://127.0.0.1:${TEST_PORT}/api/settings?key=TW_OAUTH_TOKEN`,
+        { method: "DELETE" }
+      );
+      expect(unknownResetResponse.status).toBe(400);
+
+      const resetAllResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "DELETE",
+      });
+      expect(resetAllResponse.status).toBe(200);
+      expect(fs.existsSync(path.join(settingsDirectory, "web-settings.json"))).toBe(false);
+
+      const savedAgainResponse = await fetch(`http://127.0.0.1:${TEST_PORT}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ HTTP_SERVER_PORT: 4040, ENABLE_TTS: false }),
+      });
+      expect(savedAgainResponse.status).toBe(200);
+      const persistedAgain = JSON.parse(
+        fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
+      );
+      const restartedConfig = parseConfig({ ...settingsConfig, ...persistedAgain });
+      const restartedService = new ConfigSettingsService(
+        path.join(settingsDirectory, "web-settings.json"),
+        restartedConfig,
+        settingsConfig
+      );
+      expect(restartedService.getSnapshot().restartRequired).toBe(false);
     });
 
     it("should return comprehensive status at GET /api/status", async () => {

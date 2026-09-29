@@ -36,6 +36,7 @@ export const paths = {
   scriptsDir: () => path.join(getAppRootDir(), "scripts"),
   modelsDir: () => path.join(getAppRootDir(), "models"),
   venvDir: () => path.join(getAppRootDir(), ".venv"),
+  webSettingsJson: () => path.join(paths.configDir(), "web-settings.json"),
   pythonBin: () =>
     process.platform === "win32"
       ? path.join(getAppRootDir(), ".venv/Scripts/python.exe")

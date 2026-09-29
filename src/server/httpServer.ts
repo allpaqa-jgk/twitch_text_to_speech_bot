@@ -3,7 +3,7 @@ import { config } from "../config";
 import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
-import { processComment } from "../tts/commentProcessor";
+import { processComment } from "../application/commentProcessingService";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
 import { enqueueDemo } from "../tts/demo";
 import { detectLanguage } from "../text/languageDetector";

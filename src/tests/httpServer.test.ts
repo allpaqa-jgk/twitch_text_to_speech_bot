@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { HttpServer } from "../server/httpServer";
-import { processComment } from "../tts/commentProcessor";
+import { processComment } from "../application/commentProcessingService";
+import { processComment as processCommentFromTtsPath } from "../tts/commentProcessor";
 import { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import { KatakanaTransformer } from "../tts/transformers/katakana";
@@ -40,6 +41,10 @@ class MockBot {
 }
 
 describe("HttpServer & commentProcessor", () => {
+  it("keeps the previous TTS module path as a compatibility export", () => {
+    expect(processCommentFromTtsPath).toBe(processComment);
+  });
+
   const TEST_PORT = 3949;
   const TEST_BOUYOMI_PORT = 50089;
   let mockEngine: MockEngine;

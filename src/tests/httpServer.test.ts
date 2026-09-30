@@ -11,6 +11,7 @@ import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 import { TwitchControlService } from "../application/twitchControlService";
 import { SpeechInteractionService } from "../application/speechInteractionService";
 import { ConfigSettingsService } from "../application/configSettingsService";
+import { RestartService } from "../application/restartService";
 import { csvList } from "../storage/csvList";
 import fs from "fs";
 import os from "os";
@@ -882,6 +883,308 @@ describe("HttpServer & commentProcessor", () => {
         const found = listData.items.find((item: any) => item.keyword === testKey);
         expect(found).toBeUndefined();
       });
+    });
+  });
+
+  describe("Restart endpoint (/api/restart)", () => {
+    const RESTART_TEST_PORT = 3951;
+    const RESTART_BOUYOMI_PORT = 50091;
+
+    function buildRestartServer(overrides: Partial<{ existsSync: () => boolean; platform: NodeJS.Platform }>) {
+      const calls: string[] = [];
+      const spawnCalls: Array<{ command: string; args: string[] }> = [];
+      let exitCode: number | null = null;
+      const restartEngine = new MockEngine("RestartMockEngine");
+      const restartQueue = new TTSQueue(restartEngine);
+      const restartBot = new MockBot();
+      const restartService = new RestartService({
+        execPath: "/usr/local/bin/bun",
+        argv: ["/app/src/index.ts"],
+        cwd: "/app",
+        platform: overrides.platform ?? "darwin",
+        existsSync: overrides.existsSync ?? (() => true),
+        spawn: (command, args) => {
+          calls.push("spawn");
+          spawnCalls.push({ command, args });
+          return { unref: () => calls.push("unref") };
+        },
+        exit: (code) => {
+          calls.push("exit");
+          exitCode = code;
+        },
+      });
+
+      const restartServer = new HttpServer({
+        queue: restartQueue,
+        transformer,
+        dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+        twitchControlService: new TwitchControlService(restartBot),
+        speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
+        configSettingsService: new ConfigSettingsService(
+          path.join(settingsDirectory, "web-settings-restart.json"),
+          settingsConfig,
+          settingsConfig
+        ),
+        restartService,
+        port: RESTART_TEST_PORT,
+        bouyomiPort: RESTART_BOUYOMI_PORT,
+        enableBouyomiCompat: false,
+        restartDelayMs: 20,
+      });
+
+      return { restartServer, restartBot, restartQueue, calls, spawnCalls, getExitCode: () => exitCode };
+    }
+
+    it("rejects cross-origin restart requests without touching services", async () => {
+      const { restartServer, calls } = buildRestartServer({});
+      restartServer.start();
+      try {
+        const res = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+          method: "POST",
+          headers: { Origin: "http://evil.example.com" },
+        });
+        expect(res.status).toBe(403);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toEqual([]);
+      } finally {
+        restartServer.stop();
+      }
+    });
+
+    it("reports unsupported launch modes with 409 and does not schedule shutdown", async () => {
+      const { restartServer, calls } = buildRestartServer({ existsSync: () => false });
+      restartServer.start();
+      try {
+        const res = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+          method: "POST",
+        });
+        expect(res.status).toBe(409);
+        const data = (await res.json()) as any;
+        expect(data.success).toBe(false);
+        expect(data.error).toBeTruthy();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toEqual([]);
+      } finally {
+        restartServer.stop();
+      }
+    });
+
+    it("responds before shutdown, then stops the HTTP server, disconnects Twitch, clears the queue, and spawns the successor", async () => {
+      const { restartServer, restartBot, restartQueue, calls, spawnCalls, getExitCode } =
+        buildRestartServer({});
+      restartServer.start();
+      await restartBot.connect();
+      restartQueue.enqueue("pending item that should be cleared");
+
+      const res = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+      expect(data.mode).toBe("bun-script");
+
+      // The HTTP response above must have been delivered while the server was still listening.
+      expect(restartServer.isRunning()).toBe(true);
+
+      // Wait past restartDelayMs for the scheduled shutdown/relaunch sequence to run.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(calls).toEqual(["spawn", "unref", "exit"]);
+      expect(spawnCalls).toEqual([{ command: "/usr/local/bin/bun", args: ["/app/src/index.ts"] }]);
+      expect(getExitCode()).toBe(0);
+      expect(restartServer.isRunning()).toBe(false);
+      expect(restartBot.isConnected()).toBe(false);
+      expect(restartQueue.pendingCount).toBe(0);
+    });
+
+    it("rejects a second restart request while one is already scheduled", async () => {
+      const { restartServer } = buildRestartServer({});
+      restartServer.start();
+      try {
+        const first = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+          method: "POST",
+        });
+        expect(first.status).toBe(200);
+
+        const second = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+          method: "POST",
+        });
+        expect(second.status).toBe(409);
+        const data = (await second.json()) as any;
+        expect(data.success).toBe(false);
+      } finally {
+        restartServer.stop();
+      }
+    });
+
+    it("rejects a shutdown request while a restart is already scheduled", async () => {
+      const { restartServer } = buildRestartServer({});
+      restartServer.start();
+      try {
+        const restartRes = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/restart`, {
+          method: "POST",
+        });
+        expect(restartRes.status).toBe(200);
+
+        const shutdownRes = await fetch(`http://127.0.0.1:${RESTART_TEST_PORT}/api/shutdown`, {
+          method: "POST",
+        });
+        expect(shutdownRes.status).toBe(409);
+        const data = (await shutdownRes.json()) as any;
+        expect(data.success).toBe(false);
+      } finally {
+        restartServer.stop();
+      }
+    });
+
+    it("allows a new restart request after a failed spawn resets the in-progress lock", async () => {
+      const calls: string[] = [];
+      const restartEngine = new MockEngine("RestartRecoverMockEngine");
+      const restartQueue = new TTSQueue(restartEngine);
+      const restartBot = new MockBot();
+      const restartService = new RestartService({
+        execPath: "/usr/local/bin/bun",
+        argv: ["/app/src/index.ts"],
+        cwd: "/app",
+        platform: "darwin",
+        existsSync: () => true,
+        spawn: () => {
+          throw new Error("ENOENT: spawn failed");
+        },
+        exit: () => {
+          calls.push("exit");
+        },
+      });
+
+      const restartServer = new HttpServer({
+        queue: restartQueue,
+        transformer,
+        dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+        twitchControlService: new TwitchControlService(restartBot),
+        speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
+        configSettingsService: new ConfigSettingsService(
+          path.join(settingsDirectory, "web-settings-restart-recover.json"),
+          settingsConfig,
+          settingsConfig
+        ),
+        restartService,
+        port: 3961,
+        bouyomiPort: 50101,
+        enableBouyomiCompat: false,
+        restartDelayMs: 20,
+      });
+
+      restartServer.start();
+      try {
+        const first = await fetch(`http://127.0.0.1:3961/api/restart`, {
+          method: "POST",
+        });
+        expect(first.status).toBe(200);
+
+        // Wait past restartDelayMs for the failed spawn + recovery to run.
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(calls).toEqual([]);
+        // The HTTP server should have been recovered (restarted) after the failed spawn.
+        expect(restartServer.isRunning()).toBe(true);
+
+        const second = await fetch(`http://127.0.0.1:3961/api/restart`, {
+          method: "POST",
+        });
+        expect(second.status).toBe(200);
+      } finally {
+        restartServer.stop();
+      }
+    });
+  });
+
+  describe("Shutdown endpoint (/api/shutdown)", () => {
+    const SHUTDOWN_TEST_PORT = 3952;
+    const SHUTDOWN_BOUYOMI_PORT = 50092;
+
+    function buildShutdownServer() {
+      const calls: string[] = [];
+      let exitCode: number | null = null;
+      const shutdownEngine = new MockEngine("ShutdownMockEngine");
+      const shutdownQueue = new TTSQueue(shutdownEngine);
+      const shutdownBot = new MockBot();
+      const restartService = new RestartService({
+        execPath: "/usr/local/bin/bun",
+        argv: ["/app/src/index.ts"],
+        cwd: "/app",
+        platform: "darwin",
+        existsSync: () => true,
+        spawn: () => {
+          calls.push("spawn");
+          return { unref: () => calls.push("unref") };
+        },
+        exit: (code) => {
+          calls.push("exit");
+          exitCode = code;
+        },
+      });
+
+      const shutdownServer = new HttpServer({
+        queue: shutdownQueue,
+        transformer,
+        dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+        twitchControlService: new TwitchControlService(shutdownBot),
+        speechInteractionService: new SpeechInteractionService(shutdownQueue, transformer),
+        configSettingsService: new ConfigSettingsService(
+          path.join(settingsDirectory, "web-settings-shutdown.json"),
+          settingsConfig,
+          settingsConfig
+        ),
+        restartService,
+        port: SHUTDOWN_TEST_PORT,
+        bouyomiPort: SHUTDOWN_BOUYOMI_PORT,
+        enableBouyomiCompat: false,
+        restartDelayMs: 20,
+      });
+
+      return { shutdownServer, shutdownBot, shutdownQueue, calls, getExitCode: () => exitCode };
+    }
+
+    it("rejects cross-origin shutdown requests without touching services", async () => {
+      const { shutdownServer, calls } = buildShutdownServer();
+      shutdownServer.start();
+      try {
+        const res = await fetch(`http://127.0.0.1:${SHUTDOWN_TEST_PORT}/api/shutdown`, {
+          method: "POST",
+          headers: { Origin: "http://evil.example.com" },
+        });
+        expect(res.status).toBe(403);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(calls).toEqual([]);
+      } finally {
+        shutdownServer.stop();
+      }
+    });
+
+    it("responds before shutdown, then stops the HTTP server, disconnects Twitch, clears the queue, and exits without spawning a successor", async () => {
+      const { shutdownServer, shutdownBot, shutdownQueue, calls, getExitCode } = buildShutdownServer();
+      shutdownServer.start();
+      await shutdownBot.connect();
+      shutdownQueue.enqueue("pending item that should be cleared");
+
+      const res = await fetch(`http://127.0.0.1:${SHUTDOWN_TEST_PORT}/api/shutdown`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+
+      // The HTTP response above must have been delivered while the server was still listening.
+      expect(shutdownServer.isRunning()).toBe(true);
+
+      // Wait past restartDelayMs for the scheduled shutdown sequence to run.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(calls).toEqual(["exit"]);
+      expect(getExitCode()).toBe(0);
+      expect(shutdownServer.isRunning()).toBe(false);
+      expect(shutdownBot.isConnected()).toBe(false);
+      expect(shutdownQueue.pendingCount).toBe(0);
     });
   });
 });

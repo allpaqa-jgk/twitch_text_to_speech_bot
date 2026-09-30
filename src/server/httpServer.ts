@@ -12,6 +12,7 @@ import {
   ConfigSettingsService,
   SettingsValidationError,
 } from "../application/configSettingsService";
+import { RestartService } from "../application/restartService";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
@@ -21,9 +22,12 @@ export interface HttpServerOptions {
   twitchControlService: TwitchControlService;
   speechInteractionService: SpeechInteractionService;
   configSettingsService?: ConfigSettingsService;
+  restartService?: RestartService;
   port?: number;
   bouyomiPort?: number;
   enableBouyomiCompat?: boolean;
+  /** 再起動要求から後継プロセス起動までの遅延（ミリ秒）。HTTP応答をクライアントに届けるための猶予。テスト用にも調整可能。 */
+  restartDelayMs?: number;
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -42,9 +46,14 @@ export class HttpServer {
   private twitchControlService: TwitchControlService;
   private speechInteractionService: SpeechInteractionService;
   private configSettingsService: ConfigSettingsService;
+  private restartService: RestartService;
   private port: number;
   private bouyomiPort: number;
   private enableBouyomiCompat: boolean;
+  private restartDelayMs: number;
+  // 再起動・終了リクエストの多重実行を防ぐためのロック。一度どちらかが受理されると
+  // 後続の再起動・終了リクエストは新しいプロセス起動まで拒否される。
+  private lifecycleActionInProgress: "restart" | "shutdown" | null = null;
 
   constructor(options: HttpServerOptions) {
     this.queue = options.queue;
@@ -54,9 +63,11 @@ export class HttpServer {
     this.twitchControlService = options.twitchControlService;
     this.speechInteractionService = options.speechInteractionService;
     this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService();
+    this.restartService = options.restartService ?? new RestartService();
     this.port = options.port ?? config.HTTP_SERVER_PORT;
     this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
     this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
+    this.restartDelayMs = options.restartDelayMs ?? 150;
   }
 
   public isRunning(): boolean {
@@ -88,7 +99,22 @@ export class HttpServer {
       console.log(`* [HTTP] HTTP 読み上げサーバー: http://127.0.0.1:${this.port}/say (わんコメ / CastCraft / Webhook連携用)`);
       console.log(`🌐 [Web] 管理コンソール: http://localhost:${this.port} (対話コンソールで「web」と入力するとブラウザで開きます)`);
     } catch (err: any) {
-      console.error(`❌ [HTTP] HTTP 読み上げサーバー (ポート ${this.port}) の起動に失敗しました:`, err);
+      if (
+        err?.code === "EADDRINUSE" ||
+        String(err?.message || err).includes("EADDRINUSE") ||
+        String(err?.message || err).includes("address already in use")
+      ) {
+        console.error(
+          `❌ [HTTP] ポート ${this.port} は既に他のアプリ（起動中の本アプリの別プロセス等）で使用されているため、HTTP 読み上げサーバー / Web 管理コンソールを起動できませんでした。`
+        );
+        console.error(
+          `💡 【対処法】ポート ${this.port} を使用している他のプロセスを終了するか、config/default.js の HTTP_SERVER_PORT を別の値に変更してから再起動してください。`
+        );
+      } else {
+        console.error(
+          `❌ [HTTP] HTTP 読み上げサーバー (ポート ${this.port}) の起動に失敗しました: ${err?.message || err}`
+        );
+      }
     }
 
     // 2. Start BouyomiChan compatibility server (default: 50080)
@@ -112,7 +138,9 @@ export class HttpServer {
             "⚠️  [HTTP] ポート 50080 は既に別のアプリ（棒読みちゃん等）で使用されています。わんコメ側でポート 3939 (/say) を設定するか、棒読みちゃんを停止してください。"
           );
         } else {
-          console.warn("⚠️  [HTTP] 棒読みちゃん互換サーバーの起動に失敗しました:", err);
+          console.warn(
+            `⚠️  [HTTP] 棒読みちゃん互換サーバーの起動に失敗しました: ${err?.message || err}`
+          );
         }
       }
     }
@@ -304,6 +332,97 @@ export class HttpServer {
           bouyomiRunning: this.isBouyomiRunning(),
           twitchConnected: this.twitchControlService.isConnected(),
           twitchChannel: config.TW_CHANNEL_NAME || null,
+          restartPending: this.lifecycleActionInProgress !== null,
+          restartSupported: this.restartService.getLaunchInfo().supported,
+          restartError: this.restartService.getLastError(),
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        }
+      );
+    }
+
+    // POST /api/restart
+    if (req.method === "POST" && url.pathname === "/api/restart") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin restart requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+
+      if (this.lifecycleActionInProgress !== null) {
+        return this.lifecycleConflictResponse();
+      }
+
+      const launchInfo = this.restartService.getLaunchInfo();
+      if (!launchInfo.supported) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: launchInfo.reason || "この起動方法では再起動をサポートしていません。",
+          }),
+          {
+            status: 409,
+            headers: {
+              "Content-Type": "application/json",
+              ...CORS_HEADERS,
+            },
+          }
+        );
+      }
+
+      // HTTP応答をクライアントに届けてから、非同期に停止・再起動処理を開始する。
+      this.lifecycleActionInProgress = "restart";
+      this.scheduleRestart();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "再起動を受け付けました。数秒後にアプリが再起動します。",
+          mode: launchInfo.mode,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        }
+      );
+    }
+
+    // POST /api/shutdown
+    if (req.method === "POST" && url.pathname === "/api/shutdown") {
+      if (!this.isSameOriginRequest(req)) {
+        return new Response(JSON.stringify({ error: "Cross-origin shutdown requests are not allowed." }), {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...CORS_HEADERS,
+          },
+        });
+      }
+
+      // HTTP応答をクライアントに届けてから、非同期に停止・終了処理を開始する。
+      if (this.lifecycleActionInProgress !== null) {
+        return this.lifecycleConflictResponse();
+      }
+
+      this.lifecycleActionInProgress = "shutdown";
+      this.scheduleShutdown();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "終了を受け付けました。数秒後にアプリが終了します。",
         }),
         {
           status: 200,
@@ -625,6 +744,64 @@ export class HttpServer {
       JSON.stringify({ error: "Not Found" }),
       {
         status: 404,
+        headers: {
+          "Content-Type": "application/json",
+          ...CORS_HEADERS,
+        },
+      }
+    );
+  }
+
+  /**
+   * HTTP応答が送信された後に、HTTP/棒読みサーバーの停止・Twitch切断・キュー停止を行い、
+   * 同じ実行ファイル・引数・作業ディレクトリで後継プロセスを起動する。
+   */
+  private scheduleRestart(): void {
+    console.log("♻️ [Restart] Web 管理コンソールからの再起動要求を受け付けました。HTTP/棒読みちゃんサーバーを停止し、Twitchを切断してキューを停止します...");
+    console.log("\x1b[31m⚠️ [Restart] 後継プロセス起動後、手動でアプリを起動し直すまで対話型コンソール（ターミナルでのコマンド入力）は利用できません。CUIから終了したい場合は、事前に Web 管理コンソールの「⏹ アプリを終了」ボタンをご利用ください。読み上げ内容は引き続きターミナルに出力されます。\x1b[0m");
+    setTimeout(() => {
+      void this.restartService
+        .performRestart({
+          stopHttpServers: () => this.stop(),
+          disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
+          clearQueue: () => this.speechInteractionService.clearQueue(),
+          recoverAfterFailedRestart: () => this.start(),
+        })
+        .then((result) => {
+          if (!result.success) {
+            console.error(
+              `❌ [Restart] 再起動に失敗しました: ${result.error ?? "unknown error"}`
+            );
+            // 後継プロセスは起動しなかったため、このプロセスで再度の再起動・終了要求を受け付けられるようにする。
+            this.lifecycleActionInProgress = null;
+          }
+        });
+    }, this.restartDelayMs);
+  }
+
+  /**
+   * HTTP応答が送信された後に、HTTP/棒読みサーバーの停止・Twitch切断・キュー停止を行い、
+   * 後継プロセスを起動せずにアプリを終了する。
+   */
+  private scheduleShutdown(): void {
+    console.log("⏹ [Shutdown] Web 管理コンソールからの終了要求を受け付けました。HTTP/棒読みちゃんサーバーを停止し、Twitchを切断してキューを停止します...");
+    setTimeout(() => {
+      void this.restartService.performShutdown({
+        stopHttpServers: () => this.stop(),
+        disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
+        clearQueue: () => this.speechInteractionService.clearQueue(),
+      });
+    }, this.restartDelayMs);
+  }
+
+  private lifecycleConflictResponse(): Response {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "再起動または終了処理が既に進行中です。しばらくお待ちください。",
+      }),
+      {
+        status: 409,
         headers: {
           "Content-Type": "application/json",
           ...CORS_HEADERS,

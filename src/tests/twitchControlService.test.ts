@@ -35,4 +35,23 @@ describe("TwitchControlService", () => {
     expect(service.isConnected()).toBe(false);
     expect(await service.toggle()).toBe(false);
   });
+
+  it("disconnectForShutdown disconnects only when currently connected, and is a no-op otherwise", async () => {
+    const connection = new MockConnection();
+    const service = new TwitchControlService(connection);
+
+    // No-op when already disconnected.
+    await service.disconnectForShutdown();
+    expect(connection.connected).toBe(false);
+
+    await connection.connect();
+    expect(connection.connected).toBe(true);
+    await service.disconnectForShutdown();
+    expect(connection.connected).toBe(false);
+  });
+
+  it("disconnectForShutdown is a no-op when no Twitch connection is configured", async () => {
+    const service = new TwitchControlService(null);
+    await expect(service.disconnectForShutdown()).resolves.toBeUndefined();
+  });
 });

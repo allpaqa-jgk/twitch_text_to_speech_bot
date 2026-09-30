@@ -21,4 +21,13 @@ export class TwitchControlService {
   public isConnected(): boolean {
     return this.connection?.isConnected() ?? false;
   }
+
+  /**
+   * 再起動処理向け: 現在接続中であれば無条件に切断する（未接続時は何もしない）。
+   */
+  public async disconnectForShutdown(): Promise<void> {
+    if (this.connection?.isConnected()) {
+      await this.connection.disconnect();
+    }
+  }
 }

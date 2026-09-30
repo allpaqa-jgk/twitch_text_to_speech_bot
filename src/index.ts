@@ -13,6 +13,7 @@ import { DictionaryService } from "./application/dictionaryService";
 import { CsvDictionaryRepository } from "./storage/csvDictionaryRepository";
 import { TwitchControlService } from "./application/twitchControlService";
 import { SpeechInteractionService } from "./application/speechInteractionService";
+import { RestartService } from "./application/restartService";
 import pkg from "../package.json";
 
 const BOT_VERSION = pkg.version || "2.0.1";
@@ -79,6 +80,8 @@ const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
 const dictionaryService = new DictionaryService(new CsvDictionaryRepository());
 const twitchControlService = new TwitchControlService(bot);
 const speechInteractionService = new SpeechInteractionService(queue, katakanaTransformer);
+// 再起動は Web 管理コンソールからのみ実行可能（誤操作防止のため対話型コンソールには実装しない）
+const restartService = new RestartService();
 
 // 7. Start HTTP Server (for Web Management Console, OneComme, CastCraft, Webhooks)
 let httpServer: HttpServer | null = null;
@@ -90,6 +93,7 @@ if (config.HTTP_SERVER_ENABLED) {
     dictionaryService,
     twitchControlService,
     speechInteractionService,
+    restartService,
   });
   httpServer.start();
 }

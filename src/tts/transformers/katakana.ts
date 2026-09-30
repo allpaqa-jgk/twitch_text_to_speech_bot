@@ -2,7 +2,7 @@ import type { TextTransformer } from "./types";
 import { KatakanaConverter, isChinese } from "@allpaqa/multilingual-katakana";
 
 // URLs and Twitch-style @mentions must not be mangled into katakana pronunciation.
-const URL_PATTERN = /https?:\/\/\S+|www\.\S+/g;
+const URL_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
 const MENTION_PATTERN = /@\w+/g;
 
 /**

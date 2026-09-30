@@ -5,12 +5,12 @@
     "": {
       "name": "twitch_text_to_speech_bot",
       "dependencies": {
-        "@allpaqa/multilingual-katakana": "^0.3.0",
+        "@allpaqa/multilingual-katakana": "^0.4.0",
       },
     },
     "src": {
       "name": "twitch-tts-v2",
-      "version": "2.5.2",
+      "version": "2.7.0",
       "dependencies": {
         "csv-parse": "^7.0.2",
         "franc-min": "^6.2.0",
@@ -27,7 +27,7 @@
     },
   },
   "packages": {
-    "@allpaqa/multilingual-katakana": ["@allpaqa/multilingual-katakana@0.3.0", "", {}, "sha512-x2Q5MiHwAFsZ6brG5PfIL/KysomWIvEJu2PEPcMRloott30sjQde74EOwNOTwXtQ02KFQuH35QMULWC5uM5d/w=="],
+    "@allpaqa/multilingual-katakana": ["@allpaqa/multilingual-katakana@0.4.0", "", {}, "sha512-12mwhT8zvcwG3HROLq+rapwrLCza82fIp+8ult/O+IcdtF7yODa0S7X6lZgIlBoik+hi6GvLpG/cyzKGwit3qQ=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

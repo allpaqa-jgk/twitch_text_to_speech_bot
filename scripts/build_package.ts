@@ -33,6 +33,48 @@ const PLATFORMS: TargetPlatform[] = [
   },
 ];
 
+function resolveRequestedPlatforms(): TargetPlatform[] {
+  const requestedPlatformId = process.argv[2];
+
+  if (!requestedPlatformId) {
+    return PLATFORMS;
+  }
+
+  const requestedPlatform = PLATFORMS.find((platform) => platform.id === requestedPlatformId);
+  if (!requestedPlatform) {
+    const supportedPlatforms = PLATFORMS.map((platform) => platform.id).join(", ");
+    throw new Error(
+      `Unknown platform "${requestedPlatformId}". Supported values: ${supportedPlatforms}`
+    );
+  }
+
+  return [requestedPlatform];
+}
+
+async function createZipArchive(zipPath: string, folderName: string, distDir: string) {
+  const zipArgs =
+    process.platform === "win32"
+      ? [
+          "powershell",
+          "-NoLogo",
+          "-NoProfile",
+          "-Command",
+          `Compress-Archive -Path '${folderName}' -DestinationPath '${path.basename(zipPath)}' -Force`,
+        ]
+      : ["zip", "-r", zipPath, folderName];
+
+  const zipProc = Bun.spawn(zipArgs, {
+    cwd: distDir,
+    stdout: "ignore",
+    stderr: "inherit",
+  });
+
+  const exitCode = await zipProc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`ZIP creation failed for ${folderName} with exit code ${exitCode}`);
+  }
+}
+
 async function buildPlatformPackage(p: TargetPlatform, rootDir: string, distDir: string) {
   console.log(`\n======================================================`);
   console.log(`🔨 Building package for ${p.name} ...`);
@@ -127,17 +169,8 @@ async function buildPlatformPackage(p: TargetPlatform, rootDir: string, distDir:
 
   // 4. Create ZIP
   console.log(`==> Creating release ZIP: ${p.zipName}...`);
-  // Rename packageDir temporarily or zip with folder name 'twitch-tts-bot' for friendly extraction
   const folderName = path.basename(packageDir);
-  const zipProc = Bun.spawn(
-    ["zip", "-r", zipPath, folderName],
-    {
-      cwd: distDir,
-      stdout: "ignore",
-      stderr: "inherit",
-    }
-  );
-  await zipProc.exited;
+  await createZipArchive(zipPath, folderName, distDir);
 
   console.log(`✅ ${p.zipName} created (${(fs.statSync(zipPath).size / 1024 / 1024).toFixed(2)} MB)`);
 }
@@ -150,15 +183,20 @@ async function buildAll() {
     fs.mkdirSync(distDir, { recursive: true });
   }
 
-  // Build for all platforms
-  for (const p of PLATFORMS) {
+  const requestedPlatforms = resolveRequestedPlatforms();
+
+  for (const p of requestedPlatforms) {
     await buildPlatformPackage(p, rootDir, distDir);
   }
 
   console.log("\n======================================================");
-  console.log("🎉 All packages successfully built!");
+  console.log(
+    requestedPlatforms.length === PLATFORMS.length
+      ? "🎉 All packages successfully built!"
+      : `🎉 Package successfully built for ${requestedPlatforms[0].name}!`
+  );
   console.log("======================================================");
-  for (const p of PLATFORMS) {
+  for (const p of requestedPlatforms) {
     const zipPath = path.join(distDir, p.zipName);
     const size = (fs.statSync(zipPath).size / 1024 / 1024).toFixed(2);
     console.log(`📦 ${p.zipName.padEnd(35, " ")} (${size} MB) - ${p.name}`);

@@ -12,7 +12,10 @@
     "demo": "bun run src/index.ts demo",
     "test": "cd src && bun test",
     "build": "cd src && bun run build",
-    "package": "bun run scripts/build_package.ts"
+    "package": "bun run scripts/build_package.ts",
+    "package:mac-arm64": "bun run scripts/build_package.ts mac-arm64",
+    "package:windows-x64": "bun run scripts/build_package.ts windows-x64",
+    "package:linux-x64": "bun run scripts/build_package.ts linux-x64"
   },
   "license": "MIT",
   "repository": {

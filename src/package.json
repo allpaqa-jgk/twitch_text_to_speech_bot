@@ -10,7 +10,10 @@
     "auth": "bun run ../scripts/auth.ts",
     "test": "bun test",
     "build": "bun build ./index.ts --compile --outfile ../dist/twitch-tts-v2",
-    "package": "bun run ../scripts/build_package.ts"
+    "package": "bun run ../scripts/build_package.ts",
+    "package:mac-arm64": "bun run ../scripts/build_package.ts mac-arm64",
+    "package:windows-x64": "bun run ../scripts/build_package.ts windows-x64",
+    "package:linux-x64": "bun run ../scripts/build_package.ts linux-x64"
   },
   "devDependencies": {
     "@types/bun": "latest",

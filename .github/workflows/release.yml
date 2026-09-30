@@ -6,10 +6,30 @@ on:
       - "v*"
 
 jobs:
-  release:
-    runs-on: ubuntu-24.04
+  build:
+    name: Build ${{ matrix.platform.id }}
+    runs-on: ${{ matrix.platform.runner }}
     permissions:
-      contents: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - id: mac-arm64
+            runner: macos-14
+            package_script: package:mac-arm64
+            artifact_name: release-mac-arm64
+            zip_name: twitch-tts-bot-mac-arm64.zip
+          - id: windows-x64
+            runner: windows-latest
+            package_script: package:windows-x64
+            artifact_name: release-windows-x64
+            zip_name: twitch-tts-bot-windows-x64.zip
+          - id: linux-x64
+            runner: ubuntu-24.04
+            package_script: package:linux-x64
+            artifact_name: release-linux-x64
+            zip_name: twitch-tts-bot-linux-x64.zip
 
     steps:
       - name: Checkout repository
@@ -24,12 +44,34 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Package binaries
-        run: bun run package
+      - name: Package native binary for ${{ matrix.platform.id }}
+        run: bun run ${{ matrix.platform.package_script }}
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact_name }}
+          path: dist/${{ matrix.platform.zip_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create draft release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          pattern: release-*
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           draft: true
-          files: dist/*.zip
+          files: release-artifacts/*.zip
           generate_release_notes: true

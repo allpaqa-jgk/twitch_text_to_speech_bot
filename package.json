@@ -23,6 +23,6 @@
     "src"
   ],
   "dependencies": {
-    "@allpaqa/multilingual-katakana": "^0.3.0"
+    "@allpaqa/multilingual-katakana": "^0.4.1"
   }
 }

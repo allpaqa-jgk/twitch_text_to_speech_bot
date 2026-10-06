@@ -387,6 +387,25 @@ describe("HttpServer & commentProcessor", () => {
       expect(html).toContain("readInput.required = Boolean(conf.readRequired)");
       expect(html).toContain("settings-override-default");
       expect(html).toContain('id="btn-reset-all-settings"');
+      expect(html).toContain('id="settings-unsaved-badge"');
+      expect(html).toContain("settings-dirty-badge");
+      expect(html).toContain("hasUnsavedSettings");
+      expect(html).toContain("beforeunload");
+      expect(html).toContain(".form-group.is-dirty");
+    });
+
+    it("should render web console html with management UI dirty tracking and navigation guard", async () => {
+      const res = await fetch(`http://127.0.0.1:${TEST_PORT}/`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('id="settings-unsaved-badge"');
+      expect(html).toContain("settings-dirty-badge");
+      expect(html).toContain("hasUnsavedSettings");
+      expect(html).toContain("beforeunload");
+      expect(html).toContain("if (currentActive?.id === targetId) return;");
+      expect(html).toContain("設定に未保存の変更があります。変更を破棄して別のタブへ移動しますか？");
+      expect(html).toContain("未保存の変更があります。再読み込みして変更を破棄しますか？");
+      expect(html).toContain("この項目を標準値に戻すと未保存の変更は破棄されます。よろしいですか？");
     });
 
     it("should expose safe settings, persist validated edits, and flag restart-required changes", async () => {

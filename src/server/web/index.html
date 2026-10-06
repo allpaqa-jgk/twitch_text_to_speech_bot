@@ -333,6 +333,43 @@
       padding-left: 0.6rem;
     }
 
+    .form-group.is-dirty input,
+    .form-group.is-dirty select {
+      border-color: var(--info);
+      box-shadow: 0 0 0 1px var(--info);
+    }
+
+    .form-group.is-dirty input[type="checkbox"] {
+      accent-color: var(--info);
+    }
+
+    .settings-dirty-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.5rem;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--info);
+      background: rgba(88, 166, 255, 0.15);
+      border: 1px solid rgba(88, 166, 255, 0.4);
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+
+    .settings-unsaved-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--info);
+      background: rgba(88, 166, 255, 0.15);
+      border: 1px solid rgba(88, 166, 255, 0.4);
+      border-radius: var(--radius);
+    }
+
     .settings-override-note {
       display: flex;
       align-items: center;
@@ -656,6 +693,7 @@
           <div class="btn-group" style="margin-top: 1.25rem;">
             <button type="submit" class="btn btn-primary" id="btn-save-settings">💾 設定を保存</button>
             <button type="button" class="btn" id="btn-reload-settings">🔄 再読み込み</button>
+            <span id="settings-unsaved-badge" class="settings-unsaved-badge" style="display: none;">⚠️ 未保存の変更があります</span>
             <button type="button" class="btn btn-danger" id="btn-reset-all-settings" style="display: none;">🗑️ Web 設定をすべて解除</button>
             <button type="button" class="btn btn-danger" id="btn-restart-app">♻️ アプリを再起動</button>
             <button type="button" class="btn btn-danger" id="btn-shutdown-app">⏹ アプリを終了</button>
@@ -674,6 +712,61 @@
     let dictItems = [];
     let debounceTimer = null;
     let settingsDefinitions = [];
+    let initialSettings = new Map();
+
+    function getSettingInputValue(setting, input) {
+      if (setting.type === "boolean") {
+        return Boolean(input.checked);
+      }
+      if (setting.type === "number") {
+        return input.value === "" && setting.nullable ? null : input.valueAsNumber;
+      }
+      return input.value;
+    }
+
+    function isFieldDirty(setting, input) {
+      const initialValue = initialSettings.get(setting.key);
+      const currentValue = getSettingInputValue(setting, input);
+      if (setting.type === "number") {
+        if (initialValue === null && currentValue === null) return false;
+        if (Number.isNaN(initialValue) && Number.isNaN(currentValue)) return false;
+        return initialValue !== currentValue;
+      }
+      if (setting.type === "boolean") {
+        return Boolean(initialValue) !== currentValue;
+      }
+      return (initialValue ?? "") !== currentValue;
+    }
+
+    function hasUnsavedSettings() {
+      for (const setting of settingsDefinitions) {
+        const input = document.getElementById("settings-" + setting.key);
+        if (!input) continue;
+        if (isFieldDirty(setting, input)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateUnsavedBadge() {
+      const badge = document.getElementById("settings-unsaved-badge");
+      if (badge) {
+        badge.style.display = hasUnsavedSettings() ? "inline-flex" : "none";
+      }
+    }
+
+    function updateFieldDirty(setting, input, field, dirtyBadge) {
+      const dirty = isFieldDirty(setting, input);
+      if (dirty) {
+        field.classList.add("is-dirty");
+        if (dirtyBadge) dirtyBadge.style.display = "inline-flex";
+      } else {
+        field.classList.remove("is-dirty");
+        if (dirtyBadge) dirtyBadge.style.display = "none";
+      }
+      updateUnsavedBadge();
+    }
 
     // Subtab configuration
     const dictConfig = {
@@ -731,10 +824,18 @@
 
     tabButtons.forEach(btn => {
       btn.addEventListener("click", () => {
+        const targetId = btn.getAttribute("data-tab");
+        const currentActive = document.querySelector(".tab-content.active");
+        if (currentActive?.id === targetId) return;
+        if (currentActive?.id === "tab-settings" && targetId !== "tab-settings" && hasUnsavedSettings()) {
+          if (!confirm("設定に未保存の変更があります。変更を破棄して別のタブへ移動しますか？")) {
+            return;
+          }
+        }
+
         tabButtons.forEach(b => b.classList.remove("active"));
         tabContents.forEach(c => c.classList.remove("active"));
         btn.classList.add("active");
-        const targetId = btn.getAttribute("data-tab");
         document.getElementById(targetId)?.classList.add("active");
 
         if (targetId === "tab-dict") {
@@ -818,6 +919,10 @@
 
     function renderSettings(snapshot) {
       settingsDefinitions = snapshot.settings || [];
+      initialSettings.clear();
+      for (const setting of settingsDefinitions) {
+        initialSettings.set(setting.key, setting.value);
+      }
       const container = document.getElementById("settings-fields");
       container.replaceChildren();
       let activeGroup = "";
@@ -843,6 +948,13 @@
         const label = document.createElement("label");
         label.htmlFor = inputId;
         label.textContent = setting.label;
+
+        const dirtyBadge = document.createElement("span");
+        dirtyBadge.className = "settings-dirty-badge";
+        dirtyBadge.textContent = "未保存";
+        dirtyBadge.style.display = "none";
+        label.appendChild(dirtyBadge);
+
         field.appendChild(label);
 
         let input;
@@ -886,6 +998,13 @@
         }
         input.id = inputId;
         input.dataset.settingKey = setting.key;
+
+        const onInputOrChange = () => {
+          updateFieldDirty(setting, input, field, dirtyBadge);
+        };
+        input.addEventListener("input", onInputOrChange);
+        input.addEventListener("change", onInputOrChange);
+
         if (setting.isOverridden) {
           const overrideNote = document.createElement("div");
           overrideNote.className = "settings-override-note";
@@ -913,6 +1032,7 @@
       warning.textContent = snapshot.restartRequired
         ? "保存済みの変更があります。現在のプロセスには未反映です。反映にはアプリの再起動が必要です。"
         : "表示中の設定は現在の起動設定です。";
+      updateUnsavedBadge();
     }
 
     function formatSettingValue(value) {
@@ -922,6 +1042,11 @@
     }
 
     async function resetSetting(key) {
+      if (hasUnsavedSettings()) {
+        if (!confirm("未保存の変更があります。この項目を標準値に戻すと未保存の変更は破棄されます。よろしいですか？")) {
+          return;
+        }
+      }
       const error = document.getElementById("settings-error");
       error.textContent = "";
       try {
@@ -969,7 +1094,21 @@
       }
     });
 
-    document.getElementById("btn-reload-settings")?.addEventListener("click", loadSettings);
+    document.getElementById("btn-reload-settings")?.addEventListener("click", () => {
+      if (hasUnsavedSettings()) {
+        if (!confirm("未保存の変更があります。再読み込みして変更を破棄しますか？")) {
+          return;
+        }
+      }
+      loadSettings();
+    });
+
+    window.addEventListener("beforeunload", (e) => {
+      if (hasUnsavedSettings()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
     document.getElementById("btn-reset-all-settings")?.addEventListener("click", async () => {
       if (!confirm("保存済みの Web 設定をすべて解除して標準値に戻しますか？")) return;
       const error = document.getElementById("settings-error");

@@ -513,7 +513,9 @@ describe("HttpServer & commentProcessor", () => {
       expect(persisted.ENABLE_TTS).toBe(false);
       expect(Object.keys(persisted).sort()).toEqual(["ENABLE_TTS", "HTTP_SERVER_PORT"]);
       expect(persisted.TW_OAUTH_TOKEN).toBeUndefined();
-      expect(fs.statSync(path.join(settingsDirectory, "web-settings.json")).mode & 0o777).toBe(0o600);
+      if (process.platform !== "win32") {
+        expect(fs.statSync(path.join(settingsDirectory, "web-settings.json")).mode & 0o777).toBe(0o600);
+      }
 
       const resetPortResponse = await fetch(
         `http://127.0.0.1:${TEST_PORT}/api/settings?key=HTTP_SERVER_PORT`,

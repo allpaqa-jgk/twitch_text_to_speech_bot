@@ -95,18 +95,26 @@ function readNumber(
   raw: RawConfig,
   key: string,
   fallback: number,
-  range: { min: number; max: number; integer?: boolean }
+  range: { min: number; max: number; integer?: boolean; clamp?: boolean }
 ): number {
   const value = raw[key];
   if (value === undefined) return fallback;
+  const kind = range.integer ? "an integer" : "a number";
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    value < range.min ||
-    value > range.max ||
     (range.integer && !Number.isInteger(value))
   ) {
-    const kind = range.integer ? "an integer" : "a number";
+    throw new Error(`[Config] ${key} must be ${kind} between ${range.min} and ${range.max}.`);
+  }
+  if (value < range.min || value > range.max) {
+    if (range.clamp) {
+      const clamped = Math.min(range.max, Math.max(range.min, value));
+      console.warn(
+        `[Config] ${key} value ${value} is out of bounds [${range.min}, ${range.max}]. Using clamped value ${clamped}.`
+      );
+      return clamped;
+    }
     throw new Error(`[Config] ${key} must be ${kind} between ${range.min} and ${range.max}.`);
   }
   return value;
@@ -179,25 +187,25 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
     KOKORO_ENGLISH_VOICE: readString(raw, "KOKORO_ENGLISH_VOICE", "af_heart"),
     PIPER_MODEL_PATH: readString(raw, "PIPER_MODEL_PATH", "", { allowEmpty: true }),
     KOKORO_VOICE: readString(raw, "KOKORO_VOICE", "jf_alpha"),
-    KOKORO_SPEED: readNumber(raw, "KOKORO_SPEED", 1, { min: 0.1, max: 5 }),
+    KOKORO_SPEED: readNumber(raw, "KOKORO_SPEED", 1, { min: 0.5, max: 2, clamp: true }),
     COEIROINK_HOST: readString(raw, "COEIROINK_HOST", "127.0.0.1"),
     COEIROINK_PORT: readNumber(raw, "COEIROINK_PORT", 50032, { min: 1, max: 65535, integer: true }),
     COEIROINK_STYLE_ID: readNumber(raw, "COEIROINK_STYLE_ID", 0, { min: 0, max: Number.MAX_SAFE_INTEGER, integer: true }),
     COEIROINK_SPEAKER_UUID: readString(raw, "COEIROINK_SPEAKER_UUID", "", { allowEmpty: true }),
-    COEIROINK_SPEED_SCALE: readNumber(raw, "COEIROINK_SPEED_SCALE", 1, { min: 0.1, max: 5 }),
+    COEIROINK_SPEED_SCALE: readNumber(raw, "COEIROINK_SPEED_SCALE", 1, { min: 0.5, max: 2, clamp: true }),
     COEIROINK_VOLUME_SCALE: readNumber(raw, "COEIROINK_VOLUME_SCALE", 1, { min: 0, max: 5 }),
     COEIROINK_OUTPUT_SAMPLING_RATE: readNumber(raw, "COEIROINK_OUTPUT_SAMPLING_RATE", 44100, { min: 8000, max: 192000, integer: true }),
     COEIROINK_PAUSE_LENGTH: pauseLength,
     VOICEVOX_HOST: readString(raw, "VOICEVOX_HOST", "127.0.0.1"),
     VOICEVOX_PORT: readNumber(raw, "VOICEVOX_PORT", 50021, { min: 1, max: 65535, integer: true }),
     VOICEVOX_SPEAKER_ID: readNumber(raw, "VOICEVOX_SPEAKER_ID", 1, { min: 0, max: Number.MAX_SAFE_INTEGER, integer: true }),
-    VOICEVOX_SPEED_SCALE: readNumber(raw, "VOICEVOX_SPEED_SCALE", 1, { min: 0.1, max: 5 }),
+    VOICEVOX_SPEED_SCALE: readNumber(raw, "VOICEVOX_SPEED_SCALE", 1, { min: 0.5, max: 2, clamp: true }),
     VOICEVOX_VOLUME_SCALE: readNumber(raw, "VOICEVOX_VOLUME_SCALE", 1, { min: 0, max: 5 }),
     VOICEVOX_OUTPUT_SAMPLING_RATE: readNumber(raw, "VOICEVOX_OUTPUT_SAMPLING_RATE", 24000, { min: 8000, max: 192000, integer: true }),
     SPEAKER_ENGLISH: readString(raw, "SPEAKER_ENGLISH", "Susan"),
     SPEAKER_JAPANESE: readString(raw, "SPEAKER_JAPANESE", "Kyoko"),
-    RATE_ENGLISH: readNumber(raw, "RATE_ENGLISH", 150, { min: 1, max: 500, integer: true }),
-    RATE_JAPANESE: readNumber(raw, "RATE_JAPANESE", 200, { min: 1, max: 500, integer: true }),
+    RATE_ENGLISH: readNumber(raw, "RATE_ENGLISH", 150, { min: 100, max: 350, integer: true, clamp: true }),
+    RATE_JAPANESE: readNumber(raw, "RATE_JAPANESE", 200, { min: 100, max: 350, integer: true, clamp: true }),
     ENABLE_TTS: readBoolean(raw, "ENABLE_TTS", true),
     READ_USERNAME: readBoolean(raw, "READ_USERNAME", false),
     USE_SIMPLE_NAME: readBoolean(raw, "USE_SIMPLE_NAME", true),
@@ -208,7 +216,7 @@ export function parseConfig(rawValue: unknown, authValue: unknown = {}): BotConf
       "KATAKANA", "NATIVE", "IGNORE",
     ]),
     AUTO_ACCELERATE: readBoolean(raw, "AUTO_ACCELERATE", true),
-    MAX_ACCELERATION_SPEED: readNumber(raw, "MAX_ACCELERATION_SPEED", 1.6, { min: 1, max: 5 }),
+    MAX_ACCELERATION_SPEED: readNumber(raw, "MAX_ACCELERATION_SPEED", 1.6, { min: 1, max: 2, clamp: true }),
     COMMENT_TTL_SECONDS: readNumber(raw, "COMMENT_TTL_SECONDS", 30, { min: 0, max: 86400 }),
     COMMENT_REMEMVER_AVAILABLE: readBoolean(raw, "COMMENT_REMEMVER_AVAILABLE", true),
     COMMENT_REMEMVER_COMMAND: readString(raw, "COMMENT_REMEMVER_COMMAND", "remember"),

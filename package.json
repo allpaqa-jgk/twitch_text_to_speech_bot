@@ -20,7 +20,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/allpaqa-jgk/twitch_text_to_speech_bot"
+    "url": "https://github.com/allpaqa-org/twitch_text_to_speech_bot"
   },
   "workspaces": [
     "src"

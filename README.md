@@ -1,6 +1,6 @@
 # Twitch Text to Speech Bot
 
-[![Test & Build](https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/actions/workflows/test.yml)
+[![Test & Build](https://github.com/allpaqa-org/twitch_text_to_speech_bot/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/allpaqa-org/twitch_text_to_speech_bot/actions/workflows/test.yml)
 
 Twitch配信に加え、わんコメ（OneComme）やCastCraft、ローカルHTTP API（棒読みちゃん互換）を介したYouTube Liveや同時配信（マルチ配信）のコメント読み上げにも対応した、高品質・高機能テキスト読み上げ（TTS）ボット。  
 **COEIROINK**、**Kokoro TTS**、**Piper TTS**、**VOICEVOX**、および macOS標準の **say** に対応し、配信・SNS用語の自然なカタカナ変換や外国語コメントのカタカナ変換、ネイティブ英語読み上げもサポートしています。

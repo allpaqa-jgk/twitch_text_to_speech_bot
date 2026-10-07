@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { baseConfig, config, parseConfig, type BotConfig } from "../config";
-import { CONFIG_SETTINGS, parseConfigSettings } from "../configSettings";
+import { CONFIG_SETTINGS, parseConfigSettings, settingsForPlatform } from "../configSettings";
 import { paths } from "../paths";
 
 function sameSettingValue(first: unknown, second: unknown): boolean {
@@ -37,15 +37,18 @@ export class ConfigSettingsService {
   private readonly filePath: string;
   private readonly activeConfig: BotConfig;
   private readonly defaults: BotConfig;
+  private readonly platform: string;
 
   constructor(
     filePath = paths.webSettingsJson(),
     activeConfig: BotConfig = config,
-    defaults: BotConfig = baseConfig
+    defaults: BotConfig = baseConfig,
+    platform: string = process.platform
   ) {
     this.filePath = filePath;
     this.activeConfig = { ...activeConfig };
     this.defaults = { ...defaults };
+    this.platform = platform;
   }
 
   public getSnapshot(): ConfigSettingsSnapshot {
@@ -181,14 +184,17 @@ export class ConfigSettingsService {
     effectiveConfig: BotConfig,
     overrides: Partial<BotConfig>
   ): ConfigSettingsSnapshot {
-    const settings = CONFIG_SETTINGS.map((definition) => ({
-      ...definition,
-      value: effectiveConfig[definition.key] ?? null,
-      defaultValue: this.defaults[definition.key] ?? null,
-      isOverridden:
-        Object.prototype.hasOwnProperty.call(overrides, definition.key) &&
-        !sameSettingValue(overrides[definition.key], this.defaults[definition.key]),
-    }));
+    const settings = settingsForPlatform(this.platform).map((definition) => {
+      const { platforms: _platforms, optionPlatforms: _optionPlatforms, ...rest } = definition;
+      return {
+        ...rest,
+        value: effectiveConfig[definition.key] ?? null,
+        defaultValue: this.defaults[definition.key] ?? null,
+        isOverridden:
+          Object.prototype.hasOwnProperty.call(overrides, definition.key) &&
+          !sameSettingValue(overrides[definition.key], this.defaults[definition.key]),
+      };
+    });
     const restartRequired = CONFIG_SETTINGS.some(
       ({ key }) => !Object.is(effectiveConfig[key], this.activeConfig[key])
     );

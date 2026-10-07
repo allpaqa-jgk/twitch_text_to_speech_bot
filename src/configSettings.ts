@@ -10,11 +10,13 @@ export interface ConfigSettingDefinition {
   max?: number;
   step?: number;
   nullable?: boolean;
+  platforms?: readonly NodeJS.Platform[];
+  optionPlatforms?: Readonly<Partial<Record<string, readonly NodeJS.Platform[]>>>;
 }
 
 export const CONFIG_SETTINGS: readonly ConfigSettingDefinition[] = [
-  { key: "TTS_ENGINE", label: "音声エンジン", group: "音声エンジン", type: "select", options: ["COEIROINK", "VOICEVOX", "PIPER", "KOKORO", "Mac"] },
-  { key: "ENGLISH_TTS_ENGINE", label: "英語音声エンジン", group: "音声エンジン", type: "select", options: ["KOKORO", "PIPER", "Mac"] },
+  { key: "TTS_ENGINE", label: "音声エンジン", group: "音声エンジン", type: "select", options: ["COEIROINK", "VOICEVOX", "PIPER", "KOKORO", "Mac"], optionPlatforms: { Mac: ["darwin"] } },
+  { key: "ENGLISH_TTS_ENGINE", label: "英語音声エンジン", group: "音声エンジン", type: "select", options: ["KOKORO", "PIPER", "Mac"], optionPlatforms: { Mac: ["darwin"] } },
   { key: "FOREIGN_LANGUAGE_MODE", label: "外国語コメントの処理", group: "音声エンジン", type: "select", options: ["KATAKANA", "NATIVE", "IGNORE"] },
   { key: "KOKORO_ENGLISH_VOICE", label: "Kokoro 英語ボイス", group: "音声エンジン", type: "text" },
   { key: "PIPER_MODEL_PATH", label: "Piper モデルパス", group: "音声エンジン", type: "text" },
@@ -34,10 +36,10 @@ export const CONFIG_SETTINGS: readonly ConfigSettingDefinition[] = [
   { key: "VOICEVOX_SPEED_SCALE", label: "VOICEVOX 話速", group: "VOICEVOX", type: "number", min: 0.5, max: 2, step: 0.05 },
   { key: "VOICEVOX_VOLUME_SCALE", label: "VOICEVOX 音量", group: "VOICEVOX", type: "number", min: 0, max: 5, step: 0.1 },
   { key: "VOICEVOX_OUTPUT_SAMPLING_RATE", label: "VOICEVOX サンプリングレート", group: "VOICEVOX", type: "number", min: 8000, max: 192000, step: 1 },
-  { key: "SPEAKER_ENGLISH", label: "macOS 英語ボイス", group: "macOS 音声", type: "text" },
-  { key: "SPEAKER_JAPANESE", label: "macOS 日本語ボイス", group: "macOS 音声", type: "text" },
-  { key: "RATE_ENGLISH", label: "macOS 英語話速", group: "macOS 音声", type: "number", min: 100, max: 350, step: 1 },
-  { key: "RATE_JAPANESE", label: "macOS 日本語話速", group: "macOS 音声", type: "number", min: 100, max: 350, step: 1 },
+  { key: "SPEAKER_ENGLISH", label: "macOS 英語ボイス", group: "macOS 音声", type: "text", platforms: ["darwin"] },
+  { key: "SPEAKER_JAPANESE", label: "macOS 日本語ボイス", group: "macOS 音声", type: "text", platforms: ["darwin"] },
+  { key: "RATE_ENGLISH", label: "macOS 英語話速", group: "macOS 音声", type: "number", min: 100, max: 350, step: 1, platforms: ["darwin"] },
+  { key: "RATE_JAPANESE", label: "macOS 日本語話速", group: "macOS 音声", type: "number", min: 100, max: 350, step: 1, platforms: ["darwin"] },
   { key: "ENABLE_TTS", label: "音声読み上げを有効化", group: "読み上げ", type: "boolean" },
   { key: "READ_USERNAME", label: "ユーザー名を読む", group: "読み上げ", type: "boolean" },
   { key: "USE_SIMPLE_NAME", label: "簡易ユーザー名を使う", group: "読み上げ", type: "boolean" },
@@ -76,3 +78,23 @@ export function parseConfigSettings(value: unknown, source: string): Partial<Bot
   }
   return settings as Partial<BotConfig>;
 }
+
+export function settingsForPlatform(platform: string): readonly ConfigSettingDefinition[] {
+  return CONFIG_SETTINGS.filter(
+    (def) => !def.platforms || (def.platforms as readonly string[]).includes(platform)
+  ).map((def) => {
+    if (!def.optionPlatforms || !def.options) {
+      return def;
+    }
+    const filteredOptions = def.options.filter(
+      (opt) =>
+        !def.optionPlatforms?.[opt] ||
+        (def.optionPlatforms[opt] as readonly string[]).includes(platform)
+    );
+    return {
+      ...def,
+      options: filteredOptions,
+    };
+  });
+}
+

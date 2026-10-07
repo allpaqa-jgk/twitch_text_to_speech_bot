@@ -39,7 +39,7 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
   });
 
   it("succeeds on update with in-range rate like 151 and persists it", () => {
-    const service = new ConfigSettingsService(tempFilePath);
+    const service = new ConfigSettingsService(tempFilePath, undefined, undefined, "darwin");
 
     const snapshot = service.update({ RATE_ENGLISH: 151 });
     const setting = snapshot.settings.find((s) => s.key === "RATE_ENGLISH");
@@ -54,7 +54,7 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
   it("loads an existing settings file containing out-of-range value via getSnapshot() with clamped effective value", () => {
     fs.writeFileSync(tempFilePath, JSON.stringify({ RATE_ENGLISH: 400 }));
 
-    const service = new ConfigSettingsService(tempFilePath);
+    const service = new ConfigSettingsService(tempFilePath, undefined, undefined, "darwin");
     const snapshot = service.getSnapshot();
     const setting = snapshot.settings.find((s) => s.key === "RATE_ENGLISH");
     expect(setting?.value).toBe(350);

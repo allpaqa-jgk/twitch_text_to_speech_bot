@@ -7,13 +7,16 @@ export async function runWithCompileCleanup(
   cmd: string[],
   cwd: string = process.cwd()
 ): Promise<number> {
-  let beforeFiles = new Set<string>();
+  let beforeFiles: Set<string> | null = null;
   try {
     beforeFiles = new Set(
       fs.readdirSync(cwd).filter((name) => BUN_BUILD_PATTERN.test(name))
     );
-  } catch {
-    // If scanning before spawning fails, continue with an empty set
+  } catch (err) {
+    console.warn(
+      `Warning: failed to snapshot directory "${cwd}" before build; skipping leftover cleanup:`,
+      err
+    );
   }
 
   try {
@@ -24,31 +27,30 @@ export async function runWithCompileCleanup(
     });
     return await proc.exited;
   } finally {
-    try {
-      const currentFiles = fs.readdirSync(cwd);
-      for (const name of currentFiles) {
-        if (BUN_BUILD_PATTERN.test(name) && !beforeFiles.has(name)) {
-          const filePath = path.join(cwd, name);
-          try {
+    if (beforeFiles !== null) {
+      try {
+        const currentFiles = fs.readdirSync(cwd);
+        for (const name of currentFiles) {
+          if (BUN_BUILD_PATTERN.test(name) && !beforeFiles.has(name)) {
+            const filePath = path.join(cwd, name);
             try {
-              fs.chmodSync(filePath, 0o666);
-            } catch {
-              // Ignore chmod error and attempt deletion
+              try {
+                fs.chmodSync(filePath, 0o666);
+              } catch {
+                // Ignore chmod error and attempt deletion
+              }
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              console.warn(`Warning: failed to remove build leftover "${filePath}":`, err);
             }
-            fs.unlinkSync(filePath);
-          } catch (err) {
-            console.warn(`Warning: failed to remove build leftover "${filePath}":`, err);
           }
         }
+      } catch (err) {
+        console.warn(`Warning: failed to scan directory "${cwd}" for leftovers:`, err);
       }
-    } catch (err) {
-      console.warn(`Warning: failed to scan directory "${cwd}" for leftovers:`, err);
     }
   }
 }
-
-export { runWithCompileCleanup as compile };
-export default runWithCompileCleanup;
 
 if (import.meta.main) {
   const args = process.argv.slice(2);

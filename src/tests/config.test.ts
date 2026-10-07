@@ -65,4 +65,94 @@ describe("parseConfig", () => {
   it("rejects non-object configuration data", () => {
     expect(() => parseConfig([])).toThrow("default.js must export an object");
   });
+
+  it("passes in-range values through unchanged without warning", () => {
+    const origWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(" "));
+    };
+
+    try {
+      const config = parseConfig({
+        COEIROINK_SPEED_SCALE: 1.5,
+        VOICEVOX_SPEED_SCALE: 1.2,
+        KOKORO_SPEED: 0.8,
+        MAX_ACCELERATION_SPEED: 1.8,
+        RATE_ENGLISH: 250,
+        RATE_JAPANESE: 300,
+      });
+
+      expect(config.COEIROINK_SPEED_SCALE).toBe(1.5);
+      expect(config.VOICEVOX_SPEED_SCALE).toBe(1.2);
+      expect(config.KOKORO_SPEED).toBe(0.8);
+      expect(config.MAX_ACCELERATION_SPEED).toBe(1.8);
+      expect(config.RATE_ENGLISH).toBe(250);
+      expect(config.RATE_JAPANESE).toBe(300);
+      expect(warnings).toHaveLength(0);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it("clamps out-of-range speed and rate settings to engine bounds and logs a warning", () => {
+    const origWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: any[]) => {
+      warnings.push(args.join(" "));
+    };
+
+    try {
+      const configHigh = parseConfig({
+        COEIROINK_SPEED_SCALE: 4.5,
+        RATE_ENGLISH: 400,
+      });
+
+      expect(configHigh.COEIROINK_SPEED_SCALE).toBe(2);
+      expect(configHigh.RATE_ENGLISH).toBe(350);
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toContain("COEIROINK_SPEED_SCALE");
+      expect(warnings[0]).toContain("4.5");
+      expect(warnings[0]).toContain("2");
+      expect(warnings[1]).toContain("RATE_ENGLISH");
+      expect(warnings[1]).toContain("400");
+      expect(warnings[1]).toContain("350");
+
+      warnings.length = 0;
+      const configLow = parseConfig({
+        COEIROINK_SPEED_SCALE: 0.1,
+        RATE_ENGLISH: 50,
+      });
+
+      expect(configLow.COEIROINK_SPEED_SCALE).toBe(0.5);
+      expect(configLow.RATE_ENGLISH).toBe(100);
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toContain("COEIROINK_SPEED_SCALE");
+      expect(warnings[0]).toContain("0.1");
+      expect(warnings[0]).toContain("0.5");
+      expect(warnings[1]).toContain("RATE_ENGLISH");
+      expect(warnings[1]).toContain("50");
+      expect(warnings[1]).toContain("100");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it("rejects non-numeric values for bounded keys", () => {
+    expect(() => parseConfig({ COEIROINK_SPEED_SCALE: "fast" })).toThrow(
+      "COEIROINK_SPEED_SCALE must be a number between 0.5 and 2"
+    );
+    expect(() => parseConfig({ RATE_ENGLISH: "slow" })).toThrow(
+      "RATE_ENGLISH must be an integer between 100 and 350"
+    );
+    expect(() => parseConfig({ RATE_ENGLISH: 200.5 })).toThrow(
+      "RATE_ENGLISH must be an integer between 100 and 350"
+    );
+  });
+
+  it("still throws on out-of-range values for unaffected keys", () => {
+    expect(() => parseConfig({ MASTER_VOLUME: 99 })).toThrow(
+      "MASTER_VOLUME must be a number between 0 and 5"
+    );
+  });
 });

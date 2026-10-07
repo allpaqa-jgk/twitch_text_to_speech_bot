@@ -77,6 +77,22 @@ export class ConfigSettingsService {
       throw new SettingsValidationError(error instanceof Error ? error.message : String(error));
     }
 
+    for (const definition of CONFIG_SETTINGS) {
+      const key = definition.key;
+      if (!Object.prototype.hasOwnProperty.call(updates, key)) continue;
+      const value = updates[key];
+      if (
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        ((definition.min !== undefined && value < definition.min) ||
+          (definition.max !== undefined && value > definition.max))
+      ) {
+        throw new SettingsValidationError(
+          `${key} must be a number between ${definition.min} and ${definition.max}.`
+        );
+      }
+    }
+
     const updatedOverrides = { ...this.readOverrides() };
     for (const definition of CONFIG_SETTINGS) {
       const key = definition.key;

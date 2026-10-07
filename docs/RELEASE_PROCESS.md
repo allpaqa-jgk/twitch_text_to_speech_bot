@@ -63,7 +63,7 @@ flowchart TD
 - **内容**: Ubuntu 上で Bun 環境を構築し、テストとビルドを実行して品質を保証。
 - **ステータスバッジ**:
   ```markdown
-  [![Test & Build](https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/actions/workflows/test.yml)
+  [![Test & Build](https://github.com/allpaqa-org/twitch_text_to_speech_bot/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/allpaqa-org/twitch_text_to_speech_bot/actions/workflows/test.yml)
   ```
 
 ### ② CD (`.github/workflows/release.yml`)
@@ -112,4 +112,4 @@ gh release edit vX.Y.Z --title "vX.Y.Z - リリース名" --notes "変更内容.
 ```
 
 ### Step 6: 正式公開 (Publish Release)
-ブラウザで [GitHub Releases ページ](https://github.com/allpaqa-jgk/twitch_text_to_speech_bot/releases) を開き、作成されたドラフトの「Edit」➔「**Publish release**」ボタンを押して正式公開します。
+ブラウザで [GitHub Releases ページ](https://github.com/allpaqa-org/twitch_text_to_speech_bot/releases) を開き、作成されたドラフトの「Edit」➔「**Publish release**」ボタンを押して正式公開します。

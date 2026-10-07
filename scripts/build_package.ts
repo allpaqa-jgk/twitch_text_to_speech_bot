@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import { runWithCompileCleanup } from "./compile";
 
 interface TargetPlatform {
   id: string;
@@ -111,13 +112,7 @@ async function buildPlatformPackage(p: TargetPlatform, rootDir: string, distDir:
   buildArgs.push("--outfile", binaryOutput);
 
   console.log(`==> Compiling standalone binary (${p.binaryName})...`);
-  const buildProc = Bun.spawn(buildArgs, {
-    cwd: rootDir,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-
-  const exitCode = await buildProc.exited;
+  const exitCode = await runWithCompileCleanup(buildArgs, rootDir);
   if (exitCode !== 0) {
     throw new Error(`Bun compilation failed for ${p.name} with exit code ${exitCode}`);
   }

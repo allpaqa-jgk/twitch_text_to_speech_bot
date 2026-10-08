@@ -985,19 +985,33 @@
         } else {
           input = document.createElement("input");
           input.type = setting.type === "number" ? "number" : "text";
-          input.value = setting.value ?? "";
           if (setting.type === "number") {
             if (setting.min !== undefined) input.min = setting.min;
             if (setting.max !== undefined) input.max = setting.max;
             if (setting.step !== undefined) input.step = setting.step;
-            if (setting.nullable && setting.value === null) {
+            if (setting.nullable && (setting.value === null || setting.value === undefined || setting.value === "")) {
               input.placeholder = "未設定";
+              input.value = "";
+            } else if (typeof setting.value === "number" && Number.isFinite(setting.value)) {
+              input.value = formatNumberSettingValue(setting.value, setting.step);
+            } else {
+              input.value = setting.value ?? "";
             }
+          } else {
+            input.value = setting.value ?? "";
           }
           field.appendChild(input);
         }
         input.id = inputId;
         input.dataset.settingKey = setting.key;
+
+        if (setting.type === "number" && setting.step !== undefined && setting.step !== null) {
+          input.addEventListener("change", () => {
+            if (input.value !== "" && Number.isFinite(input.valueAsNumber)) {
+              input.value = formatNumberSettingValue(input.valueAsNumber, setting.step);
+            }
+          });
+        }
 
         const onInputOrChange = () => {
           updateFieldDirty(setting, input, field, dirtyBadge);
@@ -1010,7 +1024,7 @@
           overrideNote.className = "settings-override-note";
           const defaultValue = document.createElement("span");
           defaultValue.className = "settings-override-default";
-          defaultValue.textContent = "標準値: " + formatSettingValue(setting.defaultValue);
+          defaultValue.textContent = "標準値: " + formatSettingValue(setting.defaultValue, setting.step);
           overrideNote.appendChild(defaultValue);
 
           const resetButton = document.createElement("button");
@@ -1035,9 +1049,79 @@
       updateUnsavedBadge();
     }
 
-    function formatSettingValue(value) {
+    function countDecimals(num) {
+      if (typeof num !== "number" || !Number.isFinite(num)) return 0;
+      const s = String(num).toLowerCase();
+      const eIndex = s.indexOf("e");
+      if (eIndex !== -1) {
+        const mantissa = s.slice(0, eIndex);
+        const exp = parseInt(s.slice(eIndex + 1), 10);
+        const dotIndex = mantissa.indexOf(".");
+        const mantissaDecimals = dotIndex === -1 ? 0 : mantissa.length - dotIndex - 1;
+        const decimals = mantissaDecimals - exp;
+        return decimals > 0 ? decimals : 0;
+      }
+      const dotIndex = s.indexOf(".");
+      return dotIndex === -1 ? 0 : s.length - dotIndex - 1;
+    }
+
+    function formatNumberSettingValue(value, step) {
+      if (value === null || value === undefined || value === "") return "";
+      if (typeof value !== "number" || !Number.isFinite(value)) return "";
+      if (step === undefined || step === null || typeof step !== "number" || !Number.isFinite(step)) {
+        return String(value);
+      }
+      const targetDecimals = Math.max(countDecimals(step), countDecimals(value));
+      const s = String(value).toLowerCase();
+      const eIndex = s.indexOf("e");
+      if (eIndex !== -1) {
+        const mantissa = s.slice(0, eIndex);
+        const exp = parseInt(s.slice(eIndex + 1), 10);
+        const isNeg = mantissa.startsWith("-");
+        const raw = isNeg ? mantissa.slice(1) : mantissa;
+        const dot = raw.indexOf(".");
+        const whole = dot === -1 ? raw : raw.slice(0, dot);
+        const frac = dot === -1 ? "" : raw.slice(dot + 1);
+        let decimalStr = "";
+        if (exp < 0) {
+          const leadingZeros = Math.abs(exp) - whole.length;
+          decimalStr = "0." + "0".repeat(leadingZeros > 0 ? leadingZeros : 0) + whole + frac;
+        } else {
+          if (exp >= frac.length) {
+            decimalStr = whole + frac + "0".repeat(exp - frac.length);
+          } else {
+            decimalStr = whole + frac.slice(0, exp) + "." + frac.slice(exp);
+          }
+        }
+        const dotIdx = decimalStr.indexOf(".");
+        const currentDecimals = dotIdx === -1 ? 0 : decimalStr.length - dotIdx - 1;
+        if (targetDecimals > currentDecimals) {
+          if (dotIdx === -1) {
+            decimalStr += "." + "0".repeat(targetDecimals);
+          } else {
+            decimalStr += "0".repeat(targetDecimals - currentDecimals);
+          }
+        }
+        return (isNeg ? "-" : "") + decimalStr;
+      }
+
+      const dotIndex = s.indexOf(".");
+      if (dotIndex === -1) {
+        return targetDecimals > 0 ? s + "." + "0".repeat(targetDecimals) : s;
+      }
+      const currentDecimals = s.length - dotIndex - 1;
+      if (targetDecimals > currentDecimals) {
+        return s + "0".repeat(targetDecimals - currentDecimals);
+      }
+      return s;
+    }
+
+    function formatSettingValue(value, step) {
       if (value === null || value === undefined || value === "") return "未設定";
       if (typeof value === "boolean") return value ? "有効" : "無効";
+      if (typeof value === "number" && step !== undefined && step !== null) {
+        return formatNumberSettingValue(value, step);
+      }
       return String(value);
     }
 

@@ -5,12 +5,12 @@
     "": {
       "name": "twitch_text_to_speech_bot",
       "dependencies": {
-        "@allpaqa/multilingual-katakana": "^0.4.1",
+        "@allpaqa/multilingual-katakana": "^0.5.0",
       },
     },
     "src": {
       "name": "twitch-tts-v2",
-      "version": "2.7.0",
+      "version": "2.8.0",
       "dependencies": {
         "csv-parse": "^7.0.2",
         "franc-min": "^6.2.0",
@@ -27,23 +27,23 @@
     },
   },
   "packages": {
-    "@allpaqa/multilingual-katakana": ["@allpaqa/multilingual-katakana@0.4.1", "", { "optionalDependencies": { "@allpaqa/multilingual-katakana-darwin-arm64": "0.4.1", "@allpaqa/multilingual-katakana-darwin-x64": "0.4.1", "@allpaqa/multilingual-katakana-linux-arm64-gnu": "0.4.1", "@allpaqa/multilingual-katakana-linux-arm64-musl": "0.4.1", "@allpaqa/multilingual-katakana-linux-x64-gnu": "0.4.1", "@allpaqa/multilingual-katakana-linux-x64-musl": "0.4.1", "@allpaqa/multilingual-katakana-win32-arm64-msvc": "0.4.1", "@allpaqa/multilingual-katakana-win32-x64-msvc": "0.4.1" } }, "sha512-rwi53YVcPf/PLigPzAk65lIUmUQnX+XrUj7/ipsY366Z8a1slc/PtMsvzwHea37shUCpjiHEueTOmBH+Qj4ozA=="],
+    "@allpaqa/multilingual-katakana": ["@allpaqa/multilingual-katakana@0.5.0", "", { "optionalDependencies": { "@allpaqa/multilingual-katakana-darwin-arm64": "0.5.0", "@allpaqa/multilingual-katakana-darwin-x64": "0.5.0", "@allpaqa/multilingual-katakana-linux-arm64-gnu": "0.5.0", "@allpaqa/multilingual-katakana-linux-arm64-musl": "0.5.0", "@allpaqa/multilingual-katakana-linux-x64-gnu": "0.5.0", "@allpaqa/multilingual-katakana-linux-x64-musl": "0.5.0", "@allpaqa/multilingual-katakana-win32-arm64-msvc": "0.5.0", "@allpaqa/multilingual-katakana-win32-x64-msvc": "0.5.0" } }, "sha512-JU8K6X7w6i4lpO54AaZxfi0FNr+Oa8apN//S+ovE24UHGjDfdlVSzE11PxhxtwwZVox5S2hdbOxWH/4UcHKfEA=="],
 
-    "@allpaqa/multilingual-katakana-darwin-arm64": ["@allpaqa/multilingual-katakana-darwin-arm64@0.4.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-/FeGKaHBgTJ9dEiIcEMtMOF0SCKoapQna/c+lL3UDdFeIAeTtW3VE3zcf5UYnpUp5gs0ejlkw8aO5bhSvIqxeg=="],
+    "@allpaqa/multilingual-katakana-darwin-arm64": ["@allpaqa/multilingual-katakana-darwin-arm64@0.5.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2zf4Cp+p5TVgJPT3NPgg2lWbZR0y7zi83RFSOtn6sBejg4GozFVRX7oEx23n5Ng9GYCGX63RG+cMjXehD2mEIg=="],
 
-    "@allpaqa/multilingual-katakana-darwin-x64": ["@allpaqa/multilingual-katakana-darwin-x64@0.4.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-yCeQBtesgEw4XsFLrVdll8F10qtvZZ6zNrQ6XZU+555NDe2bueAlPtAgc2V1dLKOFhLhEhoD4JiENxsqVC4cMw=="],
+    "@allpaqa/multilingual-katakana-darwin-x64": ["@allpaqa/multilingual-katakana-darwin-x64@0.5.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-7cWRkd0J1q8PUqcXWpUjnE74XVHOwjaicbm5bqq8jYHPL1xKlB6aQcofchOs8RViRk4iqMqSyyrAjC7I7tMsVg=="],
 
-    "@allpaqa/multilingual-katakana-linux-arm64-gnu": ["@allpaqa/multilingual-katakana-linux-arm64-gnu@0.4.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-5RNzGyzwqk81qRkEEHJVFJ52MOtLFb+wbYS+YWpYKb8hUBYJ0Zz2VLL7D/V2H8m8CZkvzcuDxkUbLm+JFkILoQ=="],
+    "@allpaqa/multilingual-katakana-linux-arm64-gnu": ["@allpaqa/multilingual-katakana-linux-arm64-gnu@0.5.0", "", { "os": "linux", "cpu": "arm64" }, "sha512-LJ8p7+kDvdCMHzAnhL83t8T1MomL9dNyA3g6CnAjmLb1iJtLBQmj8/asHcze7EaE5LGofEhQ5Gtox+LIPw3AYA=="],
 
-    "@allpaqa/multilingual-katakana-linux-arm64-musl": ["@allpaqa/multilingual-katakana-linux-arm64-musl@0.4.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-WU9lDAfDiS7LfaFCYhponhXyUAtk+gRo0MngrT3TJcueEW7v7j6+72U1E6+15YuN0vI9vMvSkPqX/XaQk0xjdw=="],
+    "@allpaqa/multilingual-katakana-linux-arm64-musl": ["@allpaqa/multilingual-katakana-linux-arm64-musl@0.5.0", "", { "os": "linux", "cpu": "arm64" }, "sha512-U3VQbXCfACb5xgcCayVjjBYU3zk5p4Pa7aNwE657KI3I31a1DpEC6i2PygzX9g6VjtTV01SDdneCkPCPOZONVw=="],
 
-    "@allpaqa/multilingual-katakana-linux-x64-gnu": ["@allpaqa/multilingual-katakana-linux-x64-gnu@0.4.1", "", { "os": "linux", "cpu": "x64" }, "sha512-KgL2/TBIebRQBR4NkYN7E/EvA8qaI3d/7mnmwz39FopMXsrLNzJuzSWuZ9fxVOuLvMDhEK5jxSN8mfWUBvPAJA=="],
+    "@allpaqa/multilingual-katakana-linux-x64-gnu": ["@allpaqa/multilingual-katakana-linux-x64-gnu@0.5.0", "", { "os": "linux", "cpu": "x64" }, "sha512-6aEPdgn0cx4CNQQbxsxFPwtaczYiD7HHEPt/MNC4qRPPmvGJ63+MtMbp5qUMpcdt1VLHBJkl73etesbWfMvIYA=="],
 
-    "@allpaqa/multilingual-katakana-linux-x64-musl": ["@allpaqa/multilingual-katakana-linux-x64-musl@0.4.1", "", { "os": "linux", "cpu": "x64" }, "sha512-7FAkUISLrnsFdAAz8bt5qsgbKJ/U6A7+QEKdR2OcO5NS4uPEgoKNLq7MH6/v5I5Pr1qqErQ0iY/Rn5diS0cqWQ=="],
+    "@allpaqa/multilingual-katakana-linux-x64-musl": ["@allpaqa/multilingual-katakana-linux-x64-musl@0.5.0", "", { "os": "linux", "cpu": "x64" }, "sha512-n3JA5fza1KlQui4NkWhtI2Ny/GeGSTX41vSzKsvzg5oCQoKADnLleicyfE9jkoYY1/zT6igjYJJBEBSkJ4qnag=="],
 
-    "@allpaqa/multilingual-katakana-win32-arm64-msvc": ["@allpaqa/multilingual-katakana-win32-arm64-msvc@0.4.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-CrqwoweU0zIF5n9wMYJ2hD9khXHLiUhZSS2QEiCZtgPHsTMM+sAQPIpf1wYEyy8nb6vjkJyEKz3tRZ07ehV7oQ=="],
+    "@allpaqa/multilingual-katakana-win32-arm64-msvc": ["@allpaqa/multilingual-katakana-win32-arm64-msvc@0.5.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-BDKeMpOwdXX9O0xQ5mvoW1Hqrf748njprUG0HzEYEhfdZRSSjYO7eGuLCzpQBqygxrVmpWWRWCoQvdp/F3WHpg=="],
 
-    "@allpaqa/multilingual-katakana-win32-x64-msvc": ["@allpaqa/multilingual-katakana-win32-x64-msvc@0.4.1", "", { "os": "win32", "cpu": "x64" }, "sha512-YmUHrneMcsEnvfjBIu7ch4YgrPAXmHNdvyaHdIzKd7adL483rk4xOKGTvUIvqziuZQo7KnqFkwkScR0BmlrxcA=="],
+    "@allpaqa/multilingual-katakana-win32-x64-msvc": ["@allpaqa/multilingual-katakana-win32-x64-msvc@0.5.0", "", { "os": "win32", "cpu": "x64" }, "sha512-TQEH03JtQMAWpf0XrCyb9zhuyXUNLIIeye6Y2r3KmWqlLO2NPiN23nkWouAnk9e70zMX/hHJxvcvpPTQNgUi+Q=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

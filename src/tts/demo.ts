@@ -63,24 +63,39 @@ export async function prepareDemoSteps(
  * Enqueues the multilingual demo into the TTS queue for interactive console playback.
  */
 export async function enqueueDemo(
-  queue: Pick<TTSQueue, "enqueue">,
+  queue: Pick<TTSQueue, "enqueue"> & Partial<Pick<TTSQueue, "pin">>,
   transformer?: TextTransformer
 ): Promise<void> {
   console.log("\n======================================================================");
   console.log("🌏 主要言語の読み上げデモをキューに追加します...");
   console.log("======================================================================");
 
-  const steps = await prepareDemoSteps(transformer);
-  for (const step of steps) {
-    if (step.announce) {
-      console.log(`📢 【${step.announce}】 ${step.text}`);
-      console.log(`   └> 変換: ${step.converted}`);
-      queue.enqueue(`${step.announce}。`, { bypassAcceleration: true, bypassTtl: true });
-    } else {
-      console.log(`📢 ${step.text}`);
-      console.log(`   └> 変換: ${step.converted}`);
+  const pin = queue.pin ? queue.pin() : undefined;
+  try {
+    const steps = await prepareDemoSteps(transformer);
+    for (const step of steps) {
+      if (step.announce) {
+        console.log(`📢 【${step.announce}】 ${step.text}`);
+        console.log(`   └> 変換: ${step.converted}`);
+        queue.enqueue(`${step.announce}。`, {
+          bypassAcceleration: true,
+          bypassTtl: true,
+          pin,
+          engine: pin?.engines.primary,
+        });
+      } else {
+        console.log(`📢 ${step.text}`);
+        console.log(`   └> 変換: ${step.converted}`);
+      }
+      queue.enqueue(step.converted, {
+        bypassAcceleration: true,
+        bypassTtl: true,
+        pin,
+        engine: pin?.engines.primary,
+      });
     }
-    queue.enqueue(step.converted, { bypassAcceleration: true, bypassTtl: true });
+  } finally {
+    pin?.release();
   }
   console.log("======================================================================");
   console.log("💡 中断したい場合は「clear」と入力してください。\n");

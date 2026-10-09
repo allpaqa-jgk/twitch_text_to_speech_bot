@@ -279,4 +279,4 @@ if (fs.existsSync(webSettingsPath)) {
   webSettings = parseConfigSettings(parsedSettings, webSettingsPath);
   delete webSettings.HTTP_SERVER_ENABLED;
 }
-export const config: BotConfig = parseConfig({ ...baseConfig, ...webSettings }, authConfig);
+export const initialConfig: BotConfig = parseConfig({ ...baseConfig, ...webSettings }, authConfig);

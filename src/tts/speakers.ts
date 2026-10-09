@@ -1,4 +1,5 @@
-import { config } from "../config";
+import type { Settings } from "../settingsStore";
+import { settingsStore } from "../settingsStore";
 
 interface StyleInfo {
   id: number;
@@ -9,17 +10,19 @@ interface StyleInfo {
 /**
  * Fetch and list all available speakers/styles from COEIROINK or VOICEVOX
  */
-export async function printAvailableSpeakers(): Promise<void> {
-  const engine = config.TTS_ENGINE;
+export async function printAvailableSpeakers(
+  settings: Settings = settingsStore.current()
+): Promise<void> {
+  const engine = settings.TTS_ENGINE;
 
   console.log("\n======================================================================");
   console.log(`📢 利用可能なボイス・スタイル一覧 (${engine})`);
   console.log("======================================================================");
 
   if (engine === "COEIROINK") {
-    await printCoeiroinkSpeakers();
+    await printCoeiroinkSpeakers(settings);
   } else if (engine === "VOICEVOX") {
-    await printVoicevoxSpeakers();
+    await printVoicevoxSpeakers(settings);
   } else if (engine === "KOKORO") {
     printKokoroVoices();
   } else if (engine === "Mac") {
@@ -31,8 +34,10 @@ export async function printAvailableSpeakers(): Promise<void> {
   console.log("======================================================================\n");
 }
 
-async function printCoeiroinkSpeakers(): Promise<void> {
-  const url = `http://${config.COEIROINK_HOST}:${config.COEIROINK_PORT}/v1/speakers`;
+async function printCoeiroinkSpeakers(
+  settings: Settings = settingsStore.current()
+): Promise<void> {
+  const url = `http://${settings.COEIROINK_HOST}:${settings.COEIROINK_PORT}/v1/speakers`;
   try {
     const res = await fetch(url);
     if (!res.ok) {
@@ -77,8 +82,10 @@ async function printCoeiroinkSpeakers(): Promise<void> {
   }
 }
 
-async function printVoicevoxSpeakers(): Promise<void> {
-  const url = `http://${config.VOICEVOX_HOST}:${config.VOICEVOX_PORT}/speakers`;
+async function printVoicevoxSpeakers(
+  settings: Settings = settingsStore.current()
+): Promise<void> {
+  const url = `http://${settings.VOICEVOX_HOST}:${settings.VOICEVOX_PORT}/speakers`;
   try {
     const res = await fetch(url);
     if (!res.ok) {

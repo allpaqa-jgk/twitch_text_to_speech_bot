@@ -1,22 +1,23 @@
 import readline from "readline";
 import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
-import type { TTSEngine } from "../tts/engine";
 import type { TwitchTTSBot } from "../twitch/client";
 import type { HttpServer } from "../server/httpServer";
-import { detectLanguage } from "../text/languageDetector";
 import { printAvailableSpeakers } from "../tts/speakers";
 import { enqueueDemo } from "../tts/demo";
 import { startTwitchOAuthFlow } from "../twitch/auth";
 import { openBrowser } from "../utils/browser";
-import { config } from "../config";
+import { settingsStore, type SettingsStore } from "../settingsStore";
+import type { EngineHolder } from "../tts/engineHolder";
+import { planSpeech } from "../tts/speechPlanner";
 
 export interface InteractiveConsoleContext {
   queue: TTSQueue;
   transformer?: TextTransformer;
-  englishEngine?: TTSEngine;
   bot?: TwitchTTSBot | null;
   httpServer?: HttpServer | null;
+  store?: SettingsStore;
+  engineHolder?: EngineHolder;
 }
 
 /**
@@ -28,7 +29,8 @@ export async function handleInteractiveCommand(
   ctx: InteractiveConsoleContext,
   onExit: () => void = () => process.exit(0)
 ): Promise<void> {
-  const { queue, transformer, englishEngine, bot, httpServer } = ctx;
+  const { queue, transformer, bot, httpServer } = ctx;
+  const store = ctx.store ?? settingsStore;
   const trimmed = line.trim();
   if (!trimmed) {
     return;
@@ -48,7 +50,7 @@ export async function handleInteractiveCommand(
     case "open":
     case "gui":
     case "w": {
-      const port = httpServer ? httpServer.getMainPort() : config.HTTP_SERVER_PORT;
+      const port = httpServer ? httpServer.getMainPort() : store.current().HTTP_SERVER_PORT;
       const url = `http://localhost:${port}`;
       console.log(`🌐 ブラウザで Web コンソールを開きます: ${url}`);
       openBrowser(url);
@@ -58,38 +60,27 @@ export async function handleInteractiveCommand(
     case "speakers":
     case "voices":
     case "list":
-      await printAvailableSpeakers();
+      await printAvailableSpeakers(store.current());
       break;
 
     case "say":
     case "s": {
-      let textToSay = args.join(" ").trim();
+      const textToSay = args.join(" ").trim();
       if (!textToSay) {
         console.log("⚠️ 使用方法: say <喋らせたいテキスト>");
       } else {
-        const lang = detectLanguage(textToSay);
-        const isForeign = lang !== "jpn";
-
-        if (config.FOREIGN_LANGUAGE_MODE === "IGNORE" && isForeign) {
-          console.log(`ℹ️ [Say] FOREIGN_LANGUAGE_MODE=IGNORE のためスキップされました`);
-          break;
+        const pin = queue.pin();
+        try {
+          const planned = await planSpeech(textToSay, pin, { transformer });
+          if (planned.ignored) {
+            console.log(`ℹ️ [Say] FOREIGN_LANGUAGE_MODE=IGNORE のためスキップされました`);
+            break;
+          }
+          console.log(`🗣️ テスト発声中: "${planned.text}"`);
+          queue.enqueue(planned.text, { pin, engine: planned.engine });
+        } finally {
+          pin.release();
         }
-
-        if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && transformer) {
-          textToSay = await transformer.transform(textToSay);
-        }
-
-        let engineToUse: TTSEngine | undefined;
-        if (
-          config.FOREIGN_LANGUAGE_MODE === "NATIVE" &&
-          lang === "eng" &&
-          englishEngine
-        ) {
-          engineToUse = englishEngine;
-        }
-
-        console.log(`🗣️ テスト発声中: "${textToSay}"`);
-        queue.enqueue(textToSay, { engine: engineToUse });
       }
       break;
     }
@@ -116,13 +107,16 @@ export async function handleInteractiveCommand(
         console.log("* [TwitchBot] Twitch から一時的に切断しました。");
         console.log("💡 次回起動時にも反映させるには、config/default.js の ENABLE_TWITCH を false に変更してください。");
       } else if (sub === "on") {
-        if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME) {
+        const current = store.current();
+        if (!current.TW_OAUTH_TOKEN || !current.TW_CHANNEL_NAME) {
           console.log("ブラウザを開いて Twitch 認証を行います...\n");
           try {
             const authResult = await startTwitchOAuthFlow();
-            config.TW_OAUTH_TOKEN = authResult.token;
-            config.TW_CHANNEL_NAME = authResult.login;
-            config.BOT_USERNAME = authResult.login;
+            store.apply({
+              TW_OAUTH_TOKEN: authResult.token,
+              TW_CHANNEL_NAME: authResult.login,
+              BOT_USERNAME: authResult.login,
+            });
           } catch (err) {
             console.error("Twitch 認証に失敗しました:", err);
             break;
@@ -134,13 +128,16 @@ export async function handleInteractiveCommand(
         }
       } else {
         // No argument (or "auth"): toggle or show status / trigger OAuth if unauthenticated
-        if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME || lowerCmd === "auth") {
+        const current = store.current();
+        if (!current.TW_OAUTH_TOKEN || !current.TW_CHANNEL_NAME || lowerCmd === "auth") {
           console.log("ブラウザを開いて Twitch 認証を行います...\n");
           try {
             const authResult = await startTwitchOAuthFlow();
-            config.TW_OAUTH_TOKEN = authResult.token;
-            config.TW_CHANNEL_NAME = authResult.login;
-            config.BOT_USERNAME = authResult.login;
+            store.apply({
+              TW_OAUTH_TOKEN: authResult.token,
+              TW_CHANNEL_NAME: authResult.login,
+              BOT_USERNAME: authResult.login,
+            });
             if (bot) {
               await bot.connect();
             }
@@ -163,11 +160,12 @@ export async function handleInteractiveCommand(
 
     case "status": {
       console.log("\n-------------------------------------------------------");
+      const current = store.current();
       let twitchStatus = "Disconnected";
-      if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME) {
+      if (!current.TW_OAUTH_TOKEN || !current.TW_CHANNEL_NAME) {
         twitchStatus = "Unauthenticated";
       } else if (bot && bot.isConnected()) {
-        twitchStatus = `Connected (#${config.TW_CHANNEL_NAME})`;
+        twitchStatus = `Connected (#${current.TW_CHANNEL_NAME})`;
       } else {
         twitchStatus = "Disconnected";
       }
@@ -183,7 +181,10 @@ export async function handleInteractiveCommand(
         console.log(`🌐 HTTP 読み上げ      : 無効`);
       }
 
-      console.log(`🗣️ 使用音声エンジン   : ${config.TTS_ENGINE}`);
+      const primaryName = ctx.engineHolder
+        ? ctx.engineHolder.current().primaryName
+        : store.current().TTS_ENGINE;
+      console.log(`🗣️ 使用音声エンジン   : ${primaryName}`);
       console.log(`⏳ 再生待ちのコメント : ${queue.pendingCount} 件`);
       console.log("-------------------------------------------------------\n");
       break;
@@ -205,9 +206,10 @@ export async function handleInteractiveCommand(
 export function startInteractiveConsole(
   queue: TTSQueue,
   transformer?: TextTransformer,
-  englishEngine?: TTSEngine,
   bot?: TwitchTTSBot | null,
-  httpServer?: HttpServer | null
+  httpServer?: HttpServer | null,
+  store: SettingsStore = settingsStore,
+  engineHolder?: EngineHolder
 ): void {
   // Only start interactive terminal if stdin is a TTY
   if (!process.stdin.isTTY) {
@@ -228,7 +230,7 @@ export function startInteractiveConsole(
   rl.on("line", async (line) => {
     await handleInteractiveCommand(
       line,
-      { queue, transformer, englishEngine, bot, httpServer },
+      { queue, transformer, bot, httpServer, store, engineHolder },
       () => {
         rl.close();
         process.exit(0);

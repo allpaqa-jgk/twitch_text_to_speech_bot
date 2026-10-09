@@ -1,8 +1,16 @@
 import fs from "fs";
 import path from "path";
-import { baseConfig, config, parseConfig, type BotConfig } from "../config";
-import { CONFIG_SETTINGS, parseConfigSettings, settingsForPlatform } from "../configSettings";
+import { baseConfig, parseConfig, type BotConfig } from "../config";
+import {
+  CONFIG_SETTINGS,
+  parseConfigSettings,
+  settingsForPlatform,
+  type ConfigSettingDefinition,
+  type SettingApplyMode,
+} from "../configSettings";
 import { paths } from "../paths";
+import { SettingsStore, settingsStore } from "../settingsStore";
+import type { EngineHolder } from "../tts/engineHolder";
 
 function sameSettingValue(first: unknown, second: unknown): boolean {
   return Object.is(first, second) || (first == null && second == null);
@@ -29,26 +37,32 @@ export interface ConfigSettingsSnapshot {
     max?: number;
     step?: number;
     nullable?: boolean;
+    apply: SettingApplyMode;
   }>;
   restartRequired: boolean;
+  restartKeys: Array<keyof BotConfig>;
+  nextStartKeys: Array<keyof BotConfig>;
 }
 
 export class ConfigSettingsService {
   private readonly filePath: string;
-  private readonly activeConfig: BotConfig;
+  private readonly store: SettingsStore;
   private readonly defaults: BotConfig;
   private readonly platform: string;
+  private readonly engineHolder?: EngineHolder;
 
   constructor(
     filePath = paths.webSettingsJson(),
-    activeConfig: BotConfig = config,
+    store: SettingsStore = settingsStore,
     defaults: BotConfig = baseConfig,
-    platform: string = process.platform
+    platform: string = process.platform,
+    engineHolder?: EngineHolder
   ) {
     this.filePath = filePath;
-    this.activeConfig = { ...activeConfig };
+    this.store = store;
     this.defaults = { ...defaults };
-    this.platform = platform;
+    this.platform = typeof platform === "string" ? platform : process.platform;
+    this.engineHolder = engineHolder;
   }
 
   public getSnapshot(): ConfigSettingsSnapshot {
@@ -109,25 +123,73 @@ export class ConfigSettingsService {
     }
     const validated = this.validate({ ...this.defaults, ...updatedOverrides });
     this.writeOverrides(updatedOverrides);
+
+    // Apply only request keys, filtered to what enters the store in PR 1
+    const patch: Partial<BotConfig> = {};
+    for (const definition of CONFIG_SETTINGS) {
+      const key = definition.key;
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        if (this.canEnterStoreInPR1(definition)) {
+          this.setOverride(patch, key, validated[key]);
+        }
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      this.store.apply(patch);
+    }
+
     return this.createSnapshot(validated, updatedOverrides);
   }
 
   public remove(key?: string): ConfigSettingsSnapshot {
     if (key !== undefined) {
-      if (!CONFIG_SETTINGS.some((definition) => definition.key === key)) {
+      const definition = CONFIG_SETTINGS.find((def) => def.key === key);
+      if (!definition) {
         throw new SettingsValidationError(`Unsupported setting "${key}".`);
       }
       const overrides = this.readOverrides();
       delete overrides[key as keyof BotConfig];
       this.writeOverrides(overrides);
-      return this.createSnapshot(
-        this.validate({ ...this.defaults, ...overrides }),
-        overrides
-      );
+      const validated = this.validate({ ...this.defaults, ...overrides });
+      if (this.canEnterStoreInPR1(definition)) {
+        const patch: Partial<BotConfig> = {};
+        this.setOverride(patch, definition.key, validated[definition.key]);
+        this.store.apply(patch);
+      }
+      return this.createSnapshot(validated, overrides);
     }
 
+    const previousOverrides = this.readOverrides();
     this.writeOverrides({});
+    const patch: Partial<BotConfig> = {};
+    for (const definition of CONFIG_SETTINGS) {
+      const k = definition.key;
+      if (Object.prototype.hasOwnProperty.call(previousOverrides, k)) {
+        if (this.canEnterStoreInPR1(definition)) {
+          this.setOverride(patch, k, this.defaults[k]);
+        }
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      this.store.apply(patch);
+    }
     return this.createSnapshot(this.defaults, {});
+  }
+
+  public getEffectiveApplyMode(definition: ConfigSettingDefinition): SettingApplyMode {
+    if (definition.apply === "next-start") return "next-start";
+    if (
+      definition.apply === "restart" ||
+      definition.engineInput !== undefined ||
+      definition.key === "BILINGAL_MODE"
+    ) {
+      return "restart";
+    }
+    return "live";
+  }
+
+  private canEnterStoreInPR1(definition: ConfigSettingDefinition): boolean {
+    return this.getEffectiveApplyMode(definition) === "live";
   }
 
   private readOverrides(): Partial<BotConfig> {
@@ -180,14 +242,32 @@ export class ConfigSettingsService {
     overrides[key] = value;
   }
 
+  private isRestartBound(
+    definition: ConfigSettingDefinition,
+    effectiveConfig: BotConfig,
+    runningHasEnglishEngine: boolean
+  ): boolean {
+    if (this.getEffectiveApplyMode(definition) === "restart") return true;
+    if (definition.key === "FOREIGN_LANGUAGE_MODE") {
+      return effectiveConfig.FOREIGN_LANGUAGE_MODE === "NATIVE" && !runningHasEnglishEngine;
+    }
+    return false;
+  }
+
   private createSnapshot(
     effectiveConfig: BotConfig,
     overrides: Partial<BotConfig>
   ): ConfigSettingsSnapshot {
+    const runningHasEnglishEngine = this.engineHolder
+      ? Boolean(this.engineHolder.current().english)
+      : (this.store.start.FOREIGN_LANGUAGE_MODE === "NATIVE" || this.store.start.BILINGAL_MODE) &&
+        (this.store.start.ENGLISH_TTS_ENGINE !== "Mac" || this.platform === "darwin");
+
     const settings = settingsForPlatform(this.platform).map((definition) => {
       const { platforms: _platforms, optionPlatforms: _optionPlatforms, ...rest } = definition;
       return {
         ...rest,
+        apply: this.getEffectiveApplyMode(definition),
         value: effectiveConfig[definition.key] ?? null,
         defaultValue: this.defaults[definition.key] ?? null,
         isOverridden:
@@ -195,9 +275,20 @@ export class ConfigSettingsService {
           !sameSettingValue(overrides[definition.key], this.defaults[definition.key]),
       };
     });
-    const restartRequired = CONFIG_SETTINGS.some(
-      ({ key }) => !Object.is(effectiveConfig[key], this.activeConfig[key])
-    );
-    return { settings, restartRequired };
+
+    const restartKeys: Array<keyof BotConfig> = [];
+    const nextStartKeys: Array<keyof BotConfig> = [];
+    for (const definition of CONFIG_SETTINGS) {
+      const key = definition.key;
+      if (!sameSettingValue(effectiveConfig[key], this.store.start[key])) {
+        if (this.isRestartBound(definition, effectiveConfig, runningHasEnglishEngine)) {
+          restartKeys.push(key);
+        } else if (this.getEffectiveApplyMode(definition) === "next-start") {
+          nextStartKeys.push(key);
+        }
+      }
+    }
+    const restartRequired = restartKeys.length > 0;
+    return { settings, restartRequired, restartKeys, nextStartKeys };
   }
 }

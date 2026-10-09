@@ -1,5 +1,6 @@
 import { csvList, type ListType } from "../../storage/csvList";
-import { config } from "../../config";
+import type { Settings } from "../../settingsStore";
+import { settingsStore } from "../../settingsStore";
 
 export interface CommandResult {
   replyMessage: string;
@@ -10,16 +11,19 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function handleRememberCommand(msg: string): CommandResult {
+export function handleRememberCommand(
+  msg: string,
+  settings: Settings = settingsStore.current()
+): CommandResult {
   const isUser = new RegExp(
-    `^!(${escapeRegExp(config.COMMENT_REMEMVER_COMMAND)}U)`
+    `^!(${escapeRegExp(settings.COMMENT_REMEMVER_COMMAND)}U)`
   ).test(msg);
   const listType: ListType = isUser ? "usernameConvertList" : "messageConvertList";
 
   const match = msg.match(/^!([^\s]+)\s+([^=]+)=(.+)$/);
   if (!match) {
     return {
-      replyMessage: `Format error! Use: "!${config.COMMENT_REMEMVER_COMMAND}${isUser ? "U" : ""} <keyword>=<how_to_read>"`,
+      replyMessage: `Format error! Use: "!${settings.COMMENT_REMEMVER_COMMAND}${isUser ? "U" : ""} <keyword>=<how_to_read>"`,
     };
   }
 
@@ -57,16 +61,19 @@ export function handleRememberCommand(msg: string): CommandResult {
   }
 }
 
-export function handleForgetCommand(msg: string): CommandResult {
+export function handleForgetCommand(
+  msg: string,
+  settings: Settings = settingsStore.current()
+): CommandResult {
   const isUser = new RegExp(
-    `^!(${escapeRegExp(config.COMMENT_FORGET_COMMAND)}U)`
+    `^!(${escapeRegExp(settings.COMMENT_FORGET_COMMAND)}U)`
   ).test(msg);
   const listType: ListType = isUser ? "usernameConvertList" : "messageConvertList";
 
   const match = msg.match(/^!([^\s]+)\s+(.+)$/);
   if (!match) {
     return {
-      replyMessage: `Format error! Use: "!${config.COMMENT_FORGET_COMMAND}${isUser ? "U" : ""} <keyword>"`,
+      replyMessage: `Format error! Use: "!${settings.COMMENT_FORGET_COMMAND}${isUser ? "U" : ""} <keyword>"`,
     };
   }
 

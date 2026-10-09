@@ -7,14 +7,18 @@ import {
   SettingsValidationError,
 } from "../application/configSettingsService";
 import { CONFIG_SETTINGS, settingsForPlatform } from "../configSettings";
+import { SettingsStore } from "../settingsStore";
+import { baseConfig } from "../config";
 
 describe("ConfigSettingsService bounds validation & rate steps", () => {
   let tempDir: string;
   let tempFilePath: string;
+  let store: SettingsStore;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "twitch-tts-settings-test-"));
     tempFilePath = path.join(tempDir, "web-settings.json");
+    store = new SettingsStore(baseConfig);
   });
 
   afterEach(() => {
@@ -22,7 +26,7 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
   });
 
   it("throws SettingsValidationError on update with out-of-range value and does not create or mutate settings file", () => {
-    const service = new ConfigSettingsService(tempFilePath);
+    const service = new ConfigSettingsService(tempFilePath, store, baseConfig);
 
     // File not created when non-existent
     expect(() => service.update({ RATE_ENGLISH: 400 })).toThrow(SettingsValidationError);
@@ -39,7 +43,7 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
   });
 
   it("succeeds on update with in-range rate like 151 and persists it", () => {
-    const service = new ConfigSettingsService(tempFilePath, undefined, undefined, "darwin");
+    const service = new ConfigSettingsService(tempFilePath, store, baseConfig, "darwin");
 
     const snapshot = service.update({ RATE_ENGLISH: 151 });
     const setting = snapshot.settings.find((s) => s.key === "RATE_ENGLISH");
@@ -54,7 +58,7 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
   it("loads an existing settings file containing out-of-range value via getSnapshot() with clamped effective value", () => {
     fs.writeFileSync(tempFilePath, JSON.stringify({ RATE_ENGLISH: 400 }));
 
-    const service = new ConfigSettingsService(tempFilePath, undefined, undefined, "darwin");
+    const service = new ConfigSettingsService(tempFilePath, store, baseConfig, "darwin");
     const snapshot = service.getSnapshot();
     const setting = snapshot.settings.find((s) => s.key === "RATE_ENGLISH");
     expect(setting?.value).toBe(350);
@@ -84,10 +88,12 @@ describe("ConfigSettingsService bounds validation & rate steps", () => {
 describe("ConfigSettingsService platform-based filtering", () => {
   let tempDir: string;
   let tempFilePath: string;
+  let store: SettingsStore;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "twitch-tts-platform-settings-test-"));
     tempFilePath = path.join(tempDir, "web-settings.json");
+    store = new SettingsStore(baseConfig);
   });
 
   afterEach(() => {
@@ -136,7 +142,7 @@ describe("ConfigSettingsService platform-based filtering", () => {
   });
 
   it("filters snapshot settings on win32 and includes them on darwin", () => {
-    const winService = new ConfigSettingsService(tempFilePath, undefined, undefined, "win32");
+    const winService = new ConfigSettingsService(tempFilePath, store, baseConfig, "win32");
     const winSettings = winService.getSnapshot().settings;
     for (const key of macOSKeys) {
       expect(winSettings.some((s) => s.key === key)).toBe(false);
@@ -146,7 +152,7 @@ describe("ConfigSettingsService platform-based filtering", () => {
     expect(winTts?.options).not.toContain("Mac");
     expect(winEngTts?.options).not.toContain("Mac");
 
-    const darwinService = new ConfigSettingsService(tempFilePath, undefined, undefined, "darwin");
+    const darwinService = new ConfigSettingsService(tempFilePath, store, baseConfig, "darwin");
     const darwinSettings = darwinService.getSnapshot().settings;
     for (const key of macOSKeys) {
       expect(darwinSettings.some((s) => s.key === key)).toBe(true);
@@ -159,7 +165,7 @@ describe("ConfigSettingsService platform-based filtering", () => {
 
   it("omits hidden settings from snapshot on win32 while preserving hidden overrides on save and updating restartRequired", () => {
     fs.writeFileSync(tempFilePath, JSON.stringify({ RATE_ENGLISH: 200 }));
-    const service = new ConfigSettingsService(tempFilePath, undefined, undefined, "win32");
+    const service = new ConfigSettingsService(tempFilePath, store, baseConfig, "win32");
 
     const initialSnapshot = service.getSnapshot();
     expect(initialSnapshot.settings.some((s) => s.key === "RATE_ENGLISH")).toBe(false);
@@ -174,7 +180,7 @@ describe("ConfigSettingsService platform-based filtering", () => {
 
   it("verifies snapshot entries carry no platforms or optionPlatforms property", () => {
     for (const platform of ["darwin", "win32"]) {
-      const service = new ConfigSettingsService(tempFilePath, undefined, undefined, platform);
+      const service = new ConfigSettingsService(tempFilePath, store, baseConfig, platform);
       const snapshot = service.getSnapshot();
       for (const entry of snapshot.settings) {
         expect("platforms" in entry).toBe(false);

@@ -7,6 +7,7 @@ import { VoicevoxEngine } from "./engines/voicevox";
 import type { TTSEngine } from "./engine";
 
 export type EngineName = BotConfig["TTS_ENGINE"];
+export type EnglishEngineName = BotConfig["ENGLISH_TTS_ENGINE"];
 export type EngineCreator = (name: EngineName, config: BotConfig) => TTSEngine;
 
 export function createEngine(name: EngineName, config: BotConfig): TTSEngine {
@@ -62,7 +63,7 @@ export async function resolvePrimaryEngine(
   config: BotConfig,
   platform = process.platform,
   creator: EngineCreator = createEngine
-): Promise<TTSEngine> {
+): Promise<{ engine: TTSEngine; name: EngineName }> {
   const preferredName = config.TTS_ENGINE;
   const preferredEngine = creator(preferredName, config);
   if (await preferredEngine.isAvailable()) {
@@ -70,7 +71,7 @@ export async function resolvePrimaryEngine(
     if (preferredName === "COEIROINK" || preferredName === "VOICEVOX") {
       console.log("       💡 キャラクター・スタイルIDの確認: ./twitch-tts-bot speakers");
     }
-    return preferredEngine;
+    return { engine: preferredEngine, name: preferredName };
   }
 
   console.warn(
@@ -87,14 +88,14 @@ export async function resolvePrimaryEngine(
       if (name === "COEIROINK" || name === "VOICEVOX") {
         console.log("   💡 キャラクター・スタイルIDの確認: ./twitch-tts-bot speakers\n");
       }
-      return candidate;
+      return { engine: candidate, name };
     }
   }
 
   console.warn("⚠️  [Init] 接続可能な音声エンジンが見つかりませんでした。");
   console.warn(`   デフォルト設定 (${preferredEngine.name}) のまま待機します。`);
   console.warn("   COEIROINK または VOICEVOX を起動してください。\n");
-  return preferredEngine;
+  return { engine: preferredEngine, name: preferredName };
 }
 
 export function createEnglishEngine(

@@ -1,4 +1,3 @@
-import { config } from "../config";
 import { csvList } from "../storage/csvList";
 import {
   resolveUsername,
@@ -6,10 +5,11 @@ import {
   isIgnoredMessage,
   escapeTtsErrorString,
 } from "../text/messageProcessor";
-import { detectLanguage } from "../text/languageDetector";
 import type { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
+import type { Settings, SettingsStore } from "../settingsStore";
+import { planSpeech } from "../tts/speechPlanner";
 
 export interface CommentProcessParams {
   rawUsername: string;
@@ -20,7 +20,7 @@ export interface CommentProcessParams {
 export interface CommentProcessContext {
   ttsQueue: TTSQueue;
   transformer?: TextTransformer;
-  englishEngine?: TTSEngine;
+  store?: SettingsStore;
 }
 
 export interface CommentProcessResult {
@@ -32,6 +32,7 @@ export interface CommentProcessResult {
   spoken: boolean;
   detectedLanguage?: string;
   engineToUse?: TTSEngine;
+  settings: Settings;
 }
 
 /**
@@ -48,104 +49,100 @@ export async function processComment(
   params: CommentProcessParams,
   ctx: CommentProcessContext
 ): Promise<CommentProcessResult> {
-  const rawUsername = params.rawUsername || "Guest";
-  const rawText = params.rawText || "";
+  const pin = ctx.ttsQueue.pin();
+  try {
+    const rawUsername = params.rawUsername || "Guest";
+    const rawText = params.rawText || "";
 
-  // 1. Read Lists for Conversion
-  const usernameList = csvList.readList("usernameConvertList");
-  const messageList = csvList.readList("messageConvertList");
-  const ignoreList = csvList.readList("messageIgnoreList");
+    // 1. Read Lists for Conversion
+    const usernameList = csvList.readList("usernameConvertList");
+    const messageList = csvList.readList("messageConvertList");
+    const ignoreList = csvList.readList("messageIgnoreList");
 
-  // 2. Format username
-  const username = resolveUsername(rawUsername, usernameList, config.USE_SIMPLE_NAME);
-  const displayName = username.displayName;
+    // 2. Format username
+    const username = resolveUsername(rawUsername, usernameList, pin.settings.USE_SIMPLE_NAME);
+    const displayName = username.displayName;
 
-  // 3. Check Ignore list
-  if (isIgnoredMessage(rawText, ignoreList)) {
-    return {
-      displayName,
-      rawText,
-      modifiedContent: rawText,
-      ignored: true,
-      spoken: false,
-    };
-  }
+    // 3. Check Ignore list
+    if (isIgnoredMessage(rawText, ignoreList)) {
+      return {
+        displayName,
+        rawText,
+        modifiedContent: rawText,
+        ignored: true,
+        spoken: false,
+        settings: pin.settings,
+      };
+    }
 
-  // 4. Message substitution
-  const modifiedContent = formatMessage(rawText, messageList);
+    // 4. Message substitution
+    const modifiedContent = formatMessage(rawText, messageList);
 
-  if (username.suppressSpeech) {
-    return {
-      displayName,
-      rawText,
-      modifiedContent,
-      ignored: false,
-      spoken: false,
-    };
-  }
+    if (username.suppressSpeech) {
+      return {
+        displayName,
+        rawText,
+        modifiedContent,
+        ignored: false,
+        spoken: false,
+        settings: pin.settings,
+      };
+    }
 
-  // 5. If TTS is globally disabled
-  if (!config.ENABLE_TTS) {
-    return {
-      displayName,
-      rawText,
-      modifiedContent,
-      ignored: false,
-      spoken: false,
-    };
-  }
+    // 5. If TTS is globally disabled
+    if (!pin.settings.ENABLE_TTS) {
+      return {
+        displayName,
+        rawText,
+        modifiedContent,
+        ignored: false,
+        spoken: false,
+        settings: pin.settings,
+      };
+    }
 
-  // 6. Escape TTS error strings
-  const sanitizedSegment = escapeTtsErrorString(modifiedContent);
-  let speechText = config.READ_USERNAME
-    ? `${displayName}: ${sanitizedSegment}`
-    : sanitizedSegment;
+    // 6. Escape TTS error strings
+    const sanitizedSegment = escapeTtsErrorString(modifiedContent);
+    const textToPlan = pin.settings.READ_USERNAME
+      ? `${displayName}: ${sanitizedSegment}`
+      : sanitizedSegment;
 
-  // 7. Language detection
-  const lang = detectLanguage(sanitizedSegment);
-  const isForeign = lang !== "jpn";
+    // 7. Language detection on comment alone, transformation and engine selection via shared planSpeech
+    const plan = await planSpeech(textToPlan, pin, ctx, sanitizedSegment);
 
-  // If IGNORE mode is enabled, skip reading foreign comments entirely
-  if (config.FOREIGN_LANGUAGE_MODE === "IGNORE" && isForeign) {
+    if (plan.ignored) {
+      return {
+        displayName,
+        rawText,
+        modifiedContent,
+        speechText: plan.text,
+        ignored: false,
+        spoken: false,
+        detectedLanguage: plan.detectedLanguage,
+        settings: pin.settings,
+      };
+    }
+
+    const speechText = plan.text;
+    const engineToUse = plan.engine;
+
+    // 8. Enqueue with pinned settings and resolved engine
+    ctx.ttsQueue.enqueue(speechText, { pin, engine: engineToUse }).catch((err) => {
+      console.error("[TTSQueue] Playback error:", err);
+    });
+
     return {
       displayName,
       rawText,
       modifiedContent,
       speechText,
       ignored: false,
-      spoken: false,
-      detectedLanguage: lang,
+      spoken: true,
+      detectedLanguage: plan.detectedLanguage,
+      engineToUse,
+      settings: pin.settings,
     };
+  } finally {
+    pin.release();
   }
-
-  // 8. Katakana transformation
-  if (config.FOREIGN_LANGUAGE_MODE === "KATAKANA" && ctx.transformer) {
-    speechText = await ctx.transformer.transform(speechText);
-  }
-
-  // 9. Determine engine (Native English vs Default Japanese)
-  let engineToUse: TTSEngine | undefined;
-  if (
-    config.FOREIGN_LANGUAGE_MODE === "NATIVE" &&
-    lang === "eng" &&
-    ctx.englishEngine
-  ) {
-    engineToUse = ctx.englishEngine;
-  }
-
-  // 10. Fire-and-forget enqueue (non-blocking!)
-  ctx.ttsQueue.enqueue(speechText, { engine: engineToUse }).catch((err) => {
-    console.error("[TTSQueue] Playback error:", err);
-  });
-
-  return {
-    displayName,
-    rawText,
-    modifiedContent,
-    speechText,
-    ignored: false,
-    spoken: true,
-    detectedLanguage: lang,
-    engineToUse,
-  };
 }

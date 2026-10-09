@@ -28,6 +28,7 @@ describe("engine factory", () => {
 
     expect(attempted).toEqual(["COEIROINK", "VOICEVOX", "PIPER"]);
     expect(selected.name).toBe("PIPER");
+    expect(selected.engine.name).toBe("PIPER");
   });
 
   it("only includes the macOS engine in fallback candidates on macOS", () => {
@@ -70,6 +71,7 @@ describe("engine factory", () => {
     );
 
     expect(selected.name).toBe("KOKORO");
+    expect(selected.engine.name).toBe("KOKORO");
   });
 
   it("uses the preferred engine without probing fallbacks when it is available", async () => {
@@ -82,5 +84,6 @@ describe("engine factory", () => {
 
     expect(attempted).toEqual(["VOICEVOX"]);
     expect(selected.name).toBe("VOICEVOX");
+    expect(selected.engine.name).toBe("VOICEVOX");
   });
 });

@@ -5,7 +5,9 @@ import { processComment as processCommentFromTtsPath } from "../tts/commentProce
 import { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import { KatakanaTransformer } from "../tts/transformers/katakana";
-import { config, parseConfig } from "../config";
+import { parseConfig, type BotConfig } from "../config";
+import { SettingsStore } from "../settingsStore";
+import { EngineHolder } from "../tts/engineHolder";
 import { DictionaryService } from "../application/dictionaryService";
 import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
 import { TwitchControlService } from "../application/twitchControlService";
@@ -55,35 +57,42 @@ describe("HttpServer & commentProcessor", () => {
   const TEST_PORT = 3949;
   const TEST_BOUYOMI_PORT = 50089;
   let mockEngine: MockEngine;
+  let serverEngineHolder: EngineHolder;
+  let serverStore: SettingsStore;
   let queue: TTSQueue;
   let transformer: KatakanaTransformer;
   let mockBot: MockBot;
   let server: HttpServer;
   let settingsDirectory: string;
-  let settingsConfig: typeof config;
+  let settingsConfig: BotConfig;
 
   beforeAll(() => {
     mockEngine = new MockEngine("HttpMockEngine");
-    queue = new TTSQueue(mockEngine);
-    transformer = new KatakanaTransformer();
-    mockBot = new MockBot();
+    serverEngineHolder = new EngineHolder({ primary: mockEngine, primaryName: "COEIROINK" });
     settingsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "twitch-tts-web-settings-"));
-    settingsConfig = {
-      ...config,
+    settingsConfig = parseConfig({
       TW_OAUTH_TOKEN: "oauth-secret-must-not-be-visible",
       DISCORD_TOKEN: "discord-secret-must-not-be-visible",
       DISCORD_WEBHOOK_URL: "https://discord.invalid/webhook-secret",
-    };
+    });
+    serverStore = new SettingsStore(settingsConfig);
+    queue = new TTSQueue(mockEngine, 50, undefined, undefined, { store: serverStore, engineHolder: serverEngineHolder });
+    transformer = new KatakanaTransformer();
+    mockBot = new MockBot();
     server = new HttpServer({
       queue,
       transformer,
+      store: serverStore,
+      engineHolder: serverEngineHolder,
       dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
       twitchControlService: new TwitchControlService(mockBot),
       speechInteractionService: new SpeechInteractionService(queue, transformer),
       configSettingsService: new ConfigSettingsService(
         path.join(settingsDirectory, "web-settings.json"),
+        serverStore,
         settingsConfig,
-        settingsConfig
+        undefined,
+        serverEngineHolder
       ),
       port: TEST_PORT,
       bouyomiPort: TEST_BOUYOMI_PORT,
@@ -139,8 +148,8 @@ describe("HttpServer & commentProcessor", () => {
     });
 
     it("should keep Web UI available while HTTP speech endpoints are disabled", async () => {
-      const original = config.HTTP_TALK_ENABLED;
-      config.HTTP_TALK_ENABLED = false;
+      const original = serverStore.current().HTTP_TALK_ENABLED;
+      serverStore.apply({ HTTP_TALK_ENABLED: false });
       try {
         const home = await fetch(`http://127.0.0.1:${TEST_PORT}/`);
         expect(home.status).toBe(200);
@@ -157,7 +166,7 @@ describe("HttpServer & commentProcessor", () => {
         });
         expect(demo.status).toBe(403);
       } finally {
-        config.HTTP_TALK_ENABLED = original;
+        serverStore.apply({ HTTP_TALK_ENABLED: original });
       }
     });
 
@@ -285,8 +294,8 @@ describe("HttpServer & commentProcessor", () => {
     });
 
     it("should convert foreign text to Katakana when KATAKANA mode is set", async () => {
-      const origMode = config.FOREIGN_LANGUAGE_MODE;
-      config.FOREIGN_LANGUAGE_MODE = "KATAKANA";
+      const origMode = serverStore.current().FOREIGN_LANGUAGE_MODE;
+      serverStore.apply({ FOREIGN_LANGUAGE_MODE: "KATAKANA" });
       try {
         const res = await processComment(
           { rawUsername: "ForeignUser", rawText: "Good morning everyone" },
@@ -296,30 +305,40 @@ describe("HttpServer & commentProcessor", () => {
         expect(res.spoken).toBe(true);
         expect(res.speechText).toContain("モーニング");
       } finally {
-        config.FOREIGN_LANGUAGE_MODE = origMode;
+        serverStore.apply({ FOREIGN_LANGUAGE_MODE: origMode });
       }
     });
 
     it("should route English text to englishEngine when NATIVE mode is set", async () => {
-      const origMode = config.FOREIGN_LANGUAGE_MODE;
-      config.FOREIGN_LANGUAGE_MODE = "NATIVE";
+      const origMode = serverStore.current().FOREIGN_LANGUAGE_MODE;
+      serverStore.apply({ FOREIGN_LANGUAGE_MODE: "NATIVE" });
       const englishEngine = new MockEngine("EnglishNativeEngine");
+      serverEngineHolder.replace({
+        primary: mockEngine,
+        primaryName: "COEIROINK",
+        english: englishEngine,
+        englishName: "KOKORO",
+      });
       try {
         const res = await processComment(
           { rawUsername: "EnglishUser", rawText: "Hello there!" },
-          { ttsQueue: queue, transformer, englishEngine }
+          { ttsQueue: queue, transformer }
         );
         expect(res.ignored).toBe(false);
         expect(res.spoken).toBe(true);
         expect(res.engineToUse).toBe(englishEngine);
       } finally {
-        config.FOREIGN_LANGUAGE_MODE = origMode;
+        serverStore.apply({ FOREIGN_LANGUAGE_MODE: origMode });
+        serverEngineHolder.replace({
+          primary: mockEngine,
+          primaryName: "COEIROINK",
+        });
       }
     });
 
     it("should drop foreign comments when IGNORE mode is set", async () => {
-      const origMode = config.FOREIGN_LANGUAGE_MODE;
-      config.FOREIGN_LANGUAGE_MODE = "IGNORE";
+      const origMode = serverStore.current().FOREIGN_LANGUAGE_MODE;
+      serverStore.apply({ FOREIGN_LANGUAGE_MODE: "IGNORE" });
       try {
         const res = await processComment(
           { rawUsername: "RussianUser", rawText: "Привет мир" },
@@ -328,13 +347,13 @@ describe("HttpServer & commentProcessor", () => {
         expect(res.ignored).toBe(false);
         expect(res.spoken).toBe(false);
       } finally {
-        config.FOREIGN_LANGUAGE_MODE = origMode;
+        serverStore.apply({ FOREIGN_LANGUAGE_MODE: origMode });
       }
     });
 
     it("should not speak if ENABLE_TTS is false", async () => {
-      const origEnable = config.ENABLE_TTS;
-      config.ENABLE_TTS = false;
+      const origEnable = serverStore.current().ENABLE_TTS;
+      serverStore.apply({ ENABLE_TTS: false });
       try {
         const res = await processComment(
           { rawUsername: "User", rawText: "こんにちは" },
@@ -342,7 +361,7 @@ describe("HttpServer & commentProcessor", () => {
         );
         expect(res.spoken).toBe(false);
       } finally {
-        config.ENABLE_TTS = origEnable;
+        serverStore.apply({ ENABLE_TTS: origEnable });
       }
     });
 
@@ -514,7 +533,7 @@ describe("HttpServer & commentProcessor", () => {
 
       const legacyService = new ConfigSettingsService(
         path.join(settingsDirectory, "legacy-web-settings.json"),
-        settingsConfig,
+        new SettingsStore(settingsConfig),
         settingsConfig
       );
       fs.writeFileSync(
@@ -569,9 +588,10 @@ describe("HttpServer & commentProcessor", () => {
         fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
       );
       const restartedConfig = parseConfig({ ...settingsConfig, ...persistedAgain });
+      const restartedStore = new SettingsStore(restartedConfig);
       const restartedService = new ConfigSettingsService(
         path.join(settingsDirectory, "web-settings.json"),
-        restartedConfig,
+        restartedStore,
         settingsConfig
       );
       expect(restartedService.getSnapshot().restartRequired).toBe(false);
@@ -583,7 +603,7 @@ describe("HttpServer & commentProcessor", () => {
       const data = (await res.json()) as any;
       expect(data.status).toBe("ok");
       expect(typeof data.queuePending).toBe("number");
-      expect(data.engine).toBe(config.TTS_ENGINE);
+      expect(data.engine).toBe("COEIROINK");
       expect(data.port).toBe(TEST_PORT);
       expect(data.bouyomiPort).toBe(TEST_BOUYOMI_PORT);
       expect(data.bouyomiRunning).toBe(true);
@@ -943,7 +963,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-restart.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,
@@ -1086,7 +1106,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-restart-recover.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,
@@ -1153,7 +1173,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(shutdownQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-shutdown.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,

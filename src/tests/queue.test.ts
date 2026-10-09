@@ -8,6 +8,9 @@ import { VoicevoxEngine } from "../tts/engines/voicevox";
 import { KokoroEngine } from "../tts/engines/kokoro";
 import { MacSayEngine } from "../tts/engines/macSay";
 import { PiperEngine } from "../tts/engines/piper";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 class MockEngine implements TTSEngine {
   public readonly name = "MockEngine";
@@ -600,8 +603,9 @@ describe("TTSQueue", () => {
         };
       }) as any;
 
+      const kokoroTmp = fs.mkdtempSync(path.join(os.tmpdir(), "kokoro-test-queue-"));
       try {
-        const kokoro = new KokoroEngine();
+        const kokoro = new KokoroEngine("af_heart", 1.0, "a", undefined, undefined, 1.0, kokoroTmp);
         await kokoro.prepare("test", { speedScale: 5.0 });
         expect(kokoroSpeed).toBe(2.0);
 
@@ -610,6 +614,7 @@ describe("TTSQueue", () => {
         kokoro.stop();
       } finally {
         Bun.spawn = origSpawn;
+        fs.rmSync(kokoroTmp, { recursive: true, force: true });
       }
 
       // 6.4 MacSayEngine

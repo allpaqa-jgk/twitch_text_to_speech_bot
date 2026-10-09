@@ -18,6 +18,8 @@ export class KokoroEngine implements TTSEngine {
   private speed: number;
   private lang: string;
   private masterVolume: number;
+  private tmpDir: string;
+  private disposed = false;
 
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private isReady = false;
@@ -34,7 +36,8 @@ export class KokoroEngine implements TTSEngine {
     lang = "a",
     pythonPath = paths.pythonBin(),
     scriptPath = path.join(paths.scriptsDir(), "kokoro_worker.py"),
-    masterVolume = 1.0
+    masterVolume = 1.0,
+    tmpDir = paths.tmpDir()
   ) {
     this.voice = voice;
     this.speed = speed;
@@ -42,6 +45,7 @@ export class KokoroEngine implements TTSEngine {
     this.pythonPath = pythonPath;
     this.scriptPath = scriptPath;
     this.masterVolume = masterVolume;
+    this.tmpDir = tmpDir;
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -154,13 +158,17 @@ export class KokoroEngine implements TTSEngine {
   }
 
   public async prepare(text: string, options?: SpeechOptions): Promise<PreparedAudio> {
+    if (this.disposed) {
+      throw new Error("[KokoroEngine] Engine has been disposed");
+    }
+
     if (!text || !text.trim()) {
       return { play: async () => {} };
     }
 
     await this.ensureWorkerStarted();
 
-    const tmpDir = paths.tmpDir();
+    const tmpDir = this.tmpDir;
     if (!fs.existsSync(tmpDir)) {
       fs.mkdirSync(tmpDir, { recursive: true });
     }
@@ -243,5 +251,10 @@ export class KokoroEngine implements TTSEngine {
         // ignore
       }
     }
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+    this.stop();
   }
 }

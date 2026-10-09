@@ -3,6 +3,7 @@ import { TTSQueue } from "./tts/queue";
 import type { TTSEngine } from "./tts/engine";
 import { createEnglishEngine, resolvePrimaryEngine } from "./tts/engineFactory";
 import { EngineHolder } from "./tts/engineHolder";
+import { EngineManager } from "./tts/engineManager";
 import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
@@ -81,6 +82,7 @@ const queue = new TTSQueue(primaryEngine, 50, undefined, undefined, {
   store: settingsStore,
   engineHolder,
 });
+const engineManager = new EngineManager(settingsStore, queue, engineHolder);
 
 // 4. Play starting message
 if (initSettings.STARTING_MESSAGE) {
@@ -109,6 +111,7 @@ if (initSettings.HTTP_SERVER_ENABLED) {
     transformer: katakanaTransformer,
     store: settingsStore,
     engineHolder,
+    engineManager,
     dictionaryService,
     twitchControlService,
     speechInteractionService,
@@ -148,7 +151,7 @@ if (!initSettings.ENABLE_TWITCH) {
 }
 
 // 8. Start interactive console for terminal commands (?, speakers, say, clear, twitch, status, q)
-startInteractiveConsole(queue, katakanaTransformer, bot, httpServer, settingsStore, engineHolder);
+startInteractiveConsole(queue, katakanaTransformer, bot, httpServer, settingsStore, engineHolder, engineManager);
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
@@ -160,5 +163,6 @@ process.on("SIGINT", async () => {
     await bot.disconnect();
   }
   queue.clear();
+  engineManager.stopAll();
   process.exit(0);
 });

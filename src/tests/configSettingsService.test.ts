@@ -170,12 +170,12 @@ describe("ConfigSettingsService platform-based filtering", () => {
     const initialSnapshot = service.getSnapshot();
     expect(initialSnapshot.settings.some((s) => s.key === "RATE_ENGLISH")).toBe(false);
 
-    const updatedSnapshot = service.update({ MASTER_VOLUME: 2 });
+    const updatedSnapshot = service.update({ HTTP_SERVER_PORT: 3959 });
     expect(updatedSnapshot.restartRequired).toBe(true);
 
     const persisted = JSON.parse(fs.readFileSync(tempFilePath, "utf-8"));
     expect(persisted.RATE_ENGLISH).toBe(200);
-    expect(persisted.MASTER_VOLUME).toBe(2);
+    expect(persisted.HTTP_SERVER_PORT).toBe(3959);
   });
 
   it("verifies snapshot entries carry no platforms or optionPlatforms property", () => {

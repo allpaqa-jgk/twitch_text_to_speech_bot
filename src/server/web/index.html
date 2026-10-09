@@ -698,7 +698,7 @@
       <div class="card">
         <h2 class="card-title">⚙️ アプリケーション設定</h2>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          設定の保存は即座に反映されます。ただし、音声エンジン関連の設定、Twitch連携、棒読みちゃん互換、HTTPサーバーのポート番号はアプリの再起動後に反映されます。起動時メッセージは次回起動時に反映されます。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
+          設定の保存は即座に反映されます。音声エンジン関連の設定は読み上げ待ちキューが空になり次第切り替わります（混雑時は60秒後に新着コメントから切り替わります）。Twitch連携、棒読みちゃん互換、HTTPサーバーのポート番号はアプリの再起動後に反映されます。起動時メッセージは次回起動時に反映されます。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
         </p>
         <div id="settings-restart-warning" class="badge-warn" role="status" style="display: none; margin-bottom: 1rem;"></div>
         <div id="settings-error" role="alert" style="color: var(--danger); margin-bottom: 1rem;"></div>
@@ -884,7 +884,23 @@
         }
 
         // Engine
-        document.getElementById("val-engine").textContent = data.engine || "COEIROINK";
+        window.currentStatus = data;
+        const valEngine = document.getElementById("val-engine");
+        const liveEngine = data.engine || "COEIROINK";
+        if (data.enginePending) {
+          const target = data.enginePending.target;
+          let pendingMsg = "";
+          if (data.enginePending.stage === "probing") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">⏳ 音声エンジンを確認中（' + target + '）</div>';
+          } else if (data.enginePending.stage === "waiting") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: #d29922; margin-top: 0.25rem;">⏳ 読み上げ待ちが空になり次第 ' + target + ' に切り替わります（60秒後に新しいコメントから切り替わります）</div>';
+          } else if (data.enginePending.stage === "failed") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--danger); margin-top: 0.25rem;">⚠️ ' + target + ' に接続できません。現在の ' + liveEngine + ' のまま読み上げます</div>';
+          }
+          valEngine.innerHTML = '<span>' + liveEngine + '</span>' + pendingMsg;
+        } else {
+          valEngine.textContent = liveEngine;
+        }
 
         // Queue
         document.getElementById("val-queue").textContent = (data.queuePending || 0) + " 件";
@@ -1070,7 +1086,16 @@
       const warning = document.getElementById("settings-restart-warning");
       const hasRestart = snapshot.restartRequired && (snapshot.restartKeys || []).length > 0;
       const hasNextStart = (snapshot.nextStartKeys || []).length > 0;
-      if (hasRestart) {
+      const pending = snapshot.enginePending || (window.currentStatus && window.currentStatus.enginePending);
+
+      if (hasRestart && hasNextStart) {
+        warning.style.display = "inline-block";
+        const restartLabels = (snapshot.restartKeys || [])
+          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        const nextStartLabels = (snapshot.nextStartKeys || [])
+          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        warning.textContent = "再起動後に反映される変更があります: " + restartLabels.join("、") + "（次回起動時に反映: " + nextStartLabels.join("、") + "）";
+      } else if (hasRestart) {
         warning.style.display = "inline-block";
         const restartLabels = (snapshot.restartKeys || [])
           .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
@@ -1080,6 +1105,16 @@
         const nextStartLabels = (snapshot.nextStartKeys || [])
           .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
         warning.textContent = "次回起動時に反映される変更があります: " + nextStartLabels.join("、");
+      } else if (pending) {
+        warning.style.display = "inline-block";
+        const live = (window.currentStatus && window.currentStatus.engine) || "現在の音声エンジン";
+        if (pending.stage === "probing") {
+          warning.textContent = "⏳ 音声エンジンを確認中（" + pending.target + "）";
+        } else if (pending.stage === "waiting") {
+          warning.textContent = "⏳ 読み上げ待ちが空になり次第 " + pending.target + " に切り替わります（60秒後に新しいコメントから切り替わります）";
+        } else if (pending.stage === "failed") {
+          warning.textContent = "⚠️ " + pending.target + " に接続できません。現在の " + live + " のまま読み上げます";
+        }
       } else {
         warning.style.display = "none";
         warning.textContent = "表示中の設定が現在適用されています。";
@@ -1210,10 +1245,26 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "設定を保存できませんでした");
         renderSettings(data);
-        if (data.restartRequired) {
+        const hasRestart = data.restartRequired && (data.restartKeys || []).length > 0;
+        const hasNextStart = (data.nextStartKeys || []).length > 0;
+        const pending = data.enginePending || (window.currentStatus && window.currentStatus.enginePending);
+
+        if (hasRestart && hasNextStart) {
+          showToast("設定を保存しました。再起動後および次回起動時に反映される変更があります。", "success");
+        } else if (hasRestart) {
           showToast("設定を保存しました。一部の変更は再起動後に反映されます。", "success");
-        } else if ((data.nextStartKeys || []).length > 0) {
+        } else if (hasNextStart) {
           showToast("設定を保存しました。次回起動時に反映される変更があります。", "success");
+        } else if (pending) {
+          if (pending.stage === "probing") {
+            showToast("設定を保存しました。音声エンジンを確認中です。", "success");
+          } else if (pending.stage === "waiting") {
+            showToast("設定を保存しました。読み上げ待ちが空になり次第切り替わります。", "success");
+          } else if (pending.stage === "failed") {
+            showToast("設定を保存しました。一部の音声エンジンに接続できません。", "warn");
+          } else {
+            showToast("設定を保存しました。", "success");
+          }
         } else {
           showToast("設定を保存しました。変更が反映されました。", "success");
         }

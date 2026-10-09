@@ -8,7 +8,7 @@ import {
 import type { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
-import type { Settings, SettingsStore } from "../settingsStore";
+import type { Settings } from "../settingsStore";
 import { planSpeech } from "../tts/speechPlanner";
 
 export interface CommentProcessParams {
@@ -20,7 +20,6 @@ export interface CommentProcessParams {
 export interface CommentProcessContext {
   ttsQueue: TTSQueue;
   transformer?: TextTransformer;
-  store?: SettingsStore;
 }
 
 export interface CommentProcessResult {

@@ -480,6 +480,7 @@ export class EngineManager {
             this.disposeEngine(candidate);
             return;
           }
+          this.activePrimarySettings = pending.config;
           const oldSet = this.holder.current();
           const oldPrimary = oldSet.primary;
           this.holder.replace({

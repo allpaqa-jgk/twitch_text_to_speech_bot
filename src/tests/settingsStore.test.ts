@@ -2027,6 +2027,10 @@ describe("PR 2: Engines Live, Swap at Idle, Cut-over, Pending State", () => {
       // Configured engine (COEIROINK) must end up primary
       expect(holder.current().primaryName).toBe("COEIROINK");
       expect(holder.current().primary).toBe(coeiroinkEngine);
+
+      // Observable effect: no rebuild on an identical save after the deferred swap
+      store.apply({ SPEAKER_JAPANESE: "Otoya" });
+      expect(holder.current().primary).toBe(coeiroinkEngine);
     });
   });
 });

@@ -364,6 +364,7 @@ export class HttpServer {
           engine: primaryName,
           enginePending: this.engineManager?.pending() ?? null,
           englishEngine,
+          englishEnginePending: this.engineManager?.englishPending() ?? null,
           port: this.port,
           bouyomiPort: this.bouyomiPort,
           bouyomiRunning: this.isBouyomiRunning(),
@@ -800,7 +801,10 @@ export class HttpServer {
         .performRestart({
           stopHttpServers: () => this.stop(),
           disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
-          clearQueue: () => this.speechInteractionService.clearQueue(),
+          clearQueue: () => {
+            this.speechInteractionService.clearQueue();
+            this.engineManager?.stopAll();
+          },
           recoverAfterFailedRestart: () => this.start(),
         })
         .then((result) => {
@@ -825,7 +829,10 @@ export class HttpServer {
       void this.restartService.performShutdown({
         stopHttpServers: () => this.stop(),
         disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
-        clearQueue: () => this.speechInteractionService.clearQueue(),
+        clearQueue: () => {
+          this.speechInteractionService.clearQueue();
+          this.engineManager?.stopAll();
+        },
       });
     }, this.restartDelayMs);
   }

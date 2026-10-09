@@ -12,7 +12,7 @@ import {
 import { paths } from "../paths";
 import { SettingsStore, settingsStore } from "../settingsStore";
 import type { EngineHolder } from "../tts/engineHolder";
-import type { EngineManager, EnginePendingInfo } from "../tts/engineManager";
+import type { EngineManager, EnginePendingInfo, EnglishPendingInfo } from "../tts/engineManager";
 
 function sameSettingValue(first: unknown, second: unknown): boolean {
   return Object.is(first, second) || (first == null && second == null);
@@ -45,6 +45,7 @@ export interface ConfigSettingsSnapshot {
   restartKeys: Array<keyof BotConfig>;
   nextStartKeys: Array<keyof BotConfig>;
   enginePending?: EnginePendingInfo | null;
+  englishEnginePending?: EnglishPendingInfo | null;
 }
 
 export class ConfigSettingsService {
@@ -66,7 +67,7 @@ export class ConfigSettingsService {
     this.filePath = filePath;
     this.store = store;
     this.defaults = { ...defaults };
-    this.platform = typeof platform === "string" ? platform : process.platform;
+    this.platform = platform;
     this.engineHolder = engineHolder;
     this.engineManager = engineManager;
   }
@@ -187,7 +188,7 @@ export class ConfigSettingsService {
   }
 
   private canEnterStore(definition: ConfigSettingDefinition): boolean {
-    return this.getEffectiveApplyMode(definition) === "live";
+    return getEffectiveApplyMode(definition) === "live";
   }
 
   private readOverrides(): Partial<BotConfig> {
@@ -241,7 +242,7 @@ export class ConfigSettingsService {
   }
 
   private isRestartBound(definition: ConfigSettingDefinition): boolean {
-    return this.getEffectiveApplyMode(definition) === "restart";
+    return getEffectiveApplyMode(definition) === "restart";
   }
 
   private createSnapshot(
@@ -252,7 +253,7 @@ export class ConfigSettingsService {
       const { platforms: _platforms, optionPlatforms: _optionPlatforms, ...rest } = definition;
       return {
         ...rest,
-        apply: this.getEffectiveApplyMode(definition),
+        apply: getEffectiveApplyMode(definition),
         value: effectiveConfig[definition.key] ?? null,
         defaultValue: this.defaults[definition.key] ?? null,
         isOverridden:
@@ -268,13 +269,14 @@ export class ConfigSettingsService {
       if (!sameSettingValue(effectiveConfig[key], this.store.start[key])) {
         if (this.isRestartBound(definition)) {
           restartKeys.push(key);
-        } else if (this.getEffectiveApplyMode(definition) === "next-start") {
+        } else if (getEffectiveApplyMode(definition) === "next-start") {
           nextStartKeys.push(key);
         }
       }
     }
     const restartRequired = restartKeys.length > 0;
     const enginePending = this.engineManager?.pending() ?? null;
-    return { settings, restartRequired, restartKeys, nextStartKeys, enginePending };
+    const englishEnginePending = this.engineManager?.englishPending() ?? null;
+    return { settings, restartRequired, restartKeys, nextStartKeys, enginePending, englishEnginePending };
   }
 }

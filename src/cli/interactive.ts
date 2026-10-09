@@ -215,6 +215,18 @@ export async function handleInteractiveCommand(
           ? currentSet.englishName ?? store.current().ENGLISH_TTS_ENGINE
           : "利用不可";
         console.log(`🗣️ 英語音声エンジン   : ${engDesc}`);
+        const engPending = ctx.engineManager?.englishPending();
+        if (engPending) {
+          if (engPending.stage === "probing") {
+            console.log(`   ⏳ ${engPending.target} の起動・接続を確認中...`);
+          } else if (engPending.stage === "waiting") {
+            console.log(`   🔄 再生完了後に ${engPending.target} に切り替わります`);
+          } else if (engPending.stage === "failed") {
+            console.log(
+              `   ⚠️ ${engPending.target} に接続できません。英語は利用不可のまま読み上げます`
+            );
+          }
+        }
       }
 
       console.log(`⏳ 再生待ちのコメント : ${queue.pendingCount} 件`);
@@ -226,6 +238,7 @@ export async function handleInteractiveCommand(
     case "quit":
     case "exit":
       console.log("👋 ボットを終了します。");
+      ctx.engineManager?.stopAll();
       onExit();
       break;
 

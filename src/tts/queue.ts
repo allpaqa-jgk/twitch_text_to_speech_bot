@@ -321,6 +321,7 @@ export class TTSQueue {
       const dropped = this.queue.shift();
       dropped?.resolve();
       console.warn(`[TTSQueue] Queue overflow. Dropped oldest speech: "${dropped?.text}"`);
+      this.notifyUseEnded();
     }
 
     const settings = options.pin?.settings ?? options.settings ?? this.store.current();

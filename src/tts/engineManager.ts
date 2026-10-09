@@ -39,9 +39,16 @@ export interface EnginePendingInfo {
   error?: string;
 }
 
+export interface EnglishPendingInfo {
+  target: EnglishEngineName;
+  since: number;
+  stage: EnginePendingStage;
+  error?: string;
+}
+
 interface PendingCandidate {
   target: EngineName;
-  engine: TTSEngine;
+  engine?: TTSEngine;
   since: number;
   stage: EnginePendingStage;
   error?: string;
@@ -50,6 +57,13 @@ interface PendingCandidate {
   cutOverTimerId?: unknown;
   unregisterIdle?: () => void;
   isStartupFallback?: boolean;
+}
+
+interface FallbackPendingCandidate {
+  engine: TTSEngine;
+  target: EngineName;
+  config: Settings;
+  unregisterIdle?: () => void;
 }
 
 interface EnglishPendingCandidate {
@@ -111,6 +125,8 @@ export class EngineManager {
   private activeEnglishSettings: Settings;
   private pendingCandidate: PendingCandidate | null = null;
   private englishPendingCandidate: EnglishPendingCandidate | null = null;
+  private pendingFallbackRebuild: FallbackPendingCandidate | null = null;
+  private readonly retiringEngines = new Set<{ engine: TTSEngine; cancel: () => void }>();
   private storeUnsubscribe?: () => void;
   private stopped = false;
 
@@ -160,6 +176,16 @@ export class EngineManager {
     };
   }
 
+  public englishPending(): EnglishPendingInfo | null {
+    if (!this.englishPendingCandidate) return null;
+    return {
+      target: this.englishPendingCandidate.target,
+      since: this.englishPendingCandidate.since,
+      stage: this.englishPendingCandidate.stage,
+      error: this.englishPendingCandidate.error,
+    };
+  }
+
   public stopAll(): void {
     this.stopped = true;
     if (this.storeUnsubscribe) {
@@ -168,6 +194,12 @@ export class EngineManager {
     }
     this.cancelPendingPrimary();
     this.cancelPendingEnglish();
+    this.cancelPendingFallbackRebuild();
+
+    for (const entry of Array.from(this.retiringEngines)) {
+      entry.cancel();
+    }
+    this.retiringEngines.clear();
 
     const current = this.holder.current();
     if (current.primary) {
@@ -208,29 +240,34 @@ export class EngineManager {
     let unregisterRelease: (() => void) | undefined;
     let timerId: unknown;
 
-    const doDispose = () => {
-      if (disposed) return;
-      disposed = true;
-      if (timerId !== undefined) {
-        this.scheduler.clearTimeout(timerId);
-        timerId = undefined;
-      }
-      if (unregisterRelease) {
-        unregisterRelease();
-        unregisterRelease = undefined;
-      }
-      this.disposeEngine(engine);
+    const entry = {
+      engine,
+      cancel: () => {
+        if (disposed) return;
+        disposed = true;
+        if (timerId !== undefined) {
+          this.scheduler.clearTimeout(timerId);
+          timerId = undefined;
+        }
+        if (unregisterRelease) {
+          unregisterRelease();
+          unregisterRelease = undefined;
+        }
+        this.retiringEngines.delete(entry);
+        this.disposeEngine(engine);
+      },
     };
+    this.retiringEngines.add(entry);
 
     unregisterRelease = this.queue.onRelease(() => {
       if (!this.queue.isInUse(engine)) {
-        doDispose();
+        entry.cancel();
       }
     });
 
     // 120 s retirement cap check (L-c, R3-3)
     timerId = this.scheduler.setTimeout(() => {
-      doDispose();
+      entry.cancel();
     }, 120000);
   }
 
@@ -247,6 +284,21 @@ export class EngineManager {
       this.scheduler.clearTimeout(candidate.cutOverTimerId);
       candidate.cutOverTimerId = undefined;
     }
+    if (candidate.unregisterIdle) {
+      candidate.unregisterIdle();
+      candidate.unregisterIdle = undefined;
+    }
+
+    if (candidate.engine) {
+      this.disposeEngine(candidate.engine);
+    }
+  }
+
+  private cancelPendingFallbackRebuild(): void {
+    if (!this.pendingFallbackRebuild) return;
+    const candidate = this.pendingFallbackRebuild;
+    this.pendingFallbackRebuild = null;
+
     if (candidate.unregisterIdle) {
       candidate.unregisterIdle();
       candidate.unregisterIdle = undefined;
@@ -279,13 +331,19 @@ export class EngineManager {
   }
 
   private initStartupFallback(targetName: EngineName, config: Settings): void {
-    const candidate = this.builders.createEngine(targetName, config, (msg) => this.log(msg));
+    let candidate: TTSEngine | undefined;
+    let error: string | undefined = `設定された音声エンジン "${targetName}" に接続できませんでした。`;
+    try {
+      candidate = this.builders.createEngine(targetName, config, (msg) => this.log(msg));
+    } catch (err) {
+      error = String(err);
+    }
     const pending: PendingCandidate = {
       target: targetName,
       engine: candidate,
       since: Date.now(),
       stage: "failed",
-      error: `設定された音声エンジン "${targetName}" に接続できませんでした。`,
+      error,
       config,
       isStartupFallback: true,
     };
@@ -327,7 +385,36 @@ export class EngineManager {
         return;
       }
       if (!areSettingsEqualForEngine(next, this.pendingCandidate.config, this.pendingCandidate.target)) {
+        // Rebuild candidate for new inputs (Item 1)
+        const target = this.pendingCandidate.target;
+        if (this.pendingCandidate.timerId !== undefined) {
+          this.scheduler.clearTimeout(this.pendingCandidate.timerId);
+          this.pendingCandidate.timerId = undefined;
+        }
+        if (this.pendingCandidate.cutOverTimerId !== undefined) {
+          this.scheduler.clearTimeout(this.pendingCandidate.cutOverTimerId);
+          this.pendingCandidate.cutOverTimerId = undefined;
+        }
+        if (this.pendingCandidate.unregisterIdle) {
+          this.pendingCandidate.unregisterIdle();
+          this.pendingCandidate.unregisterIdle = undefined;
+        }
+        if (this.pendingCandidate.engine) {
+          this.disposeEngine(this.pendingCandidate.engine);
+          this.pendingCandidate.engine = undefined;
+        }
         this.pendingCandidate.config = next;
+
+        let candidate: TTSEngine | undefined;
+        try {
+          candidate = this.builders.createEngine(target, next, (msg) => this.log(msg));
+          this.pendingCandidate.engine = candidate;
+          this.probePrimaryCandidate(this.pendingCandidate);
+        } catch (err) {
+          this.pendingCandidate.stage = "failed";
+          this.pendingCandidate.error = String(err);
+          this.scheduleReProbe(this.pendingCandidate);
+        }
       }
       return;
     }
@@ -355,8 +442,21 @@ export class EngineManager {
   }
 
   private rebuildActiveFallback(targetName: EngineName, next: Settings): void {
-    const candidate = this.builders.createEngine(targetName, next, (msg) => this.log(msg));
+    this.cancelPendingFallbackRebuild();
+
+    let candidate: TTSEngine;
+    try {
+      candidate = this.builders.createEngine(targetName, next, (msg) => this.log(msg));
+    } catch {
+      return;
+    }
     this.activePrimarySettings = next;
+
+    if (this.pendingCandidate?.stage === "waiting") {
+      this.disposeEngine(candidate);
+      return;
+    }
+
     if (this.queue.isIdle()) {
       const oldSet = this.holder.current();
       const oldPrimary = oldSet.primary;
@@ -368,12 +468,24 @@ export class EngineManager {
       this.queue.setDefaultEngine(candidate);
       this.retireEngine(oldPrimary);
     } else {
-      let swapped = false;
+      const pending: FallbackPendingCandidate = {
+        engine: candidate,
+        target: targetName,
+        config: next,
+      };
+      this.pendingFallbackRebuild = pending;
+
       const unsub = this.queue.onIdle(() => {
-        if (swapped) return;
-        if (this.queue.isIdle()) {
-          swapped = true;
-          unsub();
+        if (this.pendingFallbackRebuild === pending && this.queue.isIdle()) {
+          if (pending.unregisterIdle) {
+            pending.unregisterIdle();
+            pending.unregisterIdle = undefined;
+          }
+          this.pendingFallbackRebuild = null;
+          if (this.pendingCandidate?.stage === "waiting") {
+            this.disposeEngine(candidate);
+            return;
+          }
           const oldSet = this.holder.current();
           const oldPrimary = oldSet.primary;
           this.holder.replace({
@@ -385,26 +497,46 @@ export class EngineManager {
           this.retireEngine(oldPrimary);
         }
       });
+      pending.unregisterIdle = unsub;
     }
   }
 
   private startRebuildPrimary(targetName: EngineName, next: Settings): void {
+    this.cancelPendingFallbackRebuild();
     this.cancelPendingPrimary();
 
-    const candidate = this.builders.createEngine(targetName, next, (msg) => this.log(msg));
+    let candidate: TTSEngine | undefined;
+    let buildError: string | undefined;
+    try {
+      candidate = this.builders.createEngine(targetName, next, (msg) => this.log(msg));
+    } catch (err) {
+      buildError = String(err);
+    }
+
     const pending: PendingCandidate = {
       target: targetName,
       engine: candidate,
       since: Date.now(),
-      stage: "probing",
+      stage: candidate ? "probing" : "failed",
+      error: buildError,
       config: next,
     };
     this.pendingCandidate = pending;
 
-    this.probePrimaryCandidate(pending);
+    if (candidate) {
+      this.probePrimaryCandidate(pending);
+    } else {
+      this.scheduleReProbe(pending);
+    }
   }
 
   private async probePrimaryCandidate(pending: PendingCandidate): Promise<void> {
+    if (!pending.engine) {
+      pending.stage = "failed";
+      this.scheduleReProbe(pending);
+      return;
+    }
+
     let available = false;
     try {
       available = await pending.engine.isAvailable();
@@ -454,6 +586,17 @@ export class EngineManager {
       pending.timerId = undefined;
       if (this.stopped || this.pendingCandidate !== pending) return;
 
+      if (!pending.engine) {
+        try {
+          pending.engine = this.builders.createEngine(pending.target, pending.config, (msg) => this.log(msg));
+        } catch (err) {
+          pending.stage = "failed";
+          pending.error = String(err);
+          this.scheduleReProbe(pending);
+          return;
+        }
+      }
+
       let available = false;
       try {
         available = await pending.engine.isAvailable();
@@ -483,6 +626,8 @@ export class EngineManager {
           pending.unregisterIdle = unsub;
         }
       } else {
+        pending.stage = "failed";
+        pending.error = `音声エンジン "${pending.target}" に接続できませんでした。`;
         this.scheduleReProbe(pending);
       }
     }, 10000);
@@ -501,6 +646,7 @@ export class EngineManager {
   }
 
   private swapPrimary(pending: PendingCandidate): void {
+    this.cancelPendingFallbackRebuild();
     if (pending.timerId !== undefined) {
       this.scheduler.clearTimeout(pending.timerId);
       pending.timerId = undefined;
@@ -519,11 +665,11 @@ export class EngineManager {
 
     const newSet: EngineSet = {
       ...oldSet,
-      primary: pending.engine,
+      primary: pending.engine!,
       primaryName: pending.target,
     };
     this.holder.replace(newSet);
-    this.queue.setDefaultEngine(pending.engine);
+    this.queue.setDefaultEngine(pending.engine!);
 
     this.activePrimarySettings = pending.config;
     this.pendingCandidate = null;
@@ -585,11 +731,16 @@ export class EngineManager {
           return;
         }
 
+        const wasAddition = Boolean(this.englishPendingCandidate.isAddition);
         if (
           englishEngineChanged ||
           !areSettingsEqualForEnglishEngine(next, this.englishPendingCandidate.config, this.englishPendingCandidate.target)
         ) {
-          this.startRebuildEnglish(next.ENGLISH_TTS_ENGINE, next);
+          if (wasAddition) {
+            this.addEnglishEngine(next);
+          } else {
+            this.startRebuildEnglish(next.ENGLISH_TTS_ENGINE, next);
+          }
           return;
         }
         return;
@@ -602,13 +753,19 @@ export class EngineManager {
   }
 
   private addEnglishEngine(next: Settings): void {
-    const candidate = this.builders.createEnglishEngine(
-      next,
-      process.platform,
-      (msg) => this.log(msg)
-    );
+    let candidate: TTSEngine | undefined;
+    let buildError: string | undefined;
+    try {
+      candidate = this.builders.createEnglishEngine(
+        next,
+        process.platform,
+        (msg) => this.log(msg)
+      );
+    } catch (err) {
+      buildError = String(err);
+    }
 
-    if (!candidate) {
+    if (!candidate && !buildError) {
       // e.g. Mac off darwin
       this.holder.replace({
         ...this.holder.current(),
@@ -623,20 +780,31 @@ export class EngineManager {
       target: next.ENGLISH_TTS_ENGINE,
       engine: candidate,
       since: Date.now(),
-      stage: "probing",
+      stage: candidate ? "probing" : "failed",
+      error: buildError,
       config: next,
       isAddition: true,
     };
     this.englishPendingCandidate = pending;
 
     // Probe in background; while probing, holder has no English engine so KATAKANA guard applies
-    this.probeEnglishAddition(pending);
+    if (candidate) {
+      this.probeEnglishAddition(pending);
+    } else {
+      this.scheduleReProbeEnglish(pending);
+    }
   }
 
   private async probeEnglishAddition(pending: EnglishPendingCandidate): Promise<void> {
+    if (!pending.engine) {
+      pending.stage = "failed";
+      this.scheduleReProbeEnglish(pending);
+      return;
+    }
+
     let available = false;
     try {
-      available = pending.engine ? await pending.engine.isAvailable() : false;
+      available = await pending.engine.isAvailable();
     } catch {
       available = false;
     }
@@ -662,13 +830,19 @@ export class EngineManager {
   private startRebuildEnglish(targetName: EnglishEngineName, next: Settings): void {
     this.cancelPendingEnglish();
 
-    const candidate = this.builders.createEnglishEngine(
-      next,
-      process.platform,
-      (msg) => this.log(msg)
-    );
+    let candidate: TTSEngine | undefined;
+    let buildError: string | undefined;
+    try {
+      candidate = this.builders.createEnglishEngine(
+        next,
+        process.platform,
+        (msg) => this.log(msg)
+      );
+    } catch (err) {
+      buildError = String(err);
+    }
 
-    if (!candidate) {
+    if (!candidate && !buildError) {
       this.holder.replace({
         ...this.holder.current(),
         english: undefined,
@@ -682,19 +856,30 @@ export class EngineManager {
       target: targetName,
       engine: candidate,
       since: Date.now(),
-      stage: "probing",
+      stage: candidate ? "probing" : "failed",
+      error: buildError,
       config: next,
       isAddition: false,
     };
     this.englishPendingCandidate = pending;
 
-    this.probeEnglishSwap(pending);
+    if (candidate) {
+      this.probeEnglishSwap(pending);
+    } else {
+      this.scheduleReProbeEnglish(pending);
+    }
   }
 
   private async probeEnglishSwap(pending: EnglishPendingCandidate): Promise<void> {
+    if (!pending.engine) {
+      pending.stage = "failed";
+      this.scheduleReProbeEnglish(pending);
+      return;
+    }
+
     let available = false;
     try {
-      available = pending.engine ? await pending.engine.isAvailable() : false;
+      available = await pending.engine.isAvailable();
     } catch {
       available = false;
     }
@@ -744,6 +929,21 @@ export class EngineManager {
     pending.timerId = this.scheduler.setTimeout(async () => {
       pending.timerId = undefined;
       if (this.stopped || this.englishPendingCandidate !== pending) return;
+
+      if (!pending.engine) {
+        try {
+          pending.engine = this.builders.createEnglishEngine(
+            pending.config,
+            process.platform,
+            (msg) => this.log(msg)
+          );
+        } catch (err) {
+          pending.stage = "failed";
+          pending.error = String(err);
+          this.scheduleReProbeEnglish(pending);
+          return;
+        }
+      }
 
       let available = false;
       try {

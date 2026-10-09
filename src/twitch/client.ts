@@ -1,5 +1,4 @@
 import tmi from "tmi.js";
-import { config } from "../config";
 import { escapeMassMention } from "../text/messageProcessor";
 import {
   handleRememberCommand,
@@ -10,12 +9,13 @@ import { processComment } from "../application/commentProcessingService";
 import type { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
+import { SettingsStore, settingsStore } from "../settingsStore";
 
 export class TwitchTTSBot {
   private client: tmi.Client | null = null;
   private ttsQueue: TTSQueue;
-  private englishEngine?: TTSEngine;
   private transformer?: TextTransformer;
+  private store: SettingsStore;
   private isManuallyDisconnected = false;
   private reconnectTimer: any = null;
   private isConnecting = false;
@@ -25,20 +25,24 @@ export class TwitchTTSBot {
 
   constructor(
     ttsQueue: TTSQueue,
-    englishEngine?: TTSEngine,
-    transformer?: TextTransformer
+    arg2?: TextTransformer | TTSEngine,
+    arg3?: TextTransformer | SettingsStore,
+    arg4?: SettingsStore
   ) {
     this.ttsQueue = ttsQueue;
-    this.englishEngine = englishEngine;
-    this.transformer = transformer;
+    if (arg2 && "transform" in arg2) {
+      this.transformer = arg2;
+      this.store = (arg3 instanceof SettingsStore ? arg3 : arg4) ?? settingsStore;
+    } else {
+      if (arg3 && "transform" in arg3) {
+        this.transformer = arg3;
+      }
+      this.store = (arg3 instanceof SettingsStore ? arg3 : arg4) ?? settingsStore;
+    }
   }
 
   public setTransformer(transformer?: TextTransformer) {
     this.transformer = transformer;
-  }
-
-  public setEnglishEngine(engine?: TTSEngine) {
-    this.englishEngine = engine;
   }
 
   public isConnected(): boolean {
@@ -114,7 +118,8 @@ export class TwitchTTSBot {
 
   public async start(): Promise<void> {
     if (!this.client) {
-      if (!config.TW_OAUTH_TOKEN || !config.TW_CHANNEL_NAME) {
+      const current = this.store.current();
+      if (!current.TW_OAUTH_TOKEN || !current.TW_CHANNEL_NAME) {
         console.warn(
           "[TwitchBot] TW_OAUTH_TOKEN or TW_CHANNEL_NAME is missing in config. TTS bot will not connect to Twitch."
         );
@@ -127,10 +132,10 @@ export class TwitchTTSBot {
           secure: true,
         },
         identity: {
-          username: config.BOT_USERNAME,
-          password: config.TW_OAUTH_TOKEN,
+          username: current.BOT_USERNAME,
+          password: current.TW_OAUTH_TOKEN,
         },
-        channels: [config.TW_CHANNEL_NAME],
+        channels: [current.TW_CHANNEL_NAME],
       };
 
       this.client = new tmi.Client(opts);
@@ -144,7 +149,7 @@ export class TwitchTTSBot {
       });
 
       this.client.on("connected", (addr, port) => {
-        console.log(`* [TwitchBot] Connected to ${addr}:${port} on #${config.TW_CHANNEL_NAME}`);
+        console.log(`* [TwitchBot] Connected to ${addr}:${port} on #${this.store.current().TW_CHANNEL_NAME}`);
       });
 
       this.client.on("disconnected", (reason) => {
@@ -199,21 +204,22 @@ export class TwitchTTSBot {
       }
     }
 
-    if (config.COMMENT_REMEMVER_AVAILABLE) {
+    const currentSettings = this.store.current();
+    if (currentSettings.COMMENT_REMEMVER_AVAILABLE) {
       if (
-        trimmedMsg.startsWith(`!${config.COMMENT_REMEMVER_COMMAND}`) ||
-        trimmedMsg.startsWith(`!${config.COMMENT_REMEMVER_COMMAND}U`)
+        trimmedMsg.startsWith(`!${currentSettings.COMMENT_REMEMVER_COMMAND}`) ||
+        trimmedMsg.startsWith(`!${currentSettings.COMMENT_REMEMVER_COMMAND}U`)
       ) {
-        const res = handleRememberCommand(trimmedMsg);
+        const res = handleRememberCommand(trimmedMsg, currentSettings);
         this.client?.say(target, res.replyMessage);
         return;
       }
 
       if (
-        trimmedMsg.startsWith(`!${config.COMMENT_FORGET_COMMAND}`) ||
-        trimmedMsg.startsWith(`!${config.COMMENT_FORGET_COMMAND}U`)
+        trimmedMsg.startsWith(`!${currentSettings.COMMENT_FORGET_COMMAND}`) ||
+        trimmedMsg.startsWith(`!${currentSettings.COMMENT_FORGET_COMMAND}U`)
       ) {
-        const res = handleForgetCommand(trimmedMsg);
+        const res = handleForgetCommand(trimmedMsg, currentSettings);
         this.client?.say(target, res.replyMessage);
         return;
       }
@@ -231,7 +237,6 @@ export class TwitchTTSBot {
       {
         ttsQueue: this.ttsQueue,
         transformer: this.transformer,
-        englishEngine: this.englishEngine,
       }
     );
 
@@ -242,9 +247,9 @@ export class TwitchTTSBot {
     console.log(`${result.displayName}: ${rawMsg}`);
 
     // Discord message
-    const discordContent = config.READ_USERNAME
+    const discordContent = result.settings.READ_USERNAME
       ? `\`${result.displayName}\`: ${escapeMassMention(rawMsg)}`
       : escapeMassMention(rawMsg);
-    sendToDiscord(discordContent);
+    sendToDiscord(discordContent, result.settings);
   }
 }

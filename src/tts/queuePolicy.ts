@@ -1,17 +1,23 @@
-import { config } from "../config";
+import type { Settings, SettingsStore } from "../settingsStore";
+import { settingsStore } from "../settingsStore";
 
 export interface QueuePolicyItem {
   text: string;
   enqueuedAt: number;
   bypassTtl?: boolean;
+  settings?: Settings;
 }
 
 export class TTSQueuePolicy {
+  constructor(private readonly store: SettingsStore = settingsStore) {}
+
   public calculateSpeedScale(
     text: string,
-    pendingItems: readonly Pick<QueuePolicyItem, "text">[]
+    pendingItems: readonly Pick<QueuePolicyItem, "text">[],
+    settings?: Settings
   ): number {
-    if (!config.AUTO_ACCELERATE) {
+    const s = settings ?? this.store.current();
+    if (!s.AUTO_ACCELERATE) {
       return 1.0;
     }
 
@@ -40,12 +46,17 @@ export class TTSQueuePolicy {
       speedByQueue = 1.25;
     }
 
-    const maxSpeed = config.MAX_ACCELERATION_SPEED ?? 1.6;
+    const maxSpeed = s.MAX_ACCELERATION_SPEED ?? 1.6;
     return Math.min(Math.max(speedByLength, speedByQueue), maxSpeed);
   }
 
-  public isExpired(item: QueuePolicyItem, now = Date.now()): boolean {
-    const ttl = config.COMMENT_TTL_SECONDS ?? 30;
+  public isExpired(
+    item: QueuePolicyItem,
+    now = Date.now(),
+    settings?: Settings
+  ): boolean {
+    const s = settings ?? item.settings ?? this.store.current();
+    const ttl = s.COMMENT_TTL_SECONDS ?? 30;
     return (
       !item.bypassTtl &&
       ttl > 0 &&

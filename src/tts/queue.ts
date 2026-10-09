@@ -1,12 +1,22 @@
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "./engine";
 import { AudioPlaybackController, type PlaybackController } from "./playbackController";
 import { TTSQueuePolicy } from "./queuePolicy";
+import { SettingsStore, settingsStore, type Settings } from "../settingsStore";
+import { EngineHolder, type EngineSet } from "./engineHolder";
+
+export interface Pin {
+  settings: Settings;
+  engines: EngineSet;
+  release(): void;
+}
 
 export interface EnqueueOptions {
   engine?: TTSEngine;
   enqueuedAt?: number;
   bypassAcceleration?: boolean; // 加速を行わず 1.0 倍速で固定
   bypassTtl?: boolean;          // 30秒期限切れによるスキップ対象外にする
+  pin?: Pin;
+  settings?: Settings;
 }
 
 const ENQUEUE_OPTION_KEYS = new Set([
@@ -14,9 +24,11 @@ const ENQUEUE_OPTION_KEYS = new Set([
   "enqueuedAt",
   "bypassAcceleration",
   "bypassTtl",
+  "pin",
+  "settings",
 ]);
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isPlainObject(value: unknown): boolean {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
@@ -31,9 +43,15 @@ export interface QueueItem {
   speedScale?: number;
   bypassAcceleration?: boolean;
   bypassTtl?: boolean;
-  engine?: TTSEngine;
+  engine: TTSEngine;
+  settings: Settings;
   resolve: () => void;
   preparedPromise?: Promise<PreparedAudio>;
+}
+
+export interface TTSQueueDeps {
+  store?: SettingsStore;
+  engineHolder?: EngineHolder;
 }
 
 export class TTSQueue {
@@ -47,17 +65,27 @@ export class TTSQueue {
   private maxQueueSize: number;
   private playback: PlaybackController;
   private policy: TTSQueuePolicy;
+  private store: SettingsStore;
+  private engineHolder: EngineHolder;
 
   constructor(
     defaultEngine: TTSEngine,
     maxQueueSize = 50,
     playback: PlaybackController = new AudioPlaybackController(),
-    policy: TTSQueuePolicy = new TTSQueuePolicy()
+    policy?: TTSQueuePolicy,
+    deps: { store?: SettingsStore; engineHolder?: EngineHolder } = {}
   ) {
     this.defaultEngine = defaultEngine;
     this.maxQueueSize = maxQueueSize;
     this.playback = playback;
-    this.policy = policy;
+    this.store = deps.store ?? settingsStore;
+    this.policy = policy ?? new TTSQueuePolicy(this.store);
+    this.engineHolder =
+      deps.engineHolder ??
+      new EngineHolder({
+        primary: defaultEngine,
+        primaryName: this.store.current().TTS_ENGINE,
+      });
   }
 
   public setDefaultEngine(engine: TTSEngine) {
@@ -91,15 +119,29 @@ export class TTSQueue {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  public calculateSpeedScale(text: string): number {
-    return this.policy.calculateSpeedScale(text, this.queue);
+  public pin(): Pin {
+    const settings = this.store.current();
+    const engines = this.engineHolder.current();
+    let released = false;
+    return {
+      settings,
+      engines,
+      release: () => {
+        if (released) return;
+        released = true;
+      },
+    };
+  }
+
+  public calculateSpeedScale(text: string, settings?: Settings): number {
+    return this.policy.calculateSpeedScale(text, this.queue, settings ?? this.store.current());
   }
 
   private dropExpiredItems(): void {
     const now = Date.now();
 
     this.queue = this.queue.filter((item) => {
-      if (this.policy.isExpired(item, now)) {
+      if (this.policy.isExpired(item, now, item.settings)) {
         item.resolve();
         console.log(
           `[TTSQueue] ⏳ コメントが古い（${Math.round((now - item.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${item.text}"`
@@ -121,10 +163,7 @@ export class TTSQueue {
     }
     const nextItem = this.queue[0];
     if (nextItem && !nextItem.preparedPromise) {
-      if (nextItem.speedScale === undefined) {
-        nextItem.speedScale = nextItem.bypassAcceleration ? 1.0 : this.calculateSpeedScale(nextItem.text);
-      }
-      const engine = nextItem.engine || this.defaultEngine;
+      const engine = nextItem.engine;
       if (engine.prepare) {
         this.isSynthesizing = true;
         const promise = engine
@@ -194,6 +233,9 @@ export class TTSQueue {
       console.warn(`[TTSQueue] Queue overflow. Dropped oldest speech: "${dropped?.text}"`);
     }
 
+    const settings = options.pin?.settings ?? options.settings ?? this.store.current();
+    const engine = options.engine ?? options.pin?.engines.primary ?? this.defaultEngine;
+
     return new Promise<void>((resolve) => {
       const item: QueueItem = {
         id: Math.random().toString(36).slice(2),
@@ -201,8 +243,9 @@ export class TTSQueue {
         enqueuedAt: options.enqueuedAt ?? Date.now(),
         bypassAcceleration: options.bypassAcceleration,
         bypassTtl: options.bypassTtl,
-        speedScale: options.bypassAcceleration ? 1.0 : this.calculateSpeedScale(trimmed),
-        engine: options.engine,
+        speedScale: options.bypassAcceleration ? 1.0 : this.calculateSpeedScale(trimmed, settings),
+        engine,
+        settings,
         resolve,
       };
       this.queue.push(item);
@@ -231,7 +274,7 @@ export class TTSQueue {
       return;
     }
 
-    const engine = current.engine || this.defaultEngine;
+    const engine = current.engine;
     this.currentRunningEngine = engine;
 
     try {
@@ -254,9 +297,6 @@ export class TTSQueue {
 
       // 2. Real-time synthesis fallback with retry for transient errors
       if (!audio) {
-        if (current.speedScale === undefined) {
-          current.speedScale = current.bypassAcceleration ? 1.0 : this.calculateSpeedScale(current.text);
-        }
         const retryDelays = this.policy.retryDelays;
         const maxRetries = retryDelays.length;
         let lastError: any = null;
@@ -305,7 +345,7 @@ export class TTSQueue {
       // 3. Play audio on speaker and trigger prefetch for next queue item
       if (audio) {
         const now = Date.now();
-        if (this.policy.isExpired(current, now)) {
+        if (this.policy.isExpired(current, now, current.settings)) {
           console.log(
             `[TTSQueue] ⏳ 合成・待機中にコメントの期限が切れたため再生をスキップしました: "${current.text}"`
           );

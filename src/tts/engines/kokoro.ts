@@ -22,6 +22,7 @@ export class KokoroEngine implements TTSEngine {
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private isReady = false;
   private readyPromise: Promise<void> | null = null;
+  private startupReject: ((err: Error) => void) | null = null;
   private currentRequest: {
     resolve: (res: KokoroWorkerResponse) => void;
     reject: (err: Error) => void;
@@ -56,70 +57,96 @@ export class KokoroEngine implements TTSEngine {
     }
 
     this.readyPromise = new Promise<void>((resolve, reject) => {
+      this.startupReject = reject;
       try {
         const env = {
           ...process.env,
           ESPEAK_DATA_PATH: "/opt/homebrew/share/espeak-ng-data",
         };
 
-        this.proc = Bun.spawn([this.pythonPath, this.scriptPath], {
+        const proc = Bun.spawn([this.pythonPath, this.scriptPath], {
           stdin: "pipe",
           stdout: "pipe",
           stderr: "inherit",
           env,
         });
+        this.proc = proc;
 
         // Reader loop for worker stdout
         (async () => {
-          const reader = this.proc.stdout.getReader();
+          const reader = proc.stdout.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
 
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
+            if (this.proc !== proc) break;
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() || "";
 
             for (const line of lines) {
+              if (this.proc !== proc) break;
               const trimmed = line.trim();
               if (!trimmed) continue;
 
               if (trimmed === "READY") {
                 this.isReady = true;
+                this.startupReject = null;
                 resolve();
                 continue;
               }
 
               // Handle JSON responses
               if (this.currentRequest) {
+                const req = this.currentRequest;
+                this.currentRequest = null;
                 try {
                   const res = JSON.parse(trimmed);
-                  this.currentRequest.resolve(res);
-                } catch (e) {
-                  this.currentRequest.reject(e);
+                  req.resolve(res);
+                } catch (e: any) {
+                  req.reject(e instanceof Error ? e : new Error(String(e)));
                 }
-                this.currentRequest = null;
               }
             }
           }
         })().catch((err) => {
+          if (this.proc !== proc) return;
           console.error("[KokoroEngine] Worker reader error:", err);
           this.isReady = false;
-          reject(err);
+          if (this.startupReject) {
+            this.startupReject(err instanceof Error ? err : new Error(String(err)));
+            this.startupReject = null;
+          }
+          if (this.currentRequest) {
+            this.currentRequest.reject(err instanceof Error ? err : new Error(String(err)));
+            this.currentRequest = null;
+          }
+          this.readyPromise = null;
         });
 
-        this.proc.exited.then((code: number) => {
+        proc.exited.then((code: number) => {
+          if (this.proc !== proc) return;
           console.warn(`[KokoroEngine] Worker exited with code ${code}`);
           this.isReady = false;
           this.proc = null;
           this.readyPromise = null;
+          const exitErr = new Error(`[KokoroEngine] Worker exited unexpectedly with code ${code}`);
+          if (this.startupReject) {
+            this.startupReject(exitErr);
+            this.startupReject = null;
+          }
+          if (this.currentRequest) {
+            this.currentRequest.reject(exitErr);
+            this.currentRequest = null;
+          }
         });
-      } catch (err) {
+      } catch (err: any) {
         this.readyPromise = null;
-        reject(err);
+        this.startupReject = null;
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
 
@@ -192,14 +219,29 @@ export class KokoroEngine implements TTSEngine {
   }
 
   public stop(): void {
-    if (this.proc) {
+    const procToKill = this.proc;
+    this.proc = null;
+    this.isReady = false;
+    this.readyPromise = null;
+
+    if (this.startupReject) {
+      const reject = this.startupReject;
+      this.startupReject = null;
+      reject(new Error("[KokoroEngine] Worker stopped during startup"));
+    }
+
+    if (this.currentRequest) {
+      const req = this.currentRequest;
+      this.currentRequest = null;
+      req.reject(new Error("[KokoroEngine] Worker stopped while request was in-flight"));
+    }
+
+    if (procToKill) {
       try {
-        this.proc.kill();
+        procToKill.kill();
       } catch {
         // ignore
       }
-      this.proc = null;
-      this.isReady = false;
     }
   }
 }

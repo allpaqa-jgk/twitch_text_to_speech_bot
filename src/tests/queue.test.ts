@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { TTSQueue } from "../tts/queue";
 import type { TTSEngine, PreparedAudio, SpeechOptions } from "../tts/engine";
-import { config } from "../config";
+import { SettingsStore } from "../settingsStore";
+import { parseConfig } from "../config";
 import { CoeiroinkEngine } from "../tts/engines/coeiroink";
 import { VoicevoxEngine } from "../tts/engines/voicevox";
 import { KokoroEngine } from "../tts/engines/kokoro";
@@ -456,14 +457,11 @@ describe("TTSQueue", () => {
       expect(mock.recordedOptions[0]?.speedScale).toBe(1.6);
 
       // Verify custom MAX_ACCELERATION_SPEED config capping
-      const origMax = config.MAX_ACCELERATION_SPEED;
-      try {
-        (config as any).MAX_ACCELERATION_SPEED = 1.35;
-        await queue.enqueue(text200);
-        expect(mock.recordedOptions[1]?.speedScale).toBe(1.35);
-      } finally {
-        (config as any).MAX_ACCELERATION_SPEED = origMax;
-      }
+      const testStore = new SettingsStore(parseConfig({ MAX_ACCELERATION_SPEED: 1.35 }));
+      const mock2 = new MockEngine(10);
+      const queue2 = new TTSQueue(mock2, 50, undefined, undefined, { store: testStore });
+      await queue2.enqueue(text200);
+      expect(mock2.recordedOptions[0]?.speedScale).toBe(1.35);
     });
 
     it("4. should apply congestion acceleration (1.25 - 1.5) when multiple short items accumulate in queue", async () => {
@@ -511,7 +509,7 @@ describe("TTSQueue", () => {
       // If multiplied, 1.45 * 1.5 = 2.175, but Math.max caps it to 1.50 and never exceeds maxSpeed (1.6)
       for (const opt of mock.recordedOptions) {
         expect(opt?.speedScale).toBeGreaterThanOrEqual(1.45);
-        expect(opt?.speedScale).toBeLessThanOrEqual(config.MAX_ACCELERATION_SPEED ?? 1.6);
+        expect(opt?.speedScale).toBeLessThanOrEqual(1.6);
       }
     });
 
@@ -672,18 +670,13 @@ describe("TTSQueue", () => {
     });
 
     it("should return 1.0 when AUTO_ACCELERATE is disabled", async () => {
-      const origAuto = config.AUTO_ACCELERATE;
-      try {
-        (config as any).AUTO_ACCELERATE = false;
-        const mock = new MockEngine();
-        const queue = new TTSQueue(mock);
-        expect(queue.calculateSpeedScale("あ".repeat(150))).toBe(1.0);
+      const testStore = new SettingsStore(parseConfig({ AUTO_ACCELERATE: false }));
+      const mock = new MockEngine();
+      const queue = new TTSQueue(mock, 50, undefined, undefined, { store: testStore });
+      expect(queue.calculateSpeedScale("あ".repeat(150))).toBe(1.0);
 
-        await queue.enqueue("あ".repeat(150));
-        expect(mock.recordedOptions[0]?.speedScale).toBe(1.0);
-      } finally {
-        (config as any).AUTO_ACCELERATE = origAuto;
-      }
+      await queue.enqueue("あ".repeat(150));
+      expect(mock.recordedOptions[0]?.speedScale).toBe(1.0);
     });
 
     it("should keep speedScale === 1.0 when bypassAcceleration is true even with long text and queue congestion", async () => {
@@ -806,11 +799,9 @@ describe("TTSQueue", () => {
     });
 
     it("3. should not skip old items when COMMENT_TTL_SECONDS is 0 (disabled)", async () => {
-      const origTTL = config.COMMENT_TTL_SECONDS;
-      (config as any).COMMENT_TTL_SECONDS = 0;
-
+      const testStore = new SettingsStore(parseConfig({ COMMENT_TTL_SECONDS: 0 }));
       const engine = new TTLTrackingEngine(20);
-      const queue = new TTSQueue(engine);
+      const queue = new TTSQueue(engine, 50, undefined, undefined, { store: testStore });
 
       const origNow = Date.now;
       let currentTime = 1000000;
@@ -834,7 +825,6 @@ describe("TTSQueue", () => {
         ]);
       } finally {
         Date.now = origNow;
-        (config as any).COMMENT_TTL_SECONDS = origTTL;
       }
     });
 

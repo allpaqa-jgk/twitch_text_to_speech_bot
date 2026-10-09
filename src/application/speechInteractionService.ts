@@ -6,6 +6,7 @@ import { detectLanguage } from "../text/languageDetector";
 export interface SpeechQueueControl {
   clear(): void;
   enqueue: TTSQueue["enqueue"];
+  pin?: TTSQueue["pin"];
 }
 
 export interface PreviewLine {

@@ -1,7 +1,8 @@
-import { config } from "./config";
+import { settingsStore } from "./settingsStore";
 import { TTSQueue } from "./tts/queue";
 import type { TTSEngine } from "./tts/engine";
 import { createEnglishEngine, resolvePrimaryEngine } from "./tts/engineFactory";
+import { EngineHolder } from "./tts/engineHolder";
 import { KatakanaTransformer } from "./tts/transformers/katakana";
 import { TwitchTTSBot } from "./twitch/client";
 import { startTwitchOAuthFlow } from "./twitch/auth";
@@ -43,8 +44,10 @@ console.log("////////////////////////////////////////");
 console.log(`//   Twitch Text to Speech Bot v${BOT_VERSION}`.padEnd(38, " ") + "//");
 console.log("////////////////////////////////////////");
 
+const initSettings = settingsStore.current();
+
 // 1. Select the primary Japanese engine with automatic fallback.
-const primaryEngine = await resolvePrimaryEngine(config);
+const { engine: primaryEngine, name: primaryEngineName } = await resolvePrimaryEngine(initSettings);
 
 // CLI demo command: ./twitch-tts-bot demo or bun run index.ts demo
 if (
@@ -58,25 +61,40 @@ if (
 }
 let englishEngine: TTSEngine | undefined;
 
-if (config.FOREIGN_LANGUAGE_MODE === "NATIVE" || config.BILINGAL_MODE) {
-  englishEngine = createEnglishEngine(config);
+if (initSettings.FOREIGN_LANGUAGE_MODE === "NATIVE" || initSettings.BILINGAL_MODE) {
+  englishEngine = createEnglishEngine(initSettings);
 }
+
+const engineHolder = new EngineHolder({
+  primary: primaryEngine,
+  primaryName: primaryEngineName,
+  english: englishEngine,
+  englishName: englishEngine ? initSettings.ENGLISH_TTS_ENGINE : undefined,
+});
+
+// 2. Initialize text transformer for foreign languages
+const katakanaTransformer = new KatakanaTransformer();
+console.log(`[Init] Foreign language mode: ${initSettings.FOREIGN_LANGUAGE_MODE}`);
 
 // 3. Initialize sequential TTS Queue
-const queue = new TTSQueue(primaryEngine);
+const queue = new TTSQueue(primaryEngine, 50, undefined, undefined, {
+  store: settingsStore,
+  engineHolder,
+});
 
 // 4. Play starting message
-if (config.STARTING_MESSAGE) {
-  console.log(`[Init] Starting message: "${config.STARTING_MESSAGE}"`);
-  queue.enqueue(config.STARTING_MESSAGE);
+if (initSettings.STARTING_MESSAGE) {
+  console.log(`[Init] Starting message: "${initSettings.STARTING_MESSAGE}"`);
+  const pin = queue.pin();
+  try {
+    queue.enqueue(initSettings.STARTING_MESSAGE, { pin, engine: pin.engines.primary });
+  } finally {
+    pin.release();
+  }
 }
 
-// 5. Initialize text transformer for foreign languages
-const katakanaTransformer = new KatakanaTransformer();
-console.log(`[Init] Foreign language mode: ${config.FOREIGN_LANGUAGE_MODE}`);
-
 // 6. Twitch handling
-const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer);
+const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer, settingsStore);
 const dictionaryService = new DictionaryService(new CsvDictionaryRepository());
 const twitchControlService = new TwitchControlService(bot);
 const speechInteractionService = new SpeechInteractionService(queue, katakanaTransformer);
@@ -85,11 +103,13 @@ const restartService = new RestartService();
 
 // 7. Start HTTP Server (for Web Management Console, OneComme, CastCraft, Webhooks)
 let httpServer: HttpServer | null = null;
-if (config.HTTP_SERVER_ENABLED) {
+if (initSettings.HTTP_SERVER_ENABLED) {
   httpServer = new HttpServer({
     queue,
     transformer: katakanaTransformer,
     englishEngine,
+    store: settingsStore,
+    engineHolder,
     dictionaryService,
     twitchControlService,
     speechInteractionService,
@@ -98,10 +118,10 @@ if (config.HTTP_SERVER_ENABLED) {
   httpServer.start();
 }
 
-if (!config.ENABLE_TWITCH) {
+if (!initSettings.ENABLE_TWITCH) {
   console.log("ℹ️  [Twitch] ENABLE_TWITCH=false のため直接接続をスキップしました（HTTP読み上げモードで待機中）");
 } else {
-  const hasAuth = !!(config.TW_OAUTH_TOKEN && config.TW_CHANNEL_NAME);
+  const hasAuth = !!(initSettings.TW_OAUTH_TOKEN && initSettings.TW_CHANNEL_NAME);
   if (hasAuth) {
     bot.start().catch((err) => {
       const errMsg = String(err?.message || err);
@@ -129,7 +149,7 @@ if (!config.ENABLE_TWITCH) {
 }
 
 // 8. Start interactive console for terminal commands (?, speakers, say, clear, twitch, status, q)
-startInteractiveConsole(queue, katakanaTransformer, englishEngine, bot, httpServer);
+startInteractiveConsole(queue, katakanaTransformer, englishEngine, bot, httpServer, settingsStore, engineHolder);
 
 // Graceful shutdown
 process.on("SIGINT", async () => {

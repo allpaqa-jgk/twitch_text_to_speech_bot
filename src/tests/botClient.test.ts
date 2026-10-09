@@ -3,7 +3,9 @@ import { TwitchTTSBot } from "../twitch/client";
 import { TTSQueue } from "../tts/queue";
 import type { TTSEngine } from "../tts/engine";
 import { KatakanaTransformer } from "../tts/transformers/katakana";
-import { config } from "../config";
+import { SettingsStore } from "../settingsStore";
+import { parseConfig } from "../config";
+import { EngineHolder } from "../tts/engineHolder";
 
 class MockEngine implements TTSEngine {
   public name: string;
@@ -24,207 +26,156 @@ class MockEngine implements TTSEngine {
 
 describe("TwitchTTSBot integration tests", () => {
   it("should route Japanese comments to default engine", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "KATAKANA" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer);
+    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
 
-    // Save initial state
-    const originalMode = config.FOREIGN_LANGUAGE_MODE;
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-    config.FOREIGN_LANGUAGE_MODE = "KATAKANA";
+    await bot.handleIncomingMessage("#test", { username: "user1" }, "こんにちは！配信お疲れ様です");
+    // Wait for queue processing
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage("#test", { username: "user1" }, "こんにちは！配信お疲れ様です");
-      // Wait for queue processing
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(1);
-      expect(defaultEngine.spokenTexts[0]).toBe("こんにちは配信お疲れ様です");
-    } finally {
-      config.FOREIGN_LANGUAGE_MODE = originalMode;
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(1);
+    expect(defaultEngine.spokenTexts[0]).toBe("こんにちは配信お疲れ様です");
   });
 
   it("should convert foreign comments to Katakana in KATAKANA mode", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "KATAKANA" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer);
+    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
 
-    const originalMode = config.FOREIGN_LANGUAGE_MODE;
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-    config.FOREIGN_LANGUAGE_MODE = "KATAKANA";
+    await bot.handleIncomingMessage("#test", { username: "user2" }, "Hello world!");
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage("#test", { username: "user2" }, "Hello world!");
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(1);
-      // "Hello world!" -> "ハロー ワールド"
-      expect(defaultEngine.spokenTexts[0]).toContain("ハロー");
-    } finally {
-      config.FOREIGN_LANGUAGE_MODE = originalMode;
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(1);
+    // "Hello world!" -> "ハロー ワールド"
+    expect(defaultEngine.spokenTexts[0]).toContain("ハロー");
   });
 
   it("should route English comments to English engine in NATIVE mode", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "NATIVE" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
     const englishEngine = new MockEngine("KokoroEnglish");
-    const queue = new TTSQueue(defaultEngine);
+    const holder = new EngineHolder({
+      primary: defaultEngine,
+      primaryName: "COEIROINK",
+      english: englishEngine,
+      englishName: "KOKORO",
+    });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, englishEngine, transformer);
+    const bot = new TwitchTTSBot(queue, englishEngine, transformer, store);
 
-    const originalMode = config.FOREIGN_LANGUAGE_MODE;
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-    config.FOREIGN_LANGUAGE_MODE = "NATIVE";
+    await bot.handleIncomingMessage("#test", { username: "user3" }, "Good luck with the game!");
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage("#test", { username: "user3" }, "Good luck with the game!");
-      await new Promise((r) => setTimeout(r, 50));
-
-      // Should be handled by englishEngine, not defaultEngine
-      expect(englishEngine.spokenTexts.length).toBe(1);
-      expect(englishEngine.spokenTexts[0]).toBe("Good luck with the game");
-      expect(defaultEngine.spokenTexts.length).toBe(0);
-    } finally {
-      config.FOREIGN_LANGUAGE_MODE = originalMode;
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    // Should be handled by englishEngine, not defaultEngine
+    expect(englishEngine.spokenTexts.length).toBe(1);
+    expect(englishEngine.spokenTexts[0]).toBe("Good luck with the game");
+    expect(defaultEngine.spokenTexts.length).toBe(0);
   });
 
   it("should skip foreign comments in IGNORE mode", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "IGNORE" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
-    const bot = new TwitchTTSBot(queue);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
 
-    const originalMode = config.FOREIGN_LANGUAGE_MODE;
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-    config.FOREIGN_LANGUAGE_MODE = "IGNORE";
+    await bot.handleIncomingMessage("#test", { username: "user4" }, "Privet kak dela");
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage("#test", { username: "user4" }, "Privet kak dela");
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(0);
-    } finally {
-      config.FOREIGN_LANGUAGE_MODE = originalMode;
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(0);
   });
 
   it("should speak cheer messages containing bits normally in KATAKANA mode", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "KATAKANA" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer);
+    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
 
-    const originalMode = config.FOREIGN_LANGUAGE_MODE;
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-    config.FOREIGN_LANGUAGE_MODE = "KATAKANA";
+    await bot.handleIncomingMessage(
+      "#test",
+      { username: "cheer_user", bits: "100" as any },
+      "Cheer100 ナイスプレイ！"
+    );
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage(
-        "#test",
-        { username: "cheer_user", bits: "100" as any },
-        "Cheer100 ナイスプレイ！"
-      );
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(1);
-      expect(defaultEngine.spokenTexts[0]).toContain("チアー100");
-      expect(defaultEngine.spokenTexts[0]).toContain("ナイスプレイ");
-    } finally {
-      config.FOREIGN_LANGUAGE_MODE = originalMode;
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(1);
+    expect(defaultEngine.spokenTexts[0]).toContain("チアー100");
+    expect(defaultEngine.spokenTexts[0]).toContain("ナイスプレイ");
   });
 
   it("should deduplicate messages with the same messageId", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
-    const bot = new TwitchTTSBot(queue);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
 
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
+    const context = { id: "msg-123", username: "user1" };
+    await bot.handleIncomingMessage("#test", context, "メッセージ1");
+    await bot.handleIncomingMessage("#test", context, "メッセージ1（再送）");
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      const context = { id: "msg-123", username: "user1" };
-      await bot.handleIncomingMessage("#test", context, "メッセージ1");
-      await bot.handleIncomingMessage("#test", context, "メッセージ1（再送）");
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(1);
-      expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
-    } finally {
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(1);
+    expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
   });
 
   it("should process messages with different messageIds", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
-    const bot = new TwitchTTSBot(queue);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
 
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
+    await bot.handleIncomingMessage("#test", { id: "msg-1", username: "user1" }, "メッセージ1");
+    await bot.handleIncomingMessage("#test", { id: "msg-2", username: "user2" }, "メッセージ2");
+    await new Promise((r) => setTimeout(r, 50));
 
-    try {
-      await bot.handleIncomingMessage("#test", { id: "msg-1", username: "user1" }, "メッセージ1");
-      await bot.handleIncomingMessage("#test", { id: "msg-2", username: "user2" }, "メッセージ2");
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(defaultEngine.spokenTexts.length).toBe(2);
-      expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
-      expect(defaultEngine.spokenTexts[1]).toBe("メッセージ2");
-    } finally {
-      config.ENABLE_TTS = originalEnableTts;
-    }
+    expect(defaultEngine.spokenTexts.length).toBe(2);
+    expect(defaultEngine.spokenTexts[0]).toBe("メッセージ1");
+    expect(defaultEngine.spokenTexts[1]).toBe("メッセージ2");
   });
 
   it("should maintain ring buffer at max 100 messageIds and evict oldest to prevent memory leak", async () => {
+    const store = new SettingsStore(parseConfig({ ENABLE_TTS: true }));
     const defaultEngine = new MockEngine("DefaultJapanese");
-    const queue = new TTSQueue(defaultEngine);
-    const bot = new TwitchTTSBot(queue);
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
 
-    const originalEnableTts = config.ENABLE_TTS;
-    config.ENABLE_TTS = true;
-
-    try {
-      for (let i = 0; i < 105; i++) {
-        await bot.handleIncomingMessage(
-          "#test",
-          { id: `msg-${i}`, username: `user${i}` },
-          `テスト${i}`
-        );
-      }
-      await new Promise((r) => setTimeout(r, 100));
-
-      expect((bot as any).recentMessageIds.size).toBe(100);
-      expect((bot as any).messageIdQueue.length).toBe(100);
-      expect((bot as any).recentMessageIds.has("msg-0")).toBe(false);
-      expect((bot as any).recentMessageIds.has("msg-4")).toBe(false);
-      expect((bot as any).recentMessageIds.has("msg-5")).toBe(true);
-      expect((bot as any).recentMessageIds.has("msg-104")).toBe(true);
-
-      const currentCount = defaultEngine.spokenTexts.length;
+    for (let i = 0; i < 105; i++) {
       await bot.handleIncomingMessage(
         "#test",
-        { id: "msg-0", username: "user0" },
-        "再送テスト0"
+        { id: `msg-${i}`, username: `user${i}` },
+        `テスト${i}`
       );
-      await new Promise((r) => setTimeout(r, 50));
-      expect(defaultEngine.spokenTexts.length).toBe(currentCount + 1);
-    } finally {
-      config.ENABLE_TTS = originalEnableTts;
     }
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect((bot as any).recentMessageIds.size).toBe(100);
+    expect((bot as any).messageIdQueue.length).toBe(100);
+    expect((bot as any).recentMessageIds.has("msg-0")).toBe(false);
+    expect((bot as any).recentMessageIds.has("msg-4")).toBe(false);
+    expect((bot as any).recentMessageIds.has("msg-5")).toBe(true);
+    expect((bot as any).recentMessageIds.has("msg-104")).toBe(true);
+
+    const currentCount = defaultEngine.spokenTexts.length;
+    await bot.handleIncomingMessage(
+      "#test",
+      { id: "msg-0", username: "user0" },
+      "再送テスト0"
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(defaultEngine.spokenTexts.length).toBe(currentCount + 1);
   });
 
   it("should guard against duplicate connect calls while connecting or when connected", async () => {

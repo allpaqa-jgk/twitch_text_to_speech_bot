@@ -1,5 +1,6 @@
 import type { Server } from "bun";
-import { config } from "../config";
+import { SettingsStore, settingsStore } from "../settingsStore";
+import type { EngineHolder } from "../tts/engineHolder";
 import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
 import type { TTSEngine } from "../tts/engine";
@@ -18,6 +19,8 @@ export interface HttpServerOptions {
   queue: TTSQueue;
   transformer?: TextTransformer;
   englishEngine?: TTSEngine;
+  store?: SettingsStore;
+  engineHolder?: EngineHolder;
   dictionaryService: DictionaryService;
   twitchControlService: TwitchControlService;
   speechInteractionService: SpeechInteractionService;
@@ -42,6 +45,8 @@ export class HttpServer {
   private queue: TTSQueue;
   private transformer?: TextTransformer;
   private englishEngine?: TTSEngine;
+  private store: SettingsStore;
+  private engineHolder?: EngineHolder;
   private dictionaryService: DictionaryService;
   private twitchControlService: TwitchControlService;
   private speechInteractionService: SpeechInteractionService;
@@ -59,14 +64,17 @@ export class HttpServer {
     this.queue = options.queue;
     this.transformer = options.transformer;
     this.englishEngine = options.englishEngine;
+    this.store = options.store ?? settingsStore;
+    this.engineHolder = options.engineHolder;
     this.dictionaryService = options.dictionaryService;
     this.twitchControlService = options.twitchControlService;
     this.speechInteractionService = options.speechInteractionService;
-    this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService();
+    this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService(undefined, this.store, undefined, undefined, this.engineHolder);
     this.restartService = options.restartService ?? new RestartService();
-    this.port = options.port ?? config.HTTP_SERVER_PORT;
-    this.bouyomiPort = options.bouyomiPort ?? config.BOUYOMI_COMPAT_PORT;
-    this.enableBouyomiCompat = options.enableBouyomiCompat ?? config.BOUYOMI_COMPAT_ENABLED;
+    const cur = this.store.current();
+    this.port = options.port ?? cur.HTTP_SERVER_PORT;
+    this.bouyomiPort = options.bouyomiPort ?? cur.BOUYOMI_COMPAT_PORT;
+    this.enableBouyomiCompat = options.enableBouyomiCompat ?? cur.BOUYOMI_COMPAT_ENABLED;
     this.restartDelayMs = options.restartDelayMs ?? 150;
   }
 
@@ -322,16 +330,18 @@ export class HttpServer {
 
     // GET /api/status
     if (req.method === "GET" && url.pathname === "/api/status") {
+      const cur = this.store.current();
+      const primaryName = this.engineHolder ? this.engineHolder.current().primaryName : cur.TTS_ENGINE;
       return new Response(
         JSON.stringify({
           status: "ok",
           queuePending: this.queue.pendingCount,
-          engine: config.TTS_ENGINE,
+          engine: primaryName,
           port: this.port,
           bouyomiPort: this.bouyomiPort,
           bouyomiRunning: this.isBouyomiRunning(),
           twitchConnected: this.twitchControlService.isConnected(),
-          twitchChannel: config.TW_CHANNEL_NAME || null,
+          twitchChannel: cur.TW_CHANNEL_NAME || null,
           restartPending: this.lifecycleActionInProgress !== null,
           restartSupported: this.restartService.getLaunchInfo().supported,
           restartError: this.restartService.getLastError(),
@@ -451,7 +461,7 @@ export class HttpServer {
 
     // POST /api/demo
     if (req.method === "POST" && url.pathname === "/api/demo") {
-      if (!config.HTTP_TALK_ENABLED) {
+      if (!this.store.current().HTTP_TALK_ENABLED) {
         return new Response(JSON.stringify({ error: "HTTP speech endpoints are disabled." }), {
           status: 403,
           headers: {
@@ -640,7 +650,7 @@ export class HttpServer {
 
     // POST /say
     if (req.method === "POST" && url.pathname === "/say") {
-      if (!config.HTTP_TALK_ENABLED) {
+      if (!this.store.current().HTTP_TALK_ENABLED) {
         return new Response(JSON.stringify({ error: "HTTP speech endpoints are disabled." }), {
           status: 403,
           headers: {
@@ -715,7 +725,6 @@ export class HttpServer {
         {
           ttsQueue: this.queue,
           transformer: this.transformer,
-          englishEngine: this.englishEngine,
         }
       )
         .then((res) => {
@@ -860,7 +869,6 @@ export class HttpServer {
         {
           ttsQueue: this.queue,
           transformer: this.transformer,
-          englishEngine: this.englishEngine,
         }
       )
         .then((res) => {

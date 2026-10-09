@@ -357,6 +357,20 @@
       vertical-align: middle;
     }
 
+    .settings-apply-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.5rem;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: rgba(139, 148, 158, 0.15);
+      border: 1px solid rgba(139, 148, 158, 0.3);
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+
     .settings-unsaved-badge {
       display: inline-flex;
       align-items: center;
@@ -684,7 +698,7 @@
       <div class="card">
         <h2 class="card-title">⚙️ アプリケーション設定</h2>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          起動時に有効な設定を表示します。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。反映にはアプリの再起動が必要です。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
+          設定の保存は即座に反映されます。ただし、音声エンジン関連の設定、Twitch連携、棒読みちゃん互換、HTTPサーバーのポート番号はアプリの再起動後に反映されます。起動時メッセージは次回起動時に反映されます。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
         </p>
         <div id="settings-restart-warning" class="badge-warn" role="status" style="display: none; margin-bottom: 1rem;"></div>
         <div id="settings-error" role="alert" style="color: var(--danger); margin-bottom: 1rem;"></div>
@@ -949,6 +963,18 @@
         label.htmlFor = inputId;
         label.textContent = setting.label;
 
+        if (setting.apply === "restart") {
+          const restartBadge = document.createElement("span");
+          restartBadge.className = "settings-apply-badge";
+          restartBadge.textContent = "再起動後に反映";
+          label.appendChild(restartBadge);
+        } else if (setting.apply === "next-start") {
+          const nextStartBadge = document.createElement("span");
+          nextStartBadge.className = "settings-apply-badge";
+          nextStartBadge.textContent = "次回起動時";
+          label.appendChild(nextStartBadge);
+        }
+
         const dirtyBadge = document.createElement("span");
         dirtyBadge.className = "settings-dirty-badge";
         dirtyBadge.textContent = "未保存";
@@ -1043,9 +1069,13 @@
         hasOverrides ? "inline-flex" : "none";
       const warning = document.getElementById("settings-restart-warning");
       warning.style.display = snapshot.restartRequired ? "inline-block" : "none";
-      warning.textContent = snapshot.restartRequired
-        ? "保存済みの変更があります。現在のプロセスには未反映です。反映にはアプリの再起動が必要です。"
-        : "表示中の設定は現在の起動設定です。";
+      if (snapshot.restartRequired) {
+        const restartLabels = (snapshot.restartKeys || [])
+          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        warning.textContent = "再起動後に反映される変更があります: " + restartLabels.join("、");
+      } else {
+        warning.textContent = "表示中の設定が現在適用されています。";
+      }
       updateUnsavedBadge();
     }
 
@@ -1172,7 +1202,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "設定を保存できませんでした");
         renderSettings(data);
-        showToast("設定を保存しました。再起動後に反映されます。", "success");
+        if (data.restartRequired) {
+          showToast("設定を保存しました。一部の変更は再起動後に反映されます。", "success");
+        } else {
+          showToast("設定を保存しました。変更が反映されました。", "success");
+        }
       } catch (err) {
         error.textContent = err instanceof Error ? err.message : "設定を保存できませんでした";
       }

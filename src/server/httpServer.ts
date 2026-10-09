@@ -13,12 +13,14 @@ import {
   SettingsValidationError,
 } from "../application/configSettingsService";
 import { RestartService } from "../application/restartService";
+import type { EngineManager } from "../tts/engineManager";
 
 export interface HttpServerOptions {
   queue: TTSQueue;
   transformer?: TextTransformer;
   store?: SettingsStore;
   engineHolder?: EngineHolder;
+  engineManager?: EngineManager;
   dictionaryService: DictionaryService;
   twitchControlService: TwitchControlService;
   speechInteractionService: SpeechInteractionService;
@@ -44,6 +46,7 @@ export class HttpServer {
   private transformer?: TextTransformer;
   private store: SettingsStore;
   private engineHolder?: EngineHolder;
+  private engineManager?: EngineManager;
   private dictionaryService: DictionaryService;
   private twitchControlService: TwitchControlService;
   private speechInteractionService: SpeechInteractionService;
@@ -62,10 +65,20 @@ export class HttpServer {
     this.transformer = options.transformer;
     this.store = options.store ?? settingsStore;
     this.engineHolder = options.engineHolder;
+    this.engineManager = options.engineManager;
     this.dictionaryService = options.dictionaryService;
     this.twitchControlService = options.twitchControlService;
     this.speechInteractionService = options.speechInteractionService;
-    this.configSettingsService = options.configSettingsService ?? new ConfigSettingsService(undefined, this.store, undefined, undefined, this.engineHolder);
+    this.configSettingsService =
+      options.configSettingsService ??
+      new ConfigSettingsService(
+        undefined,
+        this.store,
+        undefined,
+        undefined,
+        this.engineHolder,
+        this.engineManager
+      );
     this.restartService = options.restartService ?? new RestartService();
     const cur = this.store.current();
     this.port = options.port ?? cur.HTTP_SERVER_PORT;
@@ -327,12 +340,31 @@ export class HttpServer {
     // GET /api/status
     if (req.method === "GET" && url.pathname === "/api/status") {
       const cur = this.store.current();
-      const primaryName = this.engineHolder ? this.engineHolder.current().primaryName : cur.TTS_ENGINE;
+      const primaryName = this.engineManager
+        ? this.engineManager.current().primaryName
+        : this.engineHolder
+        ? this.engineHolder.current().primaryName
+        : cur.TTS_ENGINE;
+
+      const currentSet = this.engineManager
+        ? this.engineManager.current()
+        : this.engineHolder?.current();
+      const isEnglishNeeded =
+        cur.FOREIGN_LANGUAGE_MODE === "NATIVE" || cur.BILINGAL_MODE;
+      const englishEngine = currentSet?.english
+        ? (currentSet.englishName ?? cur.ENGLISH_TTS_ENGINE)
+        : isEnglishNeeded
+        ? "unavailable"
+        : null;
+
       return new Response(
         JSON.stringify({
           status: "ok",
           queuePending: this.queue.pendingCount,
           engine: primaryName,
+          enginePending: this.engineManager?.pending() ?? null,
+          englishEngine,
+          englishEnginePending: this.engineManager?.englishPending() ?? null,
           port: this.port,
           bouyomiPort: this.bouyomiPort,
           bouyomiRunning: this.isBouyomiRunning(),
@@ -769,7 +801,12 @@ export class HttpServer {
         .performRestart({
           stopHttpServers: () => this.stop(),
           disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
-          clearQueue: () => this.speechInteractionService.clearQueue(),
+          clearQueue: () => {
+            this.speechInteractionService.clearQueue();
+          },
+          beforeExit: () => {
+            this.engineManager?.stopAll();
+          },
           recoverAfterFailedRestart: () => this.start(),
         })
         .then((result) => {
@@ -794,7 +831,12 @@ export class HttpServer {
       void this.restartService.performShutdown({
         stopHttpServers: () => this.stop(),
         disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
-        clearQueue: () => this.speechInteractionService.clearQueue(),
+        clearQueue: () => {
+          this.speechInteractionService.clearQueue();
+        },
+        beforeExit: () => {
+          this.engineManager?.stopAll();
+        },
       });
     }, this.restartDelayMs);
   }

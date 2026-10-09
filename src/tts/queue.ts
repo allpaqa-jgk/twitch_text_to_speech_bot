@@ -67,6 +67,10 @@ export class TTSQueue {
   private policy: TTSQueuePolicy;
   private store: SettingsStore;
   private engineHolder: EngineHolder;
+  private unreleasedPins = new Set<{ engines: EngineSet }>();
+  private inFlightPrepares = new Map<Promise<unknown>, TTSEngine>();
+  private idleListeners = new Set<() => void>();
+  private releaseListeners = new Set<() => void>();
 
   constructor(
     defaultEngine: TTSEngine,
@@ -119,16 +123,96 @@ export class TTSQueue {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  public isIdle(): boolean {
+    return (
+      !this.isProcessing &&
+      this.queue.length === 0 &&
+      this.unreleasedPins.size === 0 &&
+      this.inFlightPrepares.size === 0
+    );
+  }
+
+  public isInUse(engine: TTSEngine): boolean {
+    for (const token of this.unreleasedPins) {
+      if (token.engines.primary === engine || token.engines.english === engine) {
+        return true;
+      }
+    }
+    if (this.queue.some((item) => item.engine === engine)) {
+      return true;
+    }
+    if (this.currentRunningEngine === engine) {
+      return true;
+    }
+    for (const prepEngine of this.inFlightPrepares.values()) {
+      if (prepEngine === engine) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public onIdle(fn: () => void): () => void {
+    this.idleListeners.add(fn);
+    return () => {
+      this.idleListeners.delete(fn);
+    };
+  }
+
+  public onRelease(fn: () => void): () => void {
+    this.releaseListeners.add(fn);
+    return () => {
+      this.releaseListeners.delete(fn);
+    };
+  }
+
+  private notifyUseEnded(): void {
+    queueMicrotask(() => {
+      for (const listener of [...this.releaseListeners]) {
+        try {
+          listener();
+        } catch (err) {
+          console.error("[TTSQueue] onRelease listener error:", err);
+        }
+      }
+      if (this.isIdle()) {
+        for (const listener of [...this.idleListeners]) {
+          try {
+            if (this.isIdle()) {
+              listener();
+            }
+          } catch (err) {
+            console.error("[TTSQueue] onIdle listener error:", err);
+          }
+        }
+      }
+    });
+  }
+
+  private trackPrepare(promise: Promise<unknown>, engine: TTSEngine): void {
+    this.inFlightPrepares.set(promise, engine);
+    promise
+      .finally(() => {
+        this.inFlightPrepares.delete(promise);
+        this.notifyUseEnded();
+      })
+      .catch(() => {});
+  }
+
   public pin(): Pin {
     const settings = this.store.current();
     const engines = this.engineHolder.current();
     let released = false;
+    const token = { engines };
+    this.unreleasedPins.add(token);
     return {
       settings,
       engines,
       release: () => {
         if (released) return;
         released = true;
+        this.unreleasedPins.delete(token);
+        this.notifyUseEnded();
       },
     };
   }
@@ -139,10 +223,12 @@ export class TTSQueue {
 
   private dropExpiredItems(): void {
     const now = Date.now();
+    let anyDropped = false;
 
     this.queue = this.queue.filter((item) => {
       if (this.policy.isExpired(item, now, item.settings)) {
         item.resolve();
+        anyDropped = true;
         console.log(
           `[TTSQueue] ⏳ コメントが古い（${Math.round((now - item.enqueuedAt) / 1000)}秒経過）ためスキップしました: "${item.text}"`
         );
@@ -150,6 +236,10 @@ export class TTSQueue {
       }
       return true;
     });
+
+    if (anyDropped) {
+      this.notifyUseEnded();
+    }
   }
 
   /**
@@ -166,13 +256,13 @@ export class TTSQueue {
       const engine = nextItem.engine;
       if (engine.prepare) {
         this.isSynthesizing = true;
-        const promise = engine
-          .prepare(nextItem.text, { speedScale: nextItem.speedScale })
-          .finally(() => {
-            this.isSynthesizing = false;
-          });
-        promise.catch(() => {});
-        nextItem.preparedPromise = promise;
+        const rawPromise = engine.prepare(nextItem.text, { speedScale: nextItem.speedScale });
+        this.trackPrepare(rawPromise, engine);
+        const wrapped = rawPromise.finally(() => {
+          this.isSynthesizing = false;
+        });
+        wrapped.catch(() => {});
+        nextItem.preparedPromise = wrapped;
       }
     }
   }
@@ -231,6 +321,7 @@ export class TTSQueue {
       const dropped = this.queue.shift();
       dropped?.resolve();
       console.warn(`[TTSQueue] Queue overflow. Dropped oldest speech: "${dropped?.text}"`);
+      this.notifyUseEnded();
     }
 
     const settings = options.pin?.settings ?? options.settings ?? this.store.current();
@@ -271,6 +362,7 @@ export class TTSQueue {
 
     if (!current) {
       this.isProcessing = false;
+      this.notifyUseEnded();
       return;
     }
 
@@ -307,7 +399,9 @@ export class TTSQueue {
           try {
             this.isSynthesizing = true;
             if (engine.prepare) {
-              audio = await engine.prepare(current.text, { speedScale: current.speedScale });
+              const rawPromise = engine.prepare(current.text, { speedScale: current.speedScale });
+              this.trackPrepare(rawPromise, engine);
+              audio = await rawPromise;
             } else {
               audio = {
                 play: () => engine.say(current.text, { speedScale: current.speedScale }),
@@ -375,6 +469,7 @@ export class TTSQueue {
     } finally {
       this.currentRunningEngine = undefined;
       this.isProcessing = false;
+      this.notifyUseEnded();
       this.processNext();
     }
   }
@@ -394,5 +489,6 @@ export class TTSQueue {
     }
 
     this.playback.cancel(this.currentRunningEngine);
+    this.notifyUseEnded();
   }
 }

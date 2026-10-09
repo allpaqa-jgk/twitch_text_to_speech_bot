@@ -9,6 +9,10 @@ export interface RestartHooks {
   disconnectTwitch: () => void | Promise<void>;
   clearQueue: () => void | Promise<void>;
   /**
+   * プロセス終了が確定した直前にのみ呼び出されるフック（後継プロセス起動成功時または終了確定時）。
+   */
+  beforeExit?: () => void | Promise<void>;
+  /**
    * 後継プロセスの起動に失敗した場合にのみ呼び出される復旧フック。
    * 既に停止済みの HTTP サーバー等を再起動し、現在のプロセスを引き続き使える状態に戻すために使う。
    */
@@ -233,6 +237,9 @@ export class RestartService {
       return { success: false, error: this.lastError };
     }
 
+    if (hooks.beforeExit) {
+      await this.runHook("終了前処理", hooks.beforeExit);
+    }
     this.lastError = null;
     this.exitFn(0);
     return { success: true };
@@ -251,6 +258,10 @@ export class RestartService {
 
     // 3. 再生中の音声とキューを停止・破棄する
     await this.runHook("キューの停止", hooks.clearQueue);
+
+    if (hooks.beforeExit) {
+      await this.runHook("終了前処理", hooks.beforeExit);
+    }
 
     console.log("✅ [Shutdown] 停止処理が完了しました。このプロセスは終了します（後継プロセスは起動しません）。");
     console.log("💡 [Shutdown] ターミナルの表示がそのまま変化しないように見えても、プロセスは既に終了しています。そのままウィンドウを閉じて問題ありません。");

@@ -8,9 +8,16 @@ import type { TTSEngine } from "./engine";
 
 export type EngineName = BotConfig["TTS_ENGINE"];
 export type EnglishEngineName = BotConfig["ENGLISH_TTS_ENGINE"];
-export type EngineCreator = (name: EngineName, config: BotConfig) => TTSEngine;
+export type EngineCreator = (name: EngineName, config: BotConfig, logger?: (msg: string) => void) => TTSEngine;
 
-export function createEngine(name: EngineName, config: BotConfig): TTSEngine {
+export function createEngine(
+  name: EngineName,
+  config: BotConfig,
+  logger?: (msg: string) => void
+): TTSEngine {
+  if (logger) {
+    logger(`[Engine] Using ${name} engine`);
+  }
   switch (name) {
     case "COEIROINK":
       return new CoeiroinkEngine({
@@ -100,11 +107,14 @@ export async function resolvePrimaryEngine(
 
 export function createEnglishEngine(
   config: BotConfig,
-  platform = process.platform
+  platform = process.platform,
+  logger?: (msg: string) => void
 ): TTSEngine | undefined {
+  const log = logger ?? console.log;
+  const tag = logger ? "[Engine]" : "[Init]";
   switch (config.ENGLISH_TTS_ENGINE) {
     case "KOKORO":
-      console.log(`[Init] Using Kokoro engine for English (Voice: ${config.KOKORO_ENGLISH_VOICE})`);
+      log(`${tag} Using Kokoro engine for English (Voice: ${config.KOKORO_ENGLISH_VOICE})`);
       return new KokoroEngine(
         config.KOKORO_ENGLISH_VOICE,
         config.KOKORO_SPEED,
@@ -114,14 +124,14 @@ export function createEnglishEngine(
         config.MASTER_VOLUME
       );
     case "PIPER":
-      console.log("[Init] Using Piper engine for English");
+      log(`${tag} Using Piper engine for English`);
       return new PiperEngine({
         modelPath: config.PIPER_MODEL_PATH || undefined,
         masterVolume: config.MASTER_VOLUME,
       });
     case "Mac":
       if (platform !== "darwin") return undefined;
-      console.log(`[Init] Using macOS say engine for English (${config.SPEAKER_ENGLISH})`);
+      log(`${tag} Using macOS say engine for English (${config.SPEAKER_ENGLISH})`);
       return new MacSayEngine(config.SPEAKER_ENGLISH, config.RATE_ENGLISH);
   }
 }

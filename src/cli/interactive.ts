@@ -9,6 +9,7 @@ import { startTwitchOAuthFlow } from "../twitch/auth";
 import { openBrowser } from "../utils/browser";
 import { settingsStore, type SettingsStore } from "../settingsStore";
 import type { EngineHolder } from "../tts/engineHolder";
+import type { EngineManager } from "../tts/engineManager";
 import { planSpeech } from "../tts/speechPlanner";
 
 export interface InteractiveConsoleContext {
@@ -18,6 +19,7 @@ export interface InteractiveConsoleContext {
   httpServer?: HttpServer | null;
   store?: SettingsStore;
   engineHolder?: EngineHolder;
+  engineManager?: EngineManager;
 }
 
 /**
@@ -181,10 +183,52 @@ export async function handleInteractiveCommand(
         console.log(`🌐 HTTP 読み上げ      : 無効`);
       }
 
-      const primaryName = ctx.engineHolder
+      const primaryName = ctx.engineManager
+        ? ctx.engineManager.current().primaryName
+        : ctx.engineHolder
         ? ctx.engineHolder.current().primaryName
         : store.current().TTS_ENGINE;
       console.log(`🗣️ 使用音声エンジン   : ${primaryName}`);
+
+      const pending = ctx.engineManager?.pending();
+      if (pending) {
+        if (pending.stage === "probing") {
+          console.log(`   ⏳ 音声エンジンを確認中（${pending.target}）`);
+        } else if (pending.stage === "waiting") {
+          console.log(
+            `   ⏳ 読み上げ待ちが空になり次第 ${pending.target} に切り替わります（60秒後に新しいコメントから切り替わります）`
+          );
+        } else if (pending.stage === "failed") {
+          console.log(
+            `   ⚠️ ${pending.target} に接続できません。現在の ${primaryName} のまま読み上げます`
+          );
+        }
+      }
+
+      const isEnglishNeeded =
+        store.current().FOREIGN_LANGUAGE_MODE === "NATIVE" || store.current().BILINGAL_MODE;
+      const currentSet = ctx.engineManager
+        ? ctx.engineManager.current()
+        : ctx.engineHolder?.current();
+      if (isEnglishNeeded) {
+        const engDesc = currentSet?.english
+          ? currentSet.englishName ?? store.current().ENGLISH_TTS_ENGINE
+          : "利用不可";
+        console.log(`🗣️ 英語音声エンジン   : ${engDesc}`);
+        const engPending = ctx.engineManager?.englishPending();
+        if (engPending) {
+          if (engPending.stage === "probing") {
+            console.log(`   ⏳ ${engPending.target} の起動・接続を確認中...`);
+          } else if (engPending.stage === "waiting") {
+            console.log(`   🔄 再生完了後に ${engPending.target} に切り替わります`);
+          } else if (engPending.stage === "failed") {
+            console.log(
+              `   ⚠️ ${engPending.target} に接続できません。英語は利用不可のまま読み上げます`
+            );
+          }
+        }
+      }
+
       console.log(`⏳ 再生待ちのコメント : ${queue.pendingCount} 件`);
       console.log("-------------------------------------------------------\n");
       break;
@@ -194,6 +238,7 @@ export async function handleInteractiveCommand(
     case "quit":
     case "exit":
       console.log("👋 ボットを終了します。");
+      ctx.engineManager?.stopAll();
       onExit();
       break;
 
@@ -209,7 +254,8 @@ export function startInteractiveConsole(
   bot?: TwitchTTSBot | null,
   httpServer?: HttpServer | null,
   store: SettingsStore = settingsStore,
-  engineHolder?: EngineHolder
+  engineHolder?: EngineHolder,
+  engineManager?: EngineManager
 ): void {
   // Only start interactive terminal if stdin is a TTY
   if (!process.stdin.isTTY) {
@@ -230,7 +276,7 @@ export function startInteractiveConsole(
   rl.on("line", async (line) => {
     await handleInteractiveCommand(
       line,
-      { queue, transformer, bot, httpServer, store, engineHolder },
+      { queue, transformer, bot, httpServer, store, engineHolder, engineManager },
       () => {
         rl.close();
         process.exit(0);

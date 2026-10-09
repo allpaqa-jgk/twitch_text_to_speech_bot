@@ -12,4 +12,5 @@ export interface TTSEngine {
   say(text: string, options?: SpeechOptions): Promise<void>;
   prepare?(text: string, options?: SpeechOptions): Promise<PreparedAudio>;
   stop?(): Promise<void> | void;
+  dispose?(): Promise<void> | void;
 }

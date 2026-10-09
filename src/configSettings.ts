@@ -108,3 +108,7 @@ export function settingsForPlatform(platform: string): readonly ConfigSettingDef
   });
 }
 
+export function getEffectiveApplyMode(definition: ConfigSettingDefinition): SettingApplyMode {
+  return definition.apply;
+}
+

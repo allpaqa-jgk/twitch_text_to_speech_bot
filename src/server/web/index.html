@@ -698,7 +698,7 @@
       <div class="card">
         <h2 class="card-title">⚙️ アプリケーション設定</h2>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          設定の保存は即座に反映されます。ただし、音声エンジン関連の設定、Twitch連携、棒読みちゃん互換、HTTPサーバーのポート番号はアプリの再起動後に反映されます。起動時メッセージは次回起動時に反映されます。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
+          設定の保存は即座に反映されます。音声エンジン関連の設定は読み上げ待ちキューが空になり次第切り替わります（混雑時は60秒後に新着コメントから切り替わります）。Twitch連携、棒読みちゃん互換、HTTPサーバーのポート番号はアプリの再起動後に反映されます。起動時メッセージは次回起動時に反映されます。Web UIで上書きした項目は標準値に取り消し線を表示します。保存先は <code>config/web-settings.json</code> で、標準値と異なる項目だけが保存されます。HTTP 読み上げ受付は Web UIを維持したまま無効化できます。HTTP サーバー全体の有効・無効は、Web UIに接続できなくなるため、ここでは変更できません。OAuth トークンや Discord の認証情報も表示・変更できません。
         </p>
         <div id="settings-restart-warning" class="badge-warn" role="status" style="display: none; margin-bottom: 1rem;"></div>
         <div id="settings-error" role="alert" style="color: var(--danger); margin-bottom: 1rem;"></div>
@@ -727,6 +727,7 @@
     let debounceTimer = null;
     let settingsDefinitions = [];
     let initialSettings = new Map();
+    let latestSnapshot = null;
 
     function getSettingInputValue(setting, input) {
       if (setting.type === "boolean") {
@@ -884,7 +885,40 @@
         }
 
         // Engine
-        document.getElementById("val-engine").textContent = data.engine || "COEIROINK";
+        window.currentStatus = data;
+        const valEngine = document.getElementById("val-engine");
+        const liveEngine = data.engine || "COEIROINK";
+        let engineHtml = '<span>' + liveEngine + '</span>';
+        if (data.englishEngine) {
+          engineHtml += ' <span style="font-size: 0.85rem; color: var(--text-muted);">(英: ' + data.englishEngine + ')</span>';
+        }
+        if (data.enginePending) {
+          const target = data.enginePending.target;
+          let pendingMsg = "";
+          if (data.enginePending.stage === "probing") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">⏳ 音声エンジンを確認中（' + target + '）</div>';
+          } else if (data.enginePending.stage === "waiting") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: #d29922; margin-top: 0.25rem;">⏳ 読み上げ待ちが空になり次第 ' + target + ' に切り替わります（60秒後に新しいコメントから切り替わります）</div>';
+          } else if (data.enginePending.stage === "failed") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--danger); margin-top: 0.25rem;">⚠️ ' + target + ' に接続できません。現在の ' + liveEngine + ' のまま読み上げます</div>';
+          }
+          engineHtml += pendingMsg;
+        }
+        if (data.englishEnginePending) {
+          const target = data.englishEnginePending.target;
+          let pendingMsg = "";
+          if (data.englishEnginePending.stage === "probing") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">⏳ 英語音声エンジンを確認中（' + target + '）</div>';
+          } else if (data.englishEnginePending.stage === "waiting") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: #d29922; margin-top: 0.25rem;">⏳ 読み上げ待ちが空になり次第英語音声が ' + target + ' に切り替わります</div>';
+          } else if (data.englishEnginePending.stage === "failed") {
+            pendingMsg = '<div style="font-size: 0.8rem; color: var(--danger); margin-top: 0.25rem;">⚠️ ' + target + ' に接続できません。英語は利用不可のまま読み上げます</div>';
+          }
+          engineHtml += pendingMsg;
+        }
+        valEngine.innerHTML = engineHtml;
+
+        updateWarningBanner();
 
         // Queue
         document.getElementById("val-queue").textContent = (data.queuePending || 0) + " 件";
@@ -932,6 +966,15 @@
     }
 
     function renderSettings(snapshot) {
+      latestSnapshot = snapshot;
+      if (window.currentStatus && snapshot) {
+        if ("enginePending" in snapshot) {
+          window.currentStatus.enginePending = snapshot.enginePending ?? null;
+        }
+        if ("englishEnginePending" in snapshot) {
+          window.currentStatus.englishEnginePending = snapshot.englishEnginePending ?? null;
+        }
+      }
       settingsDefinitions = snapshot.settings || [];
       initialSettings.clear();
       for (const setting of settingsDefinitions) {
@@ -1067,24 +1110,71 @@
       const hasOverrides = settingsDefinitions.some((setting) => setting.isOverridden);
       document.getElementById("btn-reset-all-settings").style.display =
         hasOverrides ? "inline-flex" : "none";
+      updateWarningBanner();
+      updateUnsavedBadge();
+    }
+
+    function updateWarningBanner() {
       const warning = document.getElementById("settings-restart-warning");
-      const hasRestart = snapshot.restartRequired && (snapshot.restartKeys || []).length > 0;
-      const hasNextStart = (snapshot.nextStartKeys || []).length > 0;
-      if (hasRestart) {
-        warning.style.display = "inline-block";
-        const restartLabels = (snapshot.restartKeys || [])
-          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
-        warning.textContent = "再起動後に反映される変更があります: " + restartLabels.join("、");
+      if (!warning) return;
+      const snapshot = latestSnapshot;
+      const status = window.currentStatus;
+
+      const restartKeys = (snapshot && snapshot.restartKeys) || [];
+      const nextStartKeys = (snapshot && snapshot.nextStartKeys) || [];
+      const hasRestart = Boolean(snapshot && snapshot.restartRequired && restartKeys.length > 0);
+      const hasNextStart = Boolean(snapshot && nextStartKeys.length > 0);
+
+      const messages = [];
+
+      if (hasRestart && hasNextStart) {
+        const restartLabels = restartKeys.map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        const nextStartLabels = nextStartKeys.map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        messages.push("再起動後に反映される変更があります: " + restartLabels.join("、") + "（次回起動時に反映: " + nextStartLabels.join("、") + "）");
+      } else if (hasRestart) {
+        const restartLabels = restartKeys.map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        messages.push("再起動後に反映される変更があります: " + restartLabels.join("、"));
       } else if (hasNextStart) {
+        const nextStartLabels = nextStartKeys.map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        messages.push("次回起動時に反映される変更があります: " + nextStartLabels.join("、"));
+      }
+
+      // Do NOT fall back to older poll when server returns null (Item 3, Item 6)
+      const pending = (snapshot && ("enginePending" in snapshot))
+        ? snapshot.enginePending
+        : (status ? status.enginePending : null);
+      const engPending = (snapshot && ("englishEnginePending" in snapshot))
+        ? snapshot.englishEnginePending
+        : (status ? status.englishEnginePending : null);
+      const live = (status && status.engine) || "現在の音声エンジン";
+
+      if (pending) {
+        if (pending.stage === "probing") {
+          messages.push("⏳ 音声エンジンを確認中（" + pending.target + "）");
+        } else if (pending.stage === "waiting") {
+          messages.push("⏳ 読み上げ待ちが空になり次第 " + pending.target + " に切り替わります（60秒後に新しいコメントから切り替わります）");
+        } else if (pending.stage === "failed") {
+          messages.push("⚠️ " + pending.target + " に接続できません。現在の " + live + " のまま読み上げます");
+        }
+      }
+
+      if (engPending) {
+        if (engPending.stage === "probing") {
+          messages.push("⏳ 英語音声エンジンを確認中（" + engPending.target + "）");
+        } else if (engPending.stage === "waiting") {
+          messages.push("⏳ 読み上げ待ちが空になり次第英語音声が " + engPending.target + " に切り替わります");
+        } else if (engPending.stage === "failed") {
+          messages.push("⚠️ " + engPending.target + " に接続できません。英語は利用不可のまま読み上げます");
+        }
+      }
+
+      if (messages.length > 0) {
         warning.style.display = "inline-block";
-        const nextStartLabels = (snapshot.nextStartKeys || [])
-          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
-        warning.textContent = "次回起動時に反映される変更があります: " + nextStartLabels.join("、");
+        warning.textContent = messages.join(" / ");
       } else {
         warning.style.display = "none";
         warning.textContent = "表示中の設定が現在適用されています。";
       }
-      updateUnsavedBadge();
     }
 
     function countDecimals(num) {
@@ -1209,11 +1299,55 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "設定を保存できませんでした");
+        if (window.currentStatus) {
+          window.currentStatus.enginePending = data.enginePending ?? null;
+          window.currentStatus.englishEnginePending = data.englishEnginePending ?? null;
+        }
         renderSettings(data);
-        if (data.restartRequired) {
-          showToast("設定を保存しました。一部の変更は再起動後に反映されます。", "success");
-        } else if ((data.nextStartKeys || []).length > 0) {
-          showToast("設定を保存しました。次回起動時に反映される変更があります。", "success");
+        void updateStatus();
+        const hasRestart = data.restartRequired && (data.restartKeys || []).length > 0;
+        const hasNextStart = (data.nextStartKeys || []).length > 0;
+        const pending = data.enginePending;
+        const engPending = data.englishEnginePending;
+
+        const restartParts = [];
+        if (hasRestart && hasNextStart) {
+          restartParts.push("再起動後および次回起動時に反映される変更があります。");
+        } else if (hasRestart) {
+          restartParts.push("一部の変更は再起動後に反映されます。");
+        } else if (hasNextStart) {
+          restartParts.push("次回起動時に反映される変更があります。");
+        }
+
+        const engineParts = [];
+        let hasFailed = false;
+        if (pending) {
+          if (pending.stage === "probing") {
+            engineParts.push("音声エンジンを確認中です。");
+          } else if (pending.stage === "waiting") {
+            engineParts.push("読み上げ待ちが空になり次第音声エンジンが切り替わります。");
+          } else if (pending.stage === "failed") {
+            hasFailed = true;
+            engineParts.push("一部の音声エンジンに接続できません。");
+          }
+        }
+        if (engPending) {
+          if (engPending.stage === "probing") {
+            engineParts.push("英語音声エンジンを確認中です。");
+          } else if (engPending.stage === "waiting") {
+            engineParts.push("読み上げ待ちが空になり次第英語音声が切り替わります。");
+          } else if (engPending.stage === "failed") {
+            hasFailed = true;
+            engineParts.push("英語音声エンジンに接続できません。");
+          }
+        }
+
+        if (restartParts.length > 0 && engineParts.length > 0) {
+          showToast("設定を保存しました。" + restartParts.join("") + engineParts.join(""), hasFailed ? "warn" : "success");
+        } else if (restartParts.length > 0) {
+          showToast("設定を保存しました。" + restartParts.join(""), "success");
+        } else if (engineParts.length > 0) {
+          showToast("設定を保存しました。" + engineParts.join(""), hasFailed ? "warn" : "success");
         } else {
           showToast("設定を保存しました。変更が反映されました。", "success");
         }
@@ -1245,7 +1379,12 @@
         const res = await fetch("/api/settings", { method: "DELETE" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Web 設定を解除できませんでした");
+        if (window.currentStatus) {
+          window.currentStatus.enginePending = data.enginePending ?? null;
+          window.currentStatus.englishEnginePending = data.englishEnginePending ?? null;
+        }
         renderSettings(data);
+        void updateStatus();
         showToast("保存済みの Web 設定をすべて解除しました。", "success");
       } catch (err) {
         error.textContent = err instanceof Error ? err.message : "Web 設定を解除できませんでした";

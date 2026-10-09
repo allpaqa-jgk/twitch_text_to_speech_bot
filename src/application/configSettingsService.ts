@@ -183,10 +183,6 @@ export class ConfigSettingsService {
     return this.createSnapshot(this.defaults, {});
   }
 
-  public getEffectiveApplyMode(definition: ConfigSettingDefinition): SettingApplyMode {
-    return getEffectiveApplyMode(definition);
-  }
-
   private canEnterStore(definition: ConfigSettingDefinition): boolean {
     return getEffectiveApplyMode(definition) === "live";
   }

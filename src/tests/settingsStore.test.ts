@@ -10,6 +10,7 @@ import { processComment } from "../application/commentProcessingService";
 import { planSpeech } from "../tts/speechPlanner";
 import { ConfigSettingsService } from "../application/configSettingsService";
 import { HttpServer } from "../server/httpServer";
+import { RestartService } from "../application/restartService";
 import { KokoroEngine } from "../tts/engines/kokoro";
 import { DictionaryService } from "../application/dictionaryService";
 import { CsvDictionaryRepository } from "../storage/csvDictionaryRepository";
@@ -93,6 +94,7 @@ class MockDisposableEngine implements TTSEngine {
   public playDelayMs = 0;
   public prepareReject = false;
   public playReject = false;
+  public isAvailableDelayMs = 0;
 
   constructor(name = "MockDisposableEngine", available = true) {
     this.name = name;
@@ -100,6 +102,9 @@ class MockDisposableEngine implements TTSEngine {
   }
 
   async isAvailable(): Promise<boolean> {
+    if (this.isAvailableDelayMs > 0) {
+      await new Promise((r) => setTimeout(r, this.isAvailableDelayMs));
+    }
     return this.available;
   }
 
@@ -1801,6 +1806,219 @@ describe("PR 2: Engines Live, Swap at Idle, Cut-over, Pending State", () => {
       // 3. While waiting for idle, a fallback-input save occurs
       store.apply({ SPEAKER_JAPANESE: "Otoya" });
       await new Promise((r) => setTimeout(r, 10));
+
+      // 4. Release pin -> queue becomes idle
+      pin.release();
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Configured engine (COEIROINK) must end up primary
+      expect(holder.current().primaryName).toBe("COEIROINK");
+      expect(holder.current().primary).toBe(coeiroinkEngine);
+    });
+
+    it("start-up candidate with shared key (e.g. MASTER_VOLUME) rebuilds both fallback and configured engine", async () => {
+      const store = new SettingsStore(
+        parseConfig({
+          TTS_ENGINE: "COEIROINK",
+          MASTER_VOLUME: 1.0,
+        })
+      );
+      const fallbackEngine = new MockDisposableEngine("VOICEVOX");
+      const configuredEngine = new MockDisposableEngine("COEIROINK", false);
+
+      const holder = new EngineHolder({ primary: fallbackEngine, primaryName: "VOICEVOX" });
+      const queue = new TTSQueue(fallbackEngine, 50, undefined, undefined, { store, engineHolder: holder });
+      const scheduler = new FakeScheduler();
+
+      const createdEngines: Array<{ name: string; volume: number; engine: MockDisposableEngine }> = [];
+      const builders: EngineBuilders = {
+        createEngine: (name, cfg) => {
+          const eng = new MockDisposableEngine(name, name !== "COEIROINK");
+          createdEngines.push({ name, volume: cfg.MASTER_VOLUME, engine: eng });
+          return eng;
+        },
+        createEnglishEngine: () => undefined,
+      };
+
+      const manager = new EngineManager(store, queue, holder, builders, scheduler);
+      expect(manager.pending()?.stage).toBe("failed");
+
+      // Save shared input: MASTER_VOLUME feeds both VOICEVOX and COEIROINK
+      store.apply({ MASTER_VOLUME: 1.8 });
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Both fallback and configured engines must be rebuilt with the new volume 1.8
+      const rebuiltFallback = createdEngines.find((e) => e.name === "VOICEVOX" && e.volume === 1.8);
+      const rebuiltConfigured = createdEngines.find((e) => e.name === "COEIROINK" && e.volume === 1.8);
+      expect(rebuiltFallback).toBeDefined();
+      expect(rebuiltConfigured).toBeDefined();
+
+      // When configured engine becomes available, it swaps with the new volume 1.8
+      if (rebuiltConfigured) {
+        rebuiltConfigured.engine.available = true;
+      }
+      scheduler.advance(10000);
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(holder.current().primaryName).toBe("COEIROINK");
+      if (rebuiltConfigured) {
+        expect(holder.current().primary).toBe(rebuiltConfigured.engine);
+      }
+    });
+
+    it("a failed restart leaves the manager working so later engine change still applies", async () => {
+      const port = 3960;
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-test-restart-fail-"));
+      const filePath = path.join(tmpDir, "web-settings.json");
+      const store = new SettingsStore(parseConfig({ TTS_ENGINE: "COEIROINK" }));
+      const engineA = new MockDisposableEngine("COEIROINK");
+      const engineB = new MockDisposableEngine("VOICEVOX");
+      const holder = new EngineHolder({ primary: engineA, primaryName: "COEIROINK" });
+      const queue = new TTSQueue(engineA, 50, undefined, undefined, { store, engineHolder: holder });
+      const scheduler = new FakeScheduler();
+
+      const builders: EngineBuilders = {
+        createEngine: (name) => (name === "VOICEVOX" ? engineB : engineA),
+        createEnglishEngine: () => undefined,
+      };
+      const manager = new EngineManager(store, queue, holder, builders, scheduler);
+
+      // Create a RestartService that fails on spawn
+      const failingRestartService = new RestartService({
+        execPath: "/bin/echo",
+        argv: [],
+        cwd: tmpDir,
+        platform: "darwin",
+        existsSync: () => true,
+        spawn: () => {
+          throw new Error("Simulated spawn failure");
+        },
+      });
+
+      const server = new HttpServer({
+        queue,
+        store,
+        engineHolder: holder,
+        engineManager: manager,
+        dictionaryService: new DictionaryService(new CsvDictionaryRepository()),
+        twitchControlService: new TwitchControlService({
+          isConnected: () => false,
+          connect: async () => {},
+          disconnect: async () => {},
+        }),
+        speechInteractionService: new SpeechInteractionService(queue),
+        configSettingsService: new ConfigSettingsService(filePath, store, undefined, undefined, holder),
+        port,
+        restartService: failingRestartService,
+        restartDelayMs: 10,
+        bouyomiPort: 50098,
+        enableBouyomiCompat: false,
+      });
+
+      server.start();
+
+      try {
+        // Trigger restart via API
+        const res = await fetch(`http://127.0.0.1:${port}/api/restart`, { method: "POST" });
+        expect(res.status).toBe(200);
+
+        // Wait for scheduled restart failure and recovery
+        await new Promise((r) => setTimeout(r, 60));
+
+        // Engine manager must NOT be stopped! A later engine change must apply
+        store.apply({ TTS_ENGINE: "VOICEVOX" });
+        await new Promise((r) => setTimeout(r, 20));
+
+        expect(holder.current().primaryName).toBe("VOICEVOX");
+        expect(holder.current().primary).toBe(engineB);
+        expect(engineA.disposeCount).toBe(1);
+      } finally {
+        server.stop();
+        manager.stopAll();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rebuilt start-up candidate gets a fresh object with new since and restarts at probing", async () => {
+      const store = new SettingsStore(
+        parseConfig({
+          TTS_ENGINE: "COEIROINK",
+          COEIROINK_HOST: "http://127.0.0.1:50031",
+        })
+      );
+      const fallbackEngine = new MockDisposableEngine("Mac");
+      const holder = new EngineHolder({ primary: fallbackEngine, primaryName: "Mac" });
+      const queue = new TTSQueue(fallbackEngine, 50, undefined, undefined, { store, engineHolder: holder });
+      const scheduler = new FakeScheduler();
+
+      const builders: EngineBuilders = {
+        createEngine: (name) => {
+          const eng = new MockDisposableEngine(name, false);
+          eng.isAvailableDelayMs = 100;
+          return eng;
+        },
+        createEnglishEngine: () => undefined,
+      };
+
+      const manager = new EngineManager(store, queue, holder, builders, scheduler);
+      // Wait for initial probe to finish
+      await new Promise((r) => setTimeout(r, 120));
+      const firstPending = manager.pending();
+      expect(firstPending).toBeDefined();
+      if (!firstPending) throw new Error("firstPending is undefined");
+      expect(firstPending.stage).toBe("failed");
+      const firstSince = firstPending.since;
+
+      // Small delay then update candidate config
+      await new Promise((r) => setTimeout(r, 20));
+      store.apply({ COEIROINK_HOST: "http://127.0.0.1:50032" });
+
+      const secondPending = manager.pending();
+      expect(secondPending).toBeDefined();
+      if (!secondPending) throw new Error("secondPending is undefined");
+
+      // Must be a fresh candidate object with newer since and stage probing
+      expect(secondPending).not.toBe(firstPending);
+      expect(secondPending.since).toBeGreaterThan(firstSince);
+      expect(secondPending.stage).toBe("probing");
+    });
+
+    it("fallback rebuild is queued before configured candidate becomes ready: configured engine ends up primary", async () => {
+      const store = new SettingsStore(
+        parseConfig({
+          TTS_ENGINE: "COEIROINK",
+          SPEAKER_JAPANESE: "Kyoko",
+        })
+      );
+      const fallbackEngine = new MockDisposableEngine("Mac");
+      const coeiroinkEngine = new MockDisposableEngine("COEIROINK", false);
+
+      const holder = new EngineHolder({ primary: fallbackEngine, primaryName: "Mac" });
+      const queue = new TTSQueue(fallbackEngine, 50, undefined, undefined, { store, engineHolder: holder });
+      const scheduler = new FakeScheduler();
+
+      const builders: EngineBuilders = {
+        createEngine: (name) => {
+          if (name === "COEIROINK") return coeiroinkEngine;
+          return new MockDisposableEngine(name);
+        },
+        createEnglishEngine: () => undefined,
+      };
+
+      const manager = new EngineManager(store, queue, holder, builders, scheduler);
+
+      // 1. Hold pin to make queue busy
+      const pin = queue.pin();
+
+      // 2. FIRST: Fallback input changes while queue is busy -> fallback rebuild is queued on idle
+      store.apply({ SPEAKER_JAPANESE: "Otoya" });
+      await new Promise((r) => setTimeout(r, 10));
+
+      // 3. SECOND: Configured engine becomes available while fallback rebuild is queued
+      coeiroinkEngine.available = true;
+      scheduler.advance(10000);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(manager.pending()?.stage).toBe("waiting");
 
       // 4. Release pin -> queue becomes idle
       pin.release();

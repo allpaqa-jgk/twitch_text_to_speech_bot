@@ -803,6 +803,8 @@ export class HttpServer {
           disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
           clearQueue: () => {
             this.speechInteractionService.clearQueue();
+          },
+          beforeExit: () => {
             this.engineManager?.stopAll();
           },
           recoverAfterFailedRestart: () => this.start(),
@@ -831,6 +833,8 @@ export class HttpServer {
         disconnectTwitch: () => this.twitchControlService.disconnectForShutdown(),
         clearQueue: () => {
           this.speechInteractionService.clearQueue();
+        },
+        beforeExit: () => {
           this.engineManager?.stopAll();
         },
       });

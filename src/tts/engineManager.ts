@@ -382,38 +382,37 @@ export class EngineManager {
       }
       if (primaryInputChanged) {
         this.rebuildActiveFallback(activePrimaryName, next);
-        return;
       }
-      if (!areSettingsEqualForEngine(next, this.pendingCandidate.config, this.pendingCandidate.target)) {
-        // Rebuild candidate for new inputs (Item 1)
+      if (
+        this.pendingCandidate &&
+        !areSettingsEqualForEngine(next, this.pendingCandidate.config, this.pendingCandidate.target)
+      ) {
         const target = this.pendingCandidate.target;
-        if (this.pendingCandidate.timerId !== undefined) {
-          this.scheduler.clearTimeout(this.pendingCandidate.timerId);
-          this.pendingCandidate.timerId = undefined;
-        }
-        if (this.pendingCandidate.cutOverTimerId !== undefined) {
-          this.scheduler.clearTimeout(this.pendingCandidate.cutOverTimerId);
-          this.pendingCandidate.cutOverTimerId = undefined;
-        }
-        if (this.pendingCandidate.unregisterIdle) {
-          this.pendingCandidate.unregisterIdle();
-          this.pendingCandidate.unregisterIdle = undefined;
-        }
-        if (this.pendingCandidate.engine) {
-          this.disposeEngine(this.pendingCandidate.engine);
-          this.pendingCandidate.engine = undefined;
-        }
-        this.pendingCandidate.config = next;
+        this.cancelPendingPrimary();
 
         let candidate: TTSEngine | undefined;
+        let buildError: string | undefined;
         try {
           candidate = this.builders.createEngine(target, next, (msg) => this.log(msg));
-          this.pendingCandidate.engine = candidate;
-          this.probePrimaryCandidate(this.pendingCandidate);
         } catch (err) {
-          this.pendingCandidate.stage = "failed";
-          this.pendingCandidate.error = String(err);
-          this.scheduleReProbe(this.pendingCandidate);
+          buildError = String(err);
+        }
+
+        const newPending: PendingCandidate = {
+          target,
+          engine: candidate,
+          since: Date.now(),
+          stage: candidate ? "probing" : "failed",
+          error: buildError,
+          config: next,
+          isStartupFallback: true,
+        };
+        this.pendingCandidate = newPending;
+
+        if (candidate) {
+          this.probePrimaryCandidate(newPending);
+        } else {
+          this.scheduleReProbe(newPending);
         }
       }
       return;
@@ -450,12 +449,6 @@ export class EngineManager {
     } catch {
       return;
     }
-    this.activePrimarySettings = next;
-
-    if (this.pendingCandidate?.stage === "waiting") {
-      this.disposeEngine(candidate);
-      return;
-    }
 
     if (this.queue.isIdle()) {
       const oldSet = this.holder.current();
@@ -466,6 +459,7 @@ export class EngineManager {
         primaryName: targetName,
       });
       this.queue.setDefaultEngine(candidate);
+      this.activePrimarySettings = next;
       this.retireEngine(oldPrimary);
     } else {
       const pending: FallbackPendingCandidate = {
@@ -737,6 +731,7 @@ export class EngineManager {
           !areSettingsEqualForEnglishEngine(next, this.englishPendingCandidate.config, this.englishPendingCandidate.target)
         ) {
           if (wasAddition) {
+            this.cancelPendingEnglish();
             this.addEnglishEngine(next);
           } else {
             this.startRebuildEnglish(next.ENGLISH_TTS_ENGINE, next);

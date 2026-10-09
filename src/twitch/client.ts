@@ -7,7 +7,6 @@ import {
 import { sendToDiscord } from "../discord/webhook";
 import { processComment } from "../application/commentProcessingService";
 import type { TTSQueue } from "../tts/queue";
-import type { TTSEngine } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
 import { SettingsStore, settingsStore } from "../settingsStore";
 
@@ -25,20 +24,12 @@ export class TwitchTTSBot {
 
   constructor(
     ttsQueue: TTSQueue,
-    arg2?: TextTransformer | TTSEngine,
-    arg3?: TextTransformer | SettingsStore,
-    arg4?: SettingsStore
+    transformer?: TextTransformer,
+    store: SettingsStore = settingsStore
   ) {
     this.ttsQueue = ttsQueue;
-    if (arg2 && "transform" in arg2) {
-      this.transformer = arg2;
-      this.store = (arg3 instanceof SettingsStore ? arg3 : arg4) ?? settingsStore;
-    } else {
-      if (arg3 && "transform" in arg3) {
-        this.transformer = arg3;
-      }
-      this.store = (arg3 instanceof SettingsStore ? arg3 : arg4) ?? settingsStore;
-    }
+    this.transformer = transformer;
+    this.store = store;
   }
 
   public setTransformer(transformer?: TextTransformer) {

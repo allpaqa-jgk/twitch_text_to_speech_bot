@@ -3,7 +3,6 @@ import { SettingsStore, settingsStore } from "../settingsStore";
 import type { EngineHolder } from "../tts/engineHolder";
 import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
-import type { TTSEngine } from "../tts/engine";
 import { processComment } from "../application/commentProcessingService";
 import { renderWebConsoleHtml } from "./webConsoleHtml";
 import type { DictionaryService } from "../application/dictionaryService";
@@ -18,7 +17,6 @@ import { RestartService } from "../application/restartService";
 export interface HttpServerOptions {
   queue: TTSQueue;
   transformer?: TextTransformer;
-  englishEngine?: TTSEngine;
   store?: SettingsStore;
   engineHolder?: EngineHolder;
   dictionaryService: DictionaryService;
@@ -44,7 +42,6 @@ export class HttpServer {
   private bouyomiServer: Server | null = null;
   private queue: TTSQueue;
   private transformer?: TextTransformer;
-  private englishEngine?: TTSEngine;
   private store: SettingsStore;
   private engineHolder?: EngineHolder;
   private dictionaryService: DictionaryService;
@@ -63,7 +60,6 @@ export class HttpServer {
   constructor(options: HttpServerOptions) {
     this.queue = options.queue;
     this.transformer = options.transformer;
-    this.englishEngine = options.englishEngine;
     this.store = options.store ?? settingsStore;
     this.engineHolder = options.engineHolder;
     this.dictionaryService = options.dictionaryService;

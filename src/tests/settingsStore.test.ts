@@ -3,6 +3,7 @@ import { SettingsStore } from "../settingsStore";
 import { parseConfig, baseConfig } from "../config";
 import { EngineHolder } from "../tts/engineHolder";
 import { TTSQueue } from "../tts/queue";
+import { TTSQueuePolicy } from "../tts/queuePolicy";
 import type { TTSEngine, SpeechOptions } from "../tts/engine";
 import type { TextTransformer } from "../tts/transformers/types";
 import { processComment } from "../application/commentProcessingService";
@@ -105,36 +106,67 @@ describe("PR 1: Settings Store and Pinning", () => {
         },
       };
 
-      // Start processing comment while transformer is delayed
-      const processingPromise = processComment(
-        { rawUsername: "Alice", rawText: "Hello", service: "HTTP" },
-        { ttsQueue: queue, transformer: deferredTransformer }
-      );
+      const origNow = Date.now;
+      let mockTime = 1000000;
+      Date.now = () => mockTime;
 
-      // While transformer is waiting, apply settings changes and swap holder engine
-      store.apply({
-        READ_USERNAME: false,
-        AUTO_ACCELERATE: false,
-        MAX_ACCELERATION_SPEED: 1.1,
-        COMMENT_TTL_SECONDS: 5,
-      });
-      holder.replace({ primary: engine2, primaryName: "VOICEVOX" });
+      try {
+        // Start processing long comment while transformer is delayed (> 120 chars to trigger speedScale 1.6)
+        const commentText = "Hello " + "A".repeat(150);
+        const processingPromise = processComment(
+          { rawUsername: "Alice", rawText: commentText, service: "HTTP" },
+          { ttsQueue: queue, transformer: deferredTransformer }
+        );
 
-      // Settle transform
-      resolveTransform();
-      const result = await processingPromise;
+        // While transformer is waiting, apply settings changes and swap holder engine
+        store.apply({
+          READ_USERNAME: false,
+          AUTO_ACCELERATE: false,
+          MAX_ACCELERATION_SPEED: 1.1,
+          COMMENT_TTL_SECONDS: 5,
+        });
+        holder.replace({ primary: engine2, primaryName: "VOICEVOX" });
 
-      // Pinned settings at arrival had READ_USERNAME: true
-      expect(result.settings.READ_USERNAME).toBe(true);
-      expect(result.speechText).toContain("Alice");
+        // Settle transform
+        resolveTransform();
+        const result = await processingPromise;
 
-      // Wait for queue to process
-      await new Promise((r) => setTimeout(r, 50));
+        // Pinned settings at arrival had READ_USERNAME: true, AUTO_ACCELERATE: true, MAX_ACCELERATION_SPEED: 1.6, COMMENT_TTL_SECONDS: 30
+        expect(result.settings.READ_USERNAME).toBe(true);
+        expect(result.settings.AUTO_ACCELERATE).toBe(true);
+        expect(result.settings.MAX_ACCELERATION_SPEED).toBe(1.6);
+        expect(result.settings.COMMENT_TTL_SECONDS).toBe(30);
+        expect(result.speechText).toContain("Alice");
 
-      // Engine1 was chosen and retained; engine2 was NOT used for this comment
-      expect(engine1.spokenTexts.length).toBe(1);
-      expect(engine2.spokenTexts.length).toBe(0);
-      expect(engine1.spokenTexts[0]).toContain("Alice");
+        // TTL expiry check: 10s elapsed (> new store TTL 5s, <= arrival TTL 30s)
+        mockTime += 10000;
+        const policy = new TTSQueuePolicy(store);
+        expect(
+          policy.isExpired(
+            { text: result.speechText ?? "", enqueuedAt: 1000000, settings: result.settings },
+            mockTime
+          )
+        ).toBe(false);
+        expect(
+          policy.isExpired(
+            { text: result.speechText ?? "", enqueuedAt: 1000000, settings: store.current() },
+            mockTime
+          )
+        ).toBe(true);
+
+        // Wait for queue to process
+        await new Promise((r) => setTimeout(r, 50));
+
+        // Engine1 was chosen and retained; engine2 was NOT used for this comment
+        expect(engine1.spokenTexts.length).toBe(1);
+        expect(engine2.spokenTexts.length).toBe(0);
+        expect(engine1.spokenTexts[0]).toContain("Alice");
+
+        // speedScale asserted: arrival scale 1.6, not changed store scale 1.0 / 1.1
+        expect(engine1.recordedOptions[0]?.speedScale).toBe(1.6);
+      } finally {
+        Date.now = origNow;
+      }
     });
   });
 
@@ -163,11 +195,12 @@ describe("PR 1: Settings Store and Pinning", () => {
         pin1.release();
 
         const pin2 = queue.pin();
-        const p2 = queue.enqueue("Item 2 (TTL 30)", { pin: pin2, engine: pin2.engines.primary });
+        const longText = "Item 2 (TTL 30) " + "B".repeat(150);
+        const p2 = queue.enqueue(longText, { pin: pin2, engine: pin2.engines.primary });
         pin2.release();
 
         // While item 1 is playing, apply strict TTL 1s and lower speed cap
-        store.apply({ COMMENT_TTL_SECONDS: 1, MAX_ACCELERATION_SPEED: 1.1 });
+        store.apply({ COMMENT_TTL_SECONDS: 1, MAX_ACCELERATION_SPEED: 1.1, AUTO_ACCELERATE: false });
         holder.replace({ primary: engine2, primaryName: "VOICEVOX" });
 
         // Advance clock by 5s (item 2 would expire under new TTL 1s, but keeps arrival TTL 30s)
@@ -176,8 +209,11 @@ describe("PR 1: Settings Store and Pinning", () => {
         await Promise.all([p1, p2]);
 
         // Item 2 was NOT dropped and played on Engine1
-        expect(engine1.spokenTexts).toEqual(["Item 1", "Item 2 (TTL 30)"]);
+        expect(engine1.spokenTexts).toEqual(["Item 1", longText]);
         expect(engine2.spokenTexts.length).toBe(0);
+
+        // speedScale asserted: arrival speedScale 1.6 (under arrival MAX_ACCELERATION_SPEED 1.8), not 1.0 or 1.1
+        expect(engine1.recordedOptions[1]?.speedScale).toBe(1.6);
       } finally {
         Date.now = origNow;
       }
@@ -372,6 +408,88 @@ describe("PR 1: Settings Store and Pinning", () => {
         Bun.spawn = origSpawn;
       }
     });
+
+    it("case 4: process identity guard prevents stdout line of killed worker from resolving restarted worker request", async () => {
+      let spawnCount = 0;
+      let c1: ReadableStreamDefaultController<Uint8Array>;
+      const s1 = new ReadableStream<Uint8Array>({
+        start(c) {
+          c1 = c;
+          c.enqueue(new TextEncoder().encode("READY\n"));
+        },
+      });
+
+      let c2: ReadableStreamDefaultController<Uint8Array>;
+      const s2 = new ReadableStream<Uint8Array>({
+        start(c) {
+          c2 = c;
+          c.enqueue(new TextEncoder().encode("READY\n"));
+        },
+      });
+
+      const proc1 = {
+        stdin: { write: () => {}, flush: () => {} },
+        stdout: s1,
+        exited: new Promise<number>(() => {}),
+        kill: () => {},
+      };
+
+      let outputPath2 = "";
+      const proc2 = {
+        stdin: {
+          write: (data: string) => {
+            try {
+              const payload = JSON.parse(data);
+              if (payload.outputPath) {
+                outputPath2 = payload.outputPath;
+                fs.writeFileSync(outputPath2, Buffer.from("RIFF dummy wav data"));
+              }
+            } catch {}
+          },
+          flush: () => {},
+        },
+        stdout: s2,
+        exited: new Promise<number>(() => {}),
+        kill: () => {},
+      };
+
+      Bun.spawn = (() => {
+        spawnCount++;
+        return spawnCount === 1 ? proc1 : proc2;
+      }) as any;
+
+      try {
+        const kokoro = new KokoroEngine("af_heart", 1.0, "a", "/mock/python", "/mock/script");
+
+        // 1. Prepare on worker 1, then stop it while request is in flight
+        const p1 = kokoro.prepare("Worker 1 text");
+        await new Promise((r) => setTimeout(r, 10));
+        kokoro.stop();
+        await expect(p1).rejects.toThrow();
+
+        // 2. Prepare on restarted worker 2
+        const p2 = kokoro.prepare("Worker 2 text");
+        await new Promise((r) => setTimeout(r, 10));
+
+        // 3. Worker 1's stdout reader emits late error line
+        // If the process identity guard failed, p2 would reject with this error!
+        c1!.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({ status: "error", error: "killed worker 1 error" }) + "\n"
+          )
+        );
+        await new Promise((r) => setTimeout(r, 10));
+
+        // Worker 2 emits its own successful response:
+        c2!.enqueue(new TextEncoder().encode(JSON.stringify({ status: "ok" }) + "\n"));
+
+        const audio = await p2;
+        expect(audio).toBeDefined();
+        expect(typeof audio.play).toBe("function");
+      } finally {
+        Bun.spawn = origSpawn;
+      }
+    });
   });
 
   // Test 8c: PR 1 state
@@ -436,9 +554,79 @@ describe("PR 1: Settings Store and Pinning", () => {
       expect(snapshot.restartRequired).toBe(true);
       expect(snapshot.restartKeys).toContain("ENABLE_TWITCH");
 
-      // STARTING_MESSAGE is next-start, NOT restart-bound
+      // STARTING_MESSAGE is next-start, in nextStartKeys, NOT in restartKeys
       const snapshot2 = service.update({ STARTING_MESSAGE: "Hello!" });
       expect(snapshot2.restartKeys).not.toContain("STARTING_MESSAGE");
+      expect(snapshot2.nextStartKeys).toContain("STARTING_MESSAGE");
+
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("FOREIGN_LANGUAGE_MODE = NATIVE appears in restartKeys only when running set lacks English engine", () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-test-flm-"));
+      const filePath = path.join(tmpDir, "web-settings.json");
+      const store = new SettingsStore(parseConfig({}));
+
+      // Case 1: Holder has NO English engine
+      const holderNoEng = new EngineHolder({ primary: new MockEngine(), primaryName: "COEIROINK" });
+      const serviceNoEng = new ConfigSettingsService(filePath, store, undefined, undefined, holderNoEng);
+      const snapNoEng = serviceNoEng.update({ FOREIGN_LANGUAGE_MODE: "NATIVE" });
+      expect(snapNoEng.restartRequired).toBe(true);
+      expect(snapNoEng.restartKeys).toContain("FOREIGN_LANGUAGE_MODE");
+
+      // Case 2: Holder HAS English engine
+      const holderWithEng = new EngineHolder({
+        primary: new MockEngine(),
+        primaryName: "COEIROINK",
+        english: new MockEngine(),
+        englishName: "KOKORO",
+      });
+      const serviceWithEng = new ConfigSettingsService(filePath, store, undefined, undefined, holderWithEng);
+      const snapWithEng = serviceWithEng.update({ FOREIGN_LANGUAGE_MODE: "NATIVE" });
+      expect(snapWithEng.restartKeys).not.toContain("FOREIGN_LANGUAGE_MODE");
+
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("handles DELETE of one key, DELETE of all, and reset to default value", () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-test-delete-"));
+      const filePath = path.join(tmpDir, "web-settings.json");
+      const store = new SettingsStore(parseConfig({ READ_USERNAME: true, AUTO_ACCELERATE: true }));
+      const service = new ConfigSettingsService(filePath, store);
+
+      // Save overrides for two keys (READ_USERNAME default is false, AUTO_ACCELERATE default is true)
+      service.update({ READ_USERNAME: true, AUTO_ACCELERATE: false });
+      expect(store.current().READ_USERNAME).toBe(true);
+      expect(store.current().AUTO_ACCELERATE).toBe(false);
+      let fileContent = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      expect(fileContent.READ_USERNAME).toBe(true);
+      expect(fileContent.AUTO_ACCELERATE).toBe(false);
+
+      // 1. DELETE of one key: removes only that key from web-settings.json, restores default in store
+      const snapAfterOneDelete = service.remove("READ_USERNAME");
+      expect(store.current().READ_USERNAME).toBe(false); // default restored in store
+      expect(store.current().AUTO_ACCELERATE).toBe(false); // second key retained
+      fileContent = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      expect(fileContent.READ_USERNAME).toBeUndefined();
+      expect(fileContent.AUTO_ACCELERATE).toBe(false);
+      expect(snapAfterOneDelete.settings.find((s) => s.key === "READ_USERNAME")?.isOverridden).toBe(false);
+      expect(snapAfterOneDelete.settings.find((s) => s.key === "AUTO_ACCELERATE")?.isOverridden).toBe(true);
+
+      // 2. Reset to default value via update: setting AUTO_ACCELERATE back to its default removes override
+      const snapAfterReset = service.update({ AUTO_ACCELERATE: true });
+      expect(snapAfterReset.settings.find((s) => s.key === "AUTO_ACCELERATE")?.isOverridden).toBe(false);
+      expect(store.current().AUTO_ACCELERATE).toBe(true);
+      // Since all overrides removed, file was unlinked
+      expect(fs.existsSync(filePath)).toBe(false);
+
+      // 3. DELETE of all: save two keys again, then remove()
+      service.update({ READ_USERNAME: true, AUTO_ACCELERATE: false });
+      expect(fs.existsSync(filePath)).toBe(true);
+      const snapAfterAllDelete = service.remove();
+      expect(fs.existsSync(filePath)).toBe(false);
+      expect(store.current().READ_USERNAME).toBe(false);
+      expect(store.current().AUTO_ACCELERATE).toBe(true);
+      expect(snapAfterAllDelete.settings.every((s) => !s.isOverridden)).toBe(true);
 
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
@@ -450,7 +638,8 @@ describe("PR 1: Settings Store and Pinning", () => {
       const port = 3958;
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-test-http-"));
       const filePath = path.join(tmpDir, "web-settings.json");
-      const store = new SettingsStore(parseConfig({ READ_USERNAME: true }));
+      // Distinguish store TTS_ENGINE ("VOICEVOX") from holder primaryName ("COEIROINK")
+      const store = new SettingsStore(parseConfig({ TTS_ENGINE: "VOICEVOX", READ_USERNAME: true }));
       const engine = new MockEngine("StatusEngine");
       const holder = new EngineHolder({ primary: engine, primaryName: "COEIROINK" });
       const queue = new TTSQueue(engine, 50, undefined, undefined, { store, engineHolder: holder });
@@ -472,11 +661,14 @@ describe("PR 1: Settings Store and Pinning", () => {
       server.start();
 
       try {
-        // GET /api/status reports holder's engine name
+        // GET /api/status reports holder's engine name ("COEIROINK"), distinguishing it from store ("VOICEVOX")
         const statusRes = await fetch(`http://127.0.0.1:${port}/api/status`);
         expect(statusRes.status).toBe(200);
         const statusData = (await statusRes.json()) as any;
         expect(statusData.engine).toBe("COEIROINK");
+        expect(statusData.engine).not.toBe(store.current().TTS_ENGINE);
+        expect(store.current().TTS_ENGINE).toBe("VOICEVOX");
+        expect(holder.current().primaryName).toBe("COEIROINK");
 
         // PUT /api/settings applies Group A live
         const putRes = await fetch(`http://127.0.0.1:${port}/api/settings`, {

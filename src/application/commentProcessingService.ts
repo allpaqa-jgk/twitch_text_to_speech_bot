@@ -20,7 +20,6 @@ export interface CommentProcessParams {
 export interface CommentProcessContext {
   ttsQueue: TTSQueue;
   transformer?: TextTransformer;
-  englishEngine?: TTSEngine;
   store?: SettingsStore;
 }
 
@@ -108,8 +107,8 @@ export async function processComment(
       ? `${displayName}: ${sanitizedSegment}`
       : sanitizedSegment;
 
-    // 7. Language detection, transformation and engine selection via shared planSpeech
-    const plan = await planSpeech(textToPlan, pin, ctx);
+    // 7. Language detection on comment alone, transformation and engine selection via shared planSpeech
+    const plan = await planSpeech(textToPlan, pin, ctx, sanitizedSegment);
 
     if (plan.ignored) {
       return {

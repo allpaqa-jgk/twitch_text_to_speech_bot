@@ -17,9 +17,10 @@ export interface SpeechPlanResult {
 export async function planSpeech(
   text: string,
   pin: Pick<Pin, "settings" | "engines">,
-  ctx?: SpeechPlanContext
+  ctx?: SpeechPlanContext,
+  detectOn?: string
 ): Promise<SpeechPlanResult> {
-  const lang = detectLanguage(text);
+  const lang = detectLanguage(detectOn ?? text);
   const isForeign = lang !== "jpn";
 
   if (pin.settings.FOREIGN_LANGUAGE_MODE === "IGNORE" && isForeign) {

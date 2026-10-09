@@ -1068,12 +1068,20 @@
       document.getElementById("btn-reset-all-settings").style.display =
         hasOverrides ? "inline-flex" : "none";
       const warning = document.getElementById("settings-restart-warning");
-      warning.style.display = snapshot.restartRequired ? "inline-block" : "none";
-      if (snapshot.restartRequired) {
+      const hasRestart = snapshot.restartRequired && (snapshot.restartKeys || []).length > 0;
+      const hasNextStart = (snapshot.nextStartKeys || []).length > 0;
+      if (hasRestart) {
+        warning.style.display = "inline-block";
         const restartLabels = (snapshot.restartKeys || [])
           .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
         warning.textContent = "再起動後に反映される変更があります: " + restartLabels.join("、");
+      } else if (hasNextStart) {
+        warning.style.display = "inline-block";
+        const nextStartLabels = (snapshot.nextStartKeys || [])
+          .map((k) => settingsDefinitions.find((s) => s.key === k)?.label || k);
+        warning.textContent = "次回起動時に反映される変更があります: " + nextStartLabels.join("、");
       } else {
+        warning.style.display = "none";
         warning.textContent = "表示中の設定が現在適用されています。";
       }
       updateUnsavedBadge();
@@ -1204,6 +1212,8 @@
         renderSettings(data);
         if (data.restartRequired) {
           showToast("設定を保存しました。一部の変更は再起動後に反映されます。", "success");
+        } else if ((data.nextStartKeys || []).length > 0) {
+          showToast("設定を保存しました。次回起動時に反映される変更があります。", "success");
         } else {
           showToast("設定を保存しました。変更が反映されました。", "success");
         }

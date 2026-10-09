@@ -31,7 +31,7 @@ describe("TwitchTTSBot integration tests", () => {
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
+    const bot = new TwitchTTSBot(queue, transformer, store);
 
     await bot.handleIncomingMessage("#test", { username: "user1" }, "こんにちは！配信お疲れ様です");
     // Wait for queue processing
@@ -47,7 +47,7 @@ describe("TwitchTTSBot integration tests", () => {
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
+    const bot = new TwitchTTSBot(queue, transformer, store);
 
     await bot.handleIncomingMessage("#test", { username: "user2" }, "Hello world!");
     await new Promise((r) => setTimeout(r, 50));
@@ -69,7 +69,7 @@ describe("TwitchTTSBot integration tests", () => {
     });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, englishEngine, transformer, store);
+    const bot = new TwitchTTSBot(queue, transformer, store);
 
     await bot.handleIncomingMessage("#test", { username: "user3" }, "Good luck with the game!");
     await new Promise((r) => setTimeout(r, 50));
@@ -80,12 +80,53 @@ describe("TwitchTTSBot integration tests", () => {
     expect(defaultEngine.spokenTexts.length).toBe(0);
   });
 
+  it("should route English comment with kana username to English engine in NATIVE mode", async () => {
+    const store = new SettingsStore(
+      parseConfig({ ENABLE_TTS: true, READ_USERNAME: true, FOREIGN_LANGUAGE_MODE: "NATIVE" })
+    );
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const englishEngine = new MockEngine("KokoroEnglish");
+    const holder = new EngineHolder({
+      primary: defaultEngine,
+      primaryName: "COEIROINK",
+      english: englishEngine,
+      englishName: "KOKORO",
+    });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const transformer = new KatakanaTransformer();
+    const bot = new TwitchTTSBot(queue, transformer, store);
+
+    await bot.handleIncomingMessage("#test", { username: "たろう" }, "Hello my friend, nice stream!");
+    await new Promise((r) => setTimeout(r, 50));
+
+    // English engine chosen based on comment alone, not Japanese username
+    expect(englishEngine.spokenTexts.length).toBe(1);
+    expect(englishEngine.spokenTexts[0]).toContain("Hello my friend");
+    expect(defaultEngine.spokenTexts.length).toBe(0);
+  });
+
+  it("should skip English comment with kana username in IGNORE mode", async () => {
+    const store = new SettingsStore(
+      parseConfig({ ENABLE_TTS: true, READ_USERNAME: true, FOREIGN_LANGUAGE_MODE: "IGNORE" })
+    );
+    const defaultEngine = new MockEngine("DefaultJapanese");
+    const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
+    const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
+    const bot = new TwitchTTSBot(queue, undefined, store);
+
+    await bot.handleIncomingMessage("#test", { username: "たろう" }, "Hello my friend, nice stream!");
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Not spoken under IGNORE mode
+    expect(defaultEngine.spokenTexts.length).toBe(0);
+  });
+
   it("should skip foreign comments in IGNORE mode", async () => {
     const store = new SettingsStore(parseConfig({ ENABLE_TTS: true, FOREIGN_LANGUAGE_MODE: "IGNORE" }));
     const defaultEngine = new MockEngine("DefaultJapanese");
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
-    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
+    const bot = new TwitchTTSBot(queue, undefined, store);
 
     await bot.handleIncomingMessage("#test", { username: "user4" }, "Privet kak dela");
     await new Promise((r) => setTimeout(r, 50));
@@ -99,7 +140,7 @@ describe("TwitchTTSBot integration tests", () => {
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
     const transformer = new KatakanaTransformer();
-    const bot = new TwitchTTSBot(queue, undefined, transformer, store);
+    const bot = new TwitchTTSBot(queue, transformer, store);
 
     await bot.handleIncomingMessage(
       "#test",
@@ -118,7 +159,7 @@ describe("TwitchTTSBot integration tests", () => {
     const defaultEngine = new MockEngine("DefaultJapanese");
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
-    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
+    const bot = new TwitchTTSBot(queue, undefined, store);
 
     const context = { id: "msg-123", username: "user1" };
     await bot.handleIncomingMessage("#test", context, "メッセージ1");
@@ -134,7 +175,7 @@ describe("TwitchTTSBot integration tests", () => {
     const defaultEngine = new MockEngine("DefaultJapanese");
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
-    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
+    const bot = new TwitchTTSBot(queue, undefined, store);
 
     await bot.handleIncomingMessage("#test", { id: "msg-1", username: "user1" }, "メッセージ1");
     await bot.handleIncomingMessage("#test", { id: "msg-2", username: "user2" }, "メッセージ2");
@@ -150,7 +191,7 @@ describe("TwitchTTSBot integration tests", () => {
     const defaultEngine = new MockEngine("DefaultJapanese");
     const holder = new EngineHolder({ primary: defaultEngine, primaryName: "COEIROINK" });
     const queue = new TTSQueue(defaultEngine, 50, undefined, undefined, { store, engineHolder: holder });
-    const bot = new TwitchTTSBot(queue, undefined, undefined, store);
+    const bot = new TwitchTTSBot(queue, undefined, store);
 
     for (let i = 0; i < 105; i++) {
       await bot.handleIncomingMessage(

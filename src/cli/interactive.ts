@@ -1,7 +1,6 @@
 import readline from "readline";
 import type { TTSQueue } from "../tts/queue";
 import type { TextTransformer } from "../tts/transformers/types";
-import type { TTSEngine } from "../tts/engine";
 import type { TwitchTTSBot } from "../twitch/client";
 import type { HttpServer } from "../server/httpServer";
 import { printAvailableSpeakers } from "../tts/speakers";
@@ -15,7 +14,6 @@ import { planSpeech } from "../tts/speechPlanner";
 export interface InteractiveConsoleContext {
   queue: TTSQueue;
   transformer?: TextTransformer;
-  englishEngine?: TTSEngine;
   bot?: TwitchTTSBot | null;
   httpServer?: HttpServer | null;
   store?: SettingsStore;
@@ -208,7 +206,6 @@ export async function handleInteractiveCommand(
 export function startInteractiveConsole(
   queue: TTSQueue,
   transformer?: TextTransformer,
-  englishEngine?: TTSEngine,
   bot?: TwitchTTSBot | null,
   httpServer?: HttpServer | null,
   store: SettingsStore = settingsStore,
@@ -233,7 +230,7 @@ export function startInteractiveConsole(
   rl.on("line", async (line) => {
     await handleInteractiveCommand(
       line,
-      { queue, transformer, englishEngine, bot, httpServer, store, engineHolder },
+      { queue, transformer, bot, httpServer, store, engineHolder },
       () => {
         rl.close();
         process.exit(0);

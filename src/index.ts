@@ -94,7 +94,7 @@ if (initSettings.STARTING_MESSAGE) {
 }
 
 // 6. Twitch handling
-const bot = new TwitchTTSBot(queue, englishEngine, katakanaTransformer, settingsStore);
+const bot = new TwitchTTSBot(queue, katakanaTransformer, settingsStore);
 const dictionaryService = new DictionaryService(new CsvDictionaryRepository());
 const twitchControlService = new TwitchControlService(bot);
 const speechInteractionService = new SpeechInteractionService(queue, katakanaTransformer);
@@ -107,7 +107,6 @@ if (initSettings.HTTP_SERVER_ENABLED) {
   httpServer = new HttpServer({
     queue,
     transformer: katakanaTransformer,
-    englishEngine,
     store: settingsStore,
     engineHolder,
     dictionaryService,
@@ -149,7 +148,7 @@ if (!initSettings.ENABLE_TWITCH) {
 }
 
 // 8. Start interactive console for terminal commands (?, speakers, say, clear, twitch, status, q)
-startInteractiveConsole(queue, katakanaTransformer, englishEngine, bot, httpServer, settingsStore, engineHolder);
+startInteractiveConsole(queue, katakanaTransformer, bot, httpServer, settingsStore, engineHolder);
 
 // Graceful shutdown
 process.on("SIGINT", async () => {

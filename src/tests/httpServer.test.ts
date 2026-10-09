@@ -533,7 +533,7 @@ describe("HttpServer & commentProcessor", () => {
 
       const legacyService = new ConfigSettingsService(
         path.join(settingsDirectory, "legacy-web-settings.json"),
-        settingsConfig,
+        new SettingsStore(settingsConfig),
         settingsConfig
       );
       fs.writeFileSync(
@@ -588,9 +588,10 @@ describe("HttpServer & commentProcessor", () => {
         fs.readFileSync(path.join(settingsDirectory, "web-settings.json"), "utf-8")
       );
       const restartedConfig = parseConfig({ ...settingsConfig, ...persistedAgain });
+      const restartedStore = new SettingsStore(restartedConfig);
       const restartedService = new ConfigSettingsService(
         path.join(settingsDirectory, "web-settings.json"),
-        restartedConfig,
+        restartedStore,
         settingsConfig
       );
       expect(restartedService.getSnapshot().restartRequired).toBe(false);
@@ -962,7 +963,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-restart.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,
@@ -1105,7 +1106,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(restartQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-restart-recover.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,
@@ -1172,7 +1173,7 @@ describe("HttpServer & commentProcessor", () => {
         speechInteractionService: new SpeechInteractionService(shutdownQueue, transformer),
         configSettingsService: new ConfigSettingsService(
           path.join(settingsDirectory, "web-settings-shutdown.json"),
-          settingsConfig,
+          new SettingsStore(settingsConfig),
           settingsConfig
         ),
         restartService,
